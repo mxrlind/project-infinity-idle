@@ -2,6 +2,20 @@
 
 Idle game em HTML/CSS/JS puro (zero dependências, zero build), implementado a partir da documentação de game design "Idle Game Definitivo". Inspirado em Cookie Clicker, Clicker Heroes, AdVenture Capitalist, Idle Mastermind e Idle Wizard.
 
+🎮 **Jogar online:** https://mxrlind.github.io/project-infinity-idle/
+
+## Repositório e deploy
+
+Código versionado em [github.com/mxrlind/project-infinity-idle](https://github.com/mxrlind/project-infinity-idle) (público), publicado via **GitHub Pages** direto da branch `master`, pasta raiz (`/`).
+
+Como o jogo é HTML/CSS/JS estático sem build, o deploy é automático: qualquer `git push` para `master` atualiza o site em produção em ~1 minuto, sem passo manual extra.
+
+```bash
+git add -A
+git commit -m "sua mensagem"
+git push
+```
+
 ## Rodar
 
 Qualquer servidor estático funciona (precisa de HTTP por causa dos módulos/fetch de fontes; abrir o `index.html` direto também funciona, mas por HTTP é mais confiável):
