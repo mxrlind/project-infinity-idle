@@ -387,14 +387,15 @@ body {
 .cd-tag { color: var(--text-dim); font-size: 14px; }
 @keyframes bossPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .enemy-box {
-  font-size: 64px;
+  width: 64px; height: 64px;
   background: transparent; border: none; cursor: pointer;
   transition: transform 0.08s;
   filter: drop-shadow(0 0 18px rgba(255, 107, 94, 0.25));
 }
+.enemy-img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
 .enemy-box:hover { transform: scale(1.08); }
 .enemy-box:active { transform: scale(0.9); }
-.enemy-box.is-boss { font-size: 84px; filter: drop-shadow(0 0 30px rgba(255, 60, 40, 0.5)); }
+.enemy-box.is-boss { width: 84px; height: 84px; filter: drop-shadow(0 0 30px rgba(255, 60, 40, 0.5)); }
 .enemy-box.shake { animation: enemyShake 0.28s ease; }
 @keyframes enemyShake {
   10%, 90% { transform: translateX(-2px) rotate(-1deg); }

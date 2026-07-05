@@ -134,7 +134,7 @@ const UI = {
     const waveEl = this.el('div', 'combat-wave', '');
     combat.appendChild(waveEl);
 
-    const enemy = this.el('button', 'enemy-box', '');
+    const enemy = this.el('button', 'enemy-box', '<img class="enemy-img" alt="">');
     enemy.title = 'Clique para atacar!';
     enemy.onclick = (ev) => {
       const dmg = Game.clickAttack();
@@ -538,7 +538,12 @@ const UI = {
       const cb = S.combat;
       const rc = this.R.combat;
       rc.waveEl.innerHTML = `Onda <b>${cb.wave}</b>${cb.boss ? ' — <span class="boss-tag">CHEFE</span>' : ''}${cb.bossCooldown > 0 ? ` <span class="cd-tag">(reagrupando: ${cb.bossCooldown})</span>` : ''}`;
-      rc.enemy.textContent = cb.boss ? '👹' : ['👺', '🧟', '🐗', '🦂', '🐍', '👻', '🕷️', '🐺'][cb.wave % 8];
+      const enemyFile = cb.boss ? 'boss' : ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8'][cb.wave % 8];
+      const enemyImg = rc.enemy.querySelector('.enemy-img');
+      if (enemyImg.dataset.file !== enemyFile) {
+        enemyImg.src = `img/enemies/${enemyFile}.png`;
+        enemyImg.dataset.file = enemyFile;
+      }
       rc.enemy.classList.toggle('is-boss', cb.boss);
       const pct = cb.maxHp > 0 ? Math.max(0, cb.hp / cb.maxHp) : 0;
       if (this._lastHp !== undefined && cb.maxHp > 0 && this._lastHp > cb.hp) {
