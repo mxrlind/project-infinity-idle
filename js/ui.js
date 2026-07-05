@@ -15,6 +15,12 @@ const UI = {
     return e;
   },
 
+  // escapa strings vindas do save (buffs) antes de injetar em innerHTML
+  esc(s) {
+    return String(s).replace(/[&<>"']/g, ch =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  },
+
   // ---------- Tabs ----------
 
   tabDefs() {
@@ -312,7 +318,7 @@ const UI = {
       });
     };
     box.appendChild(btn);
-    box.appendChild(this.el('div', 'prestige-hint', `Ouro ganho nesta run: ${fmt(S.earned)} — a Essência cresce com a raiz do ouro acumulado. Prestígios feitos: ${S.prestiges}`));
+    box.appendChild(this.el('div', 'prestige-hint', `Ouro ganho nesta run: ${fmt(S.earned)} — a Essência cresce de forma sublinear com o ouro acumulado (expoente 0.45 — dobrar o ouro rende ~1.37× de Essência). Prestígios feitos: ${S.prestiges}`));
     c.appendChild(box);
   },
 
@@ -347,6 +353,10 @@ const UI = {
     const soundBtn = this.el('button', 'cfg-btn', (S.sound ? '🔊 Som: Ligado' : '🔇 Som: Desligado'));
     soundBtn.onclick = () => { S.sound = !S.sound; Sound.ensure(); this.dirty.config = true; soundBtn.innerHTML = S.sound ? '🔊 Som: Ligado' : '🔇 Som: Desligado'; };
     box.appendChild(soundBtn);
+
+    const flashBtn = this.el('button', 'cfg-btn', (S.flashFx ? '✨ Efeitos de tela cheia: Ligados' : '✨ Efeitos de tela cheia: Desligados'));
+    flashBtn.onclick = () => { S.flashFx = !S.flashFx; flashBtn.innerHTML = S.flashFx ? '✨ Efeitos de tela cheia: Ligados' : '✨ Efeitos de tela cheia: Desligados'; };
+    box.appendChild(flashBtn);
 
     const saveBtn = this.el('button', 'cfg-btn', '💾 Salvar agora');
     saveBtn.onclick = () => { saveGame(); this.toast('💾 Jogo salvo!', '#5fbf6b'); };
@@ -424,12 +434,9 @@ const UI = {
     const bb = document.getElementById('buffs-box');
     const now = Date.now();
     const active = S.buffs.filter(b => b.until > now);
-    if (S.invasion > 0) {
-      bb.innerHTML = active.map(b => `<div class="buff-chip">${b.icon} ${b.name} <span class="buff-t">${fmtTime((b.until - now) / 1000)}</span></div>`).join('')
-        + `<div class="buff-chip">👹 Invasão <span class="buff-t">${S.invasion} restantes</span></div>`;
-    } else {
-      bb.innerHTML = active.map(b => `<div class="buff-chip">${b.icon} ${b.name} <span class="buff-t">${fmtTime((b.until - now) / 1000)}</span></div>`).join('');
-    }
+    let html = active.map(b => `<div class="buff-chip">${this.esc(b.icon)} ${this.esc(b.name)} <span class="buff-t">${fmtTime((b.until - now) / 1000)}</span></div>`).join('');
+    if (S.invasion > 0) html += `<div class="buff-chip">👹 Invasão <span class="buff-t">${S.invasion} restantes</span></div>`;
+    bb.innerHTML = html;
   },
 
   updateClosestAch() {
@@ -468,6 +475,8 @@ const UI = {
   },
 
   legendaryFlash(color) {
+    if (!S.flashFx) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const flash = this.el('div', 'screen-flash');
     flash.style.background = color;
     document.body.appendChild(flash);

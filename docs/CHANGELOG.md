@@ -2,6 +2,23 @@
 
 ## Não lançado
 
+### Segurança
+- **Requisito de prestígio agora é validado no motor, não só na UI.** `Game.buyGen()` e `Game.hireHero()` checam `reqPrestige` antes de qualquer compra — antes, chamar esses métodos pelo console permitia comprar a Singularidade/contratar Nyx sem nunca ter prestigiado (a única barreira era a lista não renderizar o botão). Fecha o item 🔴1 da [AUDIT.md](AUDIT.md).
+  - Arquivo: `js/game.js`.
+- **Import de save agora valida schema e a UI escapa strings vindas do save.** `importSave()` descarta chaves desconhecidas, exige tipo compatível com o estado default e só aceita buffs em formato conhecido (strings curtas); `UI.updateBuffs()` escapa `name`/`icon` antes de injetar em `innerHTML`. Antes, um código de save malicioso compartilhado entre jogadores podia injetar HTML/script na sessão de quem importasse (self-XSS). Fecha o item 🔴2 da AUDIT.
+  - Arquivos: `js/state.js`, `js/ui.js`.
+
+### Corrigido (novo)
+- **"Máx" agora é o máximo de verdade.** `genMaxBuy`/`heroMaxLevels` eram loops capados em 500/200 iterações — em late-game o botão "Máx" mostrava menos do que o ouro realmente comprava. Substituídos pela soma geométrica em fórmula fechada (e sua inversão por logaritmo), sem teto artificial; `genCost`/`heroLvlCost` também deixaram de ser O(n). Fecha o item 🔴3 da AUDIT.
+  - Arquivo: `js/game.js`.
+- **Texto do prestígio dizia "a Essência cresce com a raiz do ouro"**, mas o expoente real é 0.45 (não 0.5). O texto agora comunica o crescimento sublinear real ("dobrar o ouro rende ~1.37× de Essência"). Fecha o item 🟡11 da AUDIT.
+  - Arquivo: `js/ui.js`.
+
+### Acessibilidade
+- **Respeito a `prefers-reduced-motion`**: com a preferência ativa no sistema, todas as animações/transições são neutralizadas e o flash de tela cheia de drop lendário é totalmente desativado.
+- **Nova opção "✨ Efeitos de tela cheia" na aba Ajustes** (`S.flashFx`, persistida no save): desliga o `legendaryFlash` independente do som e da preferência do sistema — proteção para jogadores fotossensíveis. Fecha o item 🟠5 da AUDIT.
+  - Arquivos: `style.css`, `js/ui.js`, `js/state.js`.
+
 ### Adicionado
 - **Arte visual substituindo emojis genéricos.** Todo o conteúdo visual abaixo vive em `img/` (novo diretório) e não depende de nenhuma API externa em runtime — são arquivos estáticos versionados no repositório.
   - **Retratos dos 7 heróis** (`img/heroes/{id}.jpg`): cada herói agora mostra um retrato circular ao lado do nome na aba Heróis, em tons de cinza enquanto não contratado e colorido após a contratação. Arte em estilo pintura de fantasia, consistente entre os 7.

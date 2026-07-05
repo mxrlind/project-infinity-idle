@@ -2,6 +2,8 @@
 
 Sem framework, sem build step, sem dependências externas além de fontes do Google Fonts. Tudo roda com `<script>` tags carregadas em ordem no `index.html`.
 
+> Ver [AUDIT.md](AUDIT.md) para a auditoria técnica/design/produto completa (2026-07-05) — bugs conhecidos, backlog priorizado (🔴 crítico → 🟢 polimento) e plano de evolução curto/médio/longo prazo. O plano de curto prazo já foi executado (ver [CHANGELOG.md](CHANGELOG.md)); o restante é backlog de referência para execução futura.
+
 ## Mapa de arquivos
 
 ```

@@ -51,14 +51,19 @@ const Game = {
     const g = GENERATORS.find(x => x.id === genId);
     const owned = S.gens[genId] || 0;
     const disc = Math.max(0.5, 1 - 0.015 * this.talentLvl('barganha'));
-    let cost = 0;
-    for (let i = 0; i < count; i++) cost += g.baseCost * Math.pow(GEN_COST_MULT, owned + i);
-    return cost * disc;
+    // soma geométrica fechada: base·r^owned·(r^count − 1)/(r − 1)
+    const r = GEN_COST_MULT;
+    return g.baseCost * Math.pow(r, owned) * (Math.pow(r, count) - 1) / (r - 1) * disc;
   },
 
   genMaxBuy(genId) {
-    let n = 0;
-    while (n < 500 && this.genCost(genId, n + 1) <= S.gold) n++;
+    const first = this.genCost(genId, 1);
+    if (S.gold < first) return 0;
+    // inversão da soma geométrica: maior n com custo(n) ≤ ouro
+    const r = GEN_COST_MULT;
+    let n = Math.floor(Math.log(1 + (S.gold / first) * (r - 1)) / Math.log(r));
+    while (n > 1 && this.genCost(genId, n) > S.gold) n--;
+    while (this.genCost(genId, n + 1) <= S.gold) n++;
     return n;
   },
 
@@ -112,21 +117,19 @@ const Game = {
     const def = HEROES.find(x => x.id === heroId);
     const h = S.heroes[heroId];
     const lvl = h ? h.lvl : 0;
-    let cost = 0;
-    for (let i = 0; i < count; i++) cost += def.baseCost * 0.2 * Math.pow(HERO_LVL_COST_MULT, lvl + i);
-    return cost;
+    // soma geométrica fechada: base·0.2·r^lvl·(r^count − 1)/(r − 1)
+    const r = HERO_LVL_COST_MULT;
+    return def.baseCost * 0.2 * Math.pow(r, lvl) * (Math.pow(r, count) - 1) / (r - 1);
   },
 
   heroMaxLevels(heroId) {
-    const def = HEROES.find(x => x.id === heroId);
-    const h = S.heroes[heroId];
-    const lvl = h ? h.lvl : 0;
-    let n = 0, gold = S.gold;
-    while (n < 200) {
-      const c = def.baseCost * 0.2 * Math.pow(HERO_LVL_COST_MULT, lvl + n);
-      if (gold < c) break;
-      gold -= c; n++;
-    }
+    const first = this.heroLvlCost(heroId, 1);
+    if (S.gold < first) return 0;
+    // inversão da soma geométrica: maior n com custo(n) ≤ ouro
+    const r = HERO_LVL_COST_MULT;
+    let n = Math.floor(Math.log(1 + (S.gold / first) * (r - 1)) / Math.log(r));
+    while (n > 1 && this.heroLvlCost(heroId, n) > S.gold) n--;
+    while (this.heroLvlCost(heroId, n + 1) <= S.gold) n++;
     return n;
   },
 
@@ -279,6 +282,10 @@ const Game = {
   },
 
   buyGen(genId, count) {
+    const g = GENERATORS.find(x => x.id === genId);
+    if (!g) return false;
+    // regra de desbloqueio vive no motor, não só na UI
+    if (g.reqPrestige && S.prestiges < g.reqPrestige) return false;
     if (count === 'max') count = this.genMaxBuy(genId);
     if (count <= 0) return false;
     const cost = this.genCost(genId, count);
@@ -289,7 +296,6 @@ const Game = {
     if (before < 77 && before + count >= 77) S.luckyNumberSeen = true;
     // marco de quantidade cruzado?
     if (Math.floor((before + count) / GEN_MILESTONE) > Math.floor(before / GEN_MILESTONE)) {
-      const g = GENERATORS.find(x => x.id === genId);
       UI.log(`${g.icon} <b>${g.name}</b> atingiu ${Math.floor((before + count) / GEN_MILESTONE) * GEN_MILESTONE} unidades — produção <b>×2</b>!`);
       UI.toast(`${g.icon} ${g.name} ×2!`, '#e8a33d');
     }
@@ -311,6 +317,9 @@ const Game = {
 
   hireHero(heroId) {
     const def = HEROES.find(x => x.id === heroId);
+    if (!def) return false;
+    // regra de desbloqueio vive no motor, não só na UI
+    if (def.reqPrestige && S.prestiges < def.reqPrestige) return false;
     if (S.heroes[heroId] || S.gold < def.baseCost) return false;
     S.gold -= def.baseCost;
     S.heroes[heroId] = { lvl: 1, gear: { arma: null, amuleto: null } };

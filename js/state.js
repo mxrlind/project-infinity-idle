@@ -44,6 +44,7 @@ function defaultState() {
     maxPhaseId: 1,    // maior fase já alcançada (permanente — não regride com prestígio)
 
     sound: true,
+    flashFx: true,    // efeitos de tela cheia (flash de drop lendário)
     last: Date.now(),
     started: Date.now(),
   };
@@ -98,7 +99,22 @@ function importSave(str) {
   try {
     const data = JSON.parse(decodeURIComponent(escape(atob(str.trim()))));
     if (typeof data !== 'object' || data === null || typeof data.gold !== 'number') return false;
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    // schema mínimo: só aceita chaves conhecidas e com o mesmo tipo do default
+    const base = defaultState();
+    const clean = {};
+    for (const k in base) {
+      if (!(k in data)) continue;
+      if (typeof data[k] !== typeof base[k]) continue;
+      if (Array.isArray(base[k]) !== Array.isArray(data[k])) continue;
+      clean[k] = data[k];
+    }
+    // buffs vão para a UI — só formato conhecido, com strings curtas
+    clean.buffs = (Array.isArray(data.buffs) ? data.buffs : []).filter(b =>
+      b && typeof b === 'object' &&
+      typeof b.id === 'string' && typeof b.name === 'string' && typeof b.icon === 'string' &&
+      typeof b.until === 'number' && b.name.length <= 40 && b.icon.length <= 8
+    );
+    localStorage.setItem(SAVE_KEY, JSON.stringify(clean));
     return true;
   } catch (e) {
     return false;

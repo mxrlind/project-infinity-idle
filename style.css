@@ -726,3 +726,13 @@ body {
   .room-grid { grid-template-columns: 1fr; }
   .ach-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 }
+
+/* ===== Acessibilidade: movimento reduzido ===== */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .screen-flash { display: none; }
+}

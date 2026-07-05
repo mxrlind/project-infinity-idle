@@ -74,7 +74,7 @@ O badge de fase no topo (`#phase-badge`) mostra sempre a fase mais alta já atin
 
 **Marco de quantidade**: a cada **25 unidades** de um mesmo gerador, sua produção dobra (×2 cumulativo — 50 unidades = ×4, 75 = ×8...). Isso é anunciado no log e por toast.
 
-**Compra em lote**: seletor ×1 / ×10 / Máx acima da lista. "Máx" calcula quantas unidades cabem no ouro atual (até um teto de 500 por clique, para não travar o cálculo).
+**Compra em lote**: seletor ×1 / ×10 / Máx acima da lista. "Máx" calcula quantas unidades cabem no ouro atual, resolvido analiticamente (soma geométrica em fórmula fechada — sem teto artificial).
 
 **Desconto de custo**: o talento *Barganha* reduz o custo de todos os geradores em 1.5%/nível (até -15% no nível máximo).
 
