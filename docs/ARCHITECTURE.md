@@ -13,6 +13,7 @@ js/state.js     — objeto S (estado mutável) + save/load/export/import/reset
 js/game.js      — objeto Game (motor/regras) + objeto Sound (áudio)
 js/ui.js        — objeto UI (renderização, DOM, feedback visual, modais)
 js/main.js      — boot() : carrega save, calcula offline, inicia o loop de tick
+img/            — artes estáticas (retratos, inimigos, textura de fundo, favicon) — ver seção "Assets visuais"
 ```
 
 Ordem de carregamento no `index.html` importa: `format.js` → `data.js` → `state.js` → `game.js` → `ui.js` → `main.js`, pois cada um assume que os anteriores já definiram suas globais (`fmt`, `GENERATORS`, `S`, `Game`, `UI`).
@@ -55,6 +56,21 @@ Todo o conteúdo é data-driven — normalmente **não é preciso tocar em `game
 | Fala de tutorial | objeto `ADVISOR_TIPS` em `data.js` | referenciada por `Game.updatePhases()` |
 
 Ou seja: geradores, upgrades, heróis e conquistas são **100% plug-and-play**. Salas e talentos precisam de uma linha extra em `Game` para o efeito surtir (mas nunca em `ui.js`, que já é genérico).
+
+## Assets visuais (img/)
+
+```
+img/bg-texture.jpg     — textura de fundo, aplicada em background do body (style.css)
+img/gold-coins.jpg     — favicon (index.html <link rel="icon">) e imagem do #click-coin (style.css)
+img/heroes/{id}.jpg    — retrato de cada herói (mesmo id de HEROES em data.js), 7 arquivos
+img/enemies/e1.png…e8.png — 8 inimigos comuns que se alternam por onda (cb.wave % 8)
+img/enemies/boss.png   — inimigo exibido quando cb.boss === true
+```
+
+- **Retratos de herói**: `UI.renderHeroes()` (`js/ui.js`) cria uma `<div class="hero-portrait">` por linha de herói com `background-image` apontando para `img/heroes/${def.id}.jpg`; o CSS aplica `filter: grayscale` enquanto o herói não foi contratado (`.hero-locked .hero-portrait`).
+- **Inimigos**: o botão `.enemy-box` (painel de combate) contém um `<img class="enemy-img">` cujo `src` é atualizado a cada tick em `UI.updateDynamic()` com base em `cb.boss` e `cb.wave % 8`, mapeando para `e1..e8` ou `boss`. Como os PNGs têm fundo transparente, o `drop-shadow` do `.enemy-box` continua funcionando por cima da arte.
+- **Convenção de nomes**: ao adicionar um novo herói em `HEROES` (data.js), o arquivo `img/heroes/{id}.jpg` precisa existir com esse exato `id` — não há fallback automático se faltar.
+- Nenhum asset é gerado ou buscado em runtime; todos são arquivos estáticos versionados no repo, então funcionam offline e não dependem de nenhuma API de terceiros.
 
 ## Fórmulas centrais (referência rápida)
 

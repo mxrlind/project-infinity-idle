@@ -61,6 +61,7 @@ js/state.js     — estado + save/load/export/import
 js/game.js      — motor: produção, combate, prestígio, eventos, offline, áudio
 js/ui.js        — renderização das abas, feedback visual, modais
 js/main.js      — boot + loop principal (tick de 100ms)
+img/            — retratos de heróis, inimigos, textura de fundo, favicon (artes estáticas)
 ```
 
 Detalhes de como cada peça se conecta e como adicionar novo conteúdo (gerador, herói, sala, talento, conquista, evento) estão em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).

@@ -94,7 +94,7 @@ Upgrades só aparecem na lista quando o jogador já tem ~25% do custo (ou, para 
 
 ## 5. Heróis e Combate
 
-7 heróis contratáveis, cada um com nome, título, ícone, história e falas próprias que aparecem nas Crônicas.
+7 heróis contratáveis, cada um com nome, título, ícone, retrato ilustrado, história e falas próprias que aparecem nas Crônicas. O retrato aparece em tons de cinza até o herói ser contratado, e colorido depois (`img/heroes/`).
 
 | Herói | Título | Custo | DPS base |
 |---|---|---:|---:|
@@ -110,7 +110,7 @@ Upgrades só aparecem na lista quando o jogador já tem ~25% do custo (ou, para 
 
 - **Nível de herói**: custo cresce ×1.08 por nível; DPS do herói = `DPS_base × nível × 2^⌊nível/25⌋ × multiplicador_de_equipamento`. Ou seja, marco a cada 25 níveis também dobra o DPS daquele herói.
 - **DPS do time** = soma do DPS de todos os heróis, multiplicado por: `(1 + 10%×nível do Quartel) × (1 + 10%×talento Fúria) × (1 + 1%×conquistas) × buffs ativos`.
-- **Ondas**: o inimigo atual sobe de onda a cada abate. HP do inimigo = `15 × 1.45^(onda-1)`, ×9 se for chefe.
+- **Ondas**: o inimigo atual sobe de onda a cada abate. HP do inimigo = `15 × 1.45^(onda-1)`, ×9 se for chefe. Cada onda exibe uma ilustração de monstro (8 inimigos comuns alternando em ciclo, mais uma arte exclusiva de chefe) em vez de um emoji.
 - **Chefes**: aparecem a cada onda múltipla de 10. Têm um cronômetro (30s + 3s por nível do talento *Paciência*) — se não forem derrotados a tempo, o time recua para "treinar" (5 abates de inimigos normais antes de desafiar o chefe de novo).
 - **Recompensa de ouro por abate** = `4 × 1.42^(onda-1)`, ×14 se for chefe, ×3 durante invasões, +8%/nível do talento *Caçador*.
 - **Materiais**: a partir da onda 12, há 30% de chance de ganhar pedra/ferro por abate; chefes a partir da onda 30 têm 40% de chance de dropar 1 Cristal.
@@ -276,7 +276,8 @@ Todo o áudio é **sintetizado via Web Audio API** (osciladores simples) — nã
 
 ## 16. Interface e Feedback Visual
 
-- **Painel esquerdo fixo**: ouro atual + taxa/s, botão de clique, poder de clique, recursos da base (aparecem só quando relevantes), buffs ativos com cronômetro, e o log de Crônicas.
+- **Arte visual**: retratos dos heróis, ilustrações dos inimigos/chefe, a moeda de clique e a textura de fundo usam artes estáticas em `img/` (ver [ARCHITECTURE.md](ARCHITECTURE.md#assets-visuais-img)) — o resto da interface (geradores, upgrades, salas, talentos, conquistas) permanece em emoji.
+- **Painel esquerdo fixo**: ouro atual + taxa/s, botão de clique (moeda de ouro ilustrada), poder de clique, recursos da base (aparecem só quando relevantes), buffs ativos com cronômetro, e o log de Crônicas.
 - **Abas centrais**: Produção, Heróis, Base, Talentos, Prestígio, Conquistas, Ajustes — cada uma só aparece na navegação quando desbloqueada; abas bloqueadas mostram "🔒???" com tooltip.
 - **Seletor de quantidade (×1 / ×10 / Máx)**: compartilhado entre a compra de geradores e o nivelamento de heróis. "Máx" sempre mostra o custo total real e a quantidade real que será comprada — não uma estimativa de 1 unidade.
 - **Números flutuantes**: ganhos de ouro/dano aparecem subindo e desaparecendo no ponto do clique.
