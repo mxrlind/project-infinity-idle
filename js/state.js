@@ -71,6 +71,7 @@ function loadGame() {
     S.combat = Object.assign(base.combat, data.combat || {});
     S.unlocked = Object.assign(base.unlocked, data.unlocked || {});
     S.buffs = (data.buffs || []).filter(b => b && b.until > Date.now());
+    S.lastClickAt = Date.now(); // reinicia o timer de inatividade a cada carregamento (conquista s4 conta só com o jogo aberto)
     // migração: saves antigos não têm maxPhaseId — reconstrói a partir dos sistemas já desbloqueados
     if (data.maxPhaseId === undefined) {
       let m = 1;
