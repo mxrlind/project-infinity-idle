@@ -167,6 +167,9 @@ const UI = {
       if (!h && S.earned < def.baseCost * 0.3) continue;
 
       const row = this.el('div', 'hero-row' + (h ? '' : ' hero-locked'));
+      const portrait = this.el('div', 'hero-portrait');
+      portrait.style.backgroundImage = `url("img/heroes/${def.id}.jpg")`;
+      row.appendChild(portrait);
       const info = this.el('div', 'hero-info');
       info.appendChild(this.el('div', 'hero-name', `<span class="hero-icon">${def.icon}</span> <b>${def.name}</b> <span class="hero-title">${def.title}</span>`));
       if (h) {
