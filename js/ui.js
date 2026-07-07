@@ -3,7 +3,7 @@
 const UI = {
   activeTab: 'prod',
   buyAmount: 1,           // 1 | 10 | 'max'
-  dirty: { tabs: true, prod: true, heroes: true, base: true, talents: true, prestige: true, ach: true, config: true, left: true },
+  dirty: { tabs: true, prod: true, heroes: true, forge: true, base: true, talents: true, prestige: true, ach: true, config: true, left: true },
   R: {},                  // refs dinâmicos do tab ativo
 
   dirtyAll() { for (const k in this.dirty) this.dirty[k] = true; },
@@ -27,6 +27,7 @@ const UI = {
     return [
       { id: 'prod',     name: 'Produção',   icon: '⚒️', unlocked: true },
       { id: 'heroes',   name: 'Heróis',     icon: '⚔️', unlocked: S.unlocked.heroes },
+      { id: 'forge',    name: 'Forja',      icon: '🔨', unlocked: S.unlocked.heroes && Game.forgeUnlocked() },
       { id: 'base',     name: 'Base',       icon: '🏰', unlocked: S.unlocked.base },
       { id: 'talents',  name: 'Talentos',   icon: '🌳', unlocked: S.unlocked.talents },
       { id: 'prestige', name: 'Prestígio',  icon: '✦',  unlocked: S.unlocked.prestige },
@@ -63,6 +64,7 @@ const UI = {
     switch (id) {
       case 'prod':     this.renderProd(c); break;
       case 'heroes':   this.renderHeroes(c); break;
+      case 'forge':    this.renderForge(c); break;
       case 'base':     this.renderBase(c); break;
       case 'talents':  this.renderTalents(c); break;
       case 'prestige': this.renderPrestige(c); break;
@@ -203,8 +205,6 @@ const UI = {
     }
     c.appendChild(list);
 
-    this.renderForge(c);
-
     // seletor de quantidade também vale para níveis
     const bar = this.el('div', 'buy-bar');
     bar.appendChild(this.el('span', 'buy-label', 'Níveis por compra:'));
@@ -274,7 +274,7 @@ const UI = {
       btn.innerHTML = `<div class="ft-head">${t.icon} ${t.name}</div>
         <div class="ft-odds">${this.forgeOddsHtml(t)}</div>
         <div class="ft-cost"></div>`;
-      btn.onclick = () => { if (Game.forgeItem(t.id)) { this.dirty.heroes = true; this.renderActive(); } };
+      btn.onclick = () => { if (Game.forgeItem(t.id)) { this.dirty.forge = true; this.renderActive(); } };
       tiers.appendChild(btn);
       this.R.forge.tiers.push({ id: t.id, btn, costEl: btn.querySelector('.ft-cost') });
     }
@@ -330,14 +330,14 @@ const UI = {
       const chip = this.el('button', 'fe-hero' + (delta > 0 ? ' up' : delta < 0 ? ' down' : ''));
       chip.innerHTML = `<span class="feh-icon">${def.icon}</span><span class="feh-name">${def.name}</span><span class="feh-delta">${this.fmtScore(delta)}</span>`;
       chip.title = delta > 0 ? 'Melhora o equipamento atual' : delta < 0 ? 'Pior que o equipamento atual' : 'Equivalente ao atual';
-      chip.onclick = () => { if (Game.equipForged(def.id)) { this.dirty.heroes = true; this.renderActive(); } };
+      chip.onclick = () => { if (Game.equipForged(def.id)) { this.dirty.heroes = true; this.dirty.forge = true; this.renderActive(); } };
       heroesRow.appendChild(chip);
     }
     equip.appendChild(heroesRow);
     area.appendChild(equip);
 
     const scrap = this.el('button', 'forge-scrap', '♻️ Desmanchar por materiais');
-    scrap.onclick = () => { if (Game.scrapForged()) { this.dirty.heroes = true; this.renderActive(); } };
+    scrap.onclick = () => { if (Game.scrapForged()) { this.dirty.forge = true; this.renderActive(); } };
     area.appendChild(scrap);
   },
 
@@ -723,14 +723,16 @@ const UI = {
         }
       }
 
-      this.updateForge();
-
       // novos heróis visíveis?
       if (this._lastHeroCheck === undefined || Date.now() - this._lastHeroCheck > 3000) {
         this._lastHeroCheck = Date.now();
         const visible = HEROES.filter(d => (!d.reqPrestige || S.prestiges >= d.reqPrestige) && (S.heroes[d.id] || S.earned >= d.baseCost * 0.3)).length;
         if (visible !== this.R.heroes.length) { this.dirty.heroes = true; this.renderActive(); }
       }
+    }
+
+    if (this.activeTab === 'forge' && this.R.forge) {
+      this.updateForge();
     }
 
     if (this.activeTab === 'base' && this.R.rooms) {

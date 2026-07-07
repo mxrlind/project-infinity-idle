@@ -372,7 +372,7 @@ const Game = {
     Sound.play('drop');
     if (isRare) UI.legendaryFlash(rar.color);
     UI.log(`${tier.icon} Forja (${tier.name}) revelou <span style="color:${rar.color}">${rar.name}</span> ${icon}!`);
-    UI.dirty.heroes = true;
+    UI.dirty.forge = true;
     return true;
   },
 
@@ -401,6 +401,7 @@ const Game = {
     UI.toast(`${p.icon} ${rar.name} → ${def.name}`, rar.color, p.rarity >= 3);
     Sound.play('hire');
     UI.dirty.heroes = true;
+    UI.dirty.forge = true;
     return true;
   },
 
@@ -415,7 +416,7 @@ const Game = {
     S.forge.pending = null;
     UI.log(`♻️ Carta desmanchada: <b>+${fmt(ferroBack)}</b> ⛓️ ferro e <b>+${fmt(goldBack)}</b> ouro.`);
     Sound.play('buy');
-    UI.dirty.heroes = true;
+    UI.dirty.forge = true;
     return true;
   },
 
@@ -501,6 +502,7 @@ const Game = {
     UI.log(`${def.icon} <b>${def.name}:</b> <i>"${def.lines[0]}"</i>`);
     Sound.play('hire');
     UI.dirty.heroes = true;
+    UI.dirty.tabs = true;
     return true;
   },
 
