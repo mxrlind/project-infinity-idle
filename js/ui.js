@@ -143,9 +143,10 @@ const UI = {
     const enemy = this.el('button', 'enemy-box', '<img class="enemy-img" alt="">');
     enemy.title = 'Clique para atacar!';
     enemy.onclick = (ev) => {
-      const dmg = Game.clickAttack();
+      const r = Game.clickAttack();
       Sound.play('click');
-      this.floatText(ev.clientX, ev.clientY, '-' + fmt(dmg), '#ff6b5e');
+      if (r.crit) this.floatText(ev.clientX, ev.clientY, '★ CRIT! -' + fmt(r.dmg), '#ffd700');
+      else this.floatText(ev.clientX, ev.clientY, '-' + fmt(r.dmg), '#ff6b5e');
       this.shakeEnemy();
     };
     combat.appendChild(enemy);
@@ -202,6 +203,8 @@ const UI = {
     }
     c.appendChild(list);
 
+    this.renderForge(c);
+
     // seletor de quantidade também vale para níveis
     const bar = this.el('div', 'buy-bar');
     bar.appendChild(this.el('span', 'buy-label', 'Níveis por compra:'));
@@ -213,6 +216,11 @@ const UI = {
     c.insertBefore(bar, c.children[1]);
   },
 
+  affixLabel(a) {
+    const def = FORGE_AFFIXES.find(x => x.type === a.type);
+    return `${def.icon} +${Math.round(a.val * 100)}% ${def.tip}`;
+  },
+
   updateHeroGear(elGear, heroId) {
     const h = S.heroes[heroId];
     let html = '';
@@ -220,12 +228,145 @@ const UI = {
       const item = h.gear[slot.id];
       if (item) {
         const r = RARITIES[item.rarity];
-        html += `<span class="gear-chip" style="border-color:${r.color};color:${r.color}" title="${slot.name} ${r.name}: +${Math.round(item.mult * 100)}% DPS">${item.icon} +${Math.round(item.mult * 100)}%</span>`;
+        const affixes = item.affixes || [];
+        const affIcons = affixes.map(a => FORGE_AFFIXES.find(x => x.type === a.type).icon).join('');
+        const tip = `${slot.name} ${r.name}: +${Math.round(item.mult * 100)}% DPS`
+          + (affixes.length ? '\n' + affixes.map(a => this.affixLabel(a)).join('\n') : '')
+          + (item.forged ? '\n(forjada)' : '');
+        html += `<span class="gear-chip" style="border-color:${r.color};color:${r.color}" title="${tip}">${item.icon} +${Math.round(item.mult * 100)}%${affIcons ? ' <span class="chip-aff">' + affIcons + '</span>' : ''}</span>`;
       } else {
-        html += `<span class="gear-chip gear-empty" title="${slot.name}: vazio (chefes derrubam equipamentos)">${slot.id === 'arma' ? '🗡️' : '📿'} —</span>`;
+        html += `<span class="gear-chip gear-empty" title="${slot.name}: vazio (forje na Forja ou derrote chefes)">${slot.id === 'arma' ? '🗡️' : '📿'} —</span>`;
       }
     }
     elGear.innerHTML = html;
+  },
+
+  // ---------- Forja de Armas ----------
+
+  // Δ força de gear em pontos percentuais (itemScore está em unidades de multiplicador de DPS)
+  fmtScore(delta) {
+    const pct = Math.round(delta * 100);
+    if (pct === 0) return '=';
+    return (pct > 0 ? '▲ +' : '▼ ') + pct + '%';
+  },
+
+  forgeOddsHtml(tier) {
+    let sum = 0;
+    for (const w of tier.weights) sum += w;
+    return tier.weights.map((w, i) =>
+      w > 0 ? `<span style="color:${RARITIES[i].color}">${Math.round((w / sum) * 100)}%</span>` : null
+    ).filter(Boolean).join(' ');
+  },
+
+  renderForge(c) {
+    if (!Game.forgeUnlocked()) return;
+
+    c.appendChild(this.el('h3', 'section-title', '🔨 Forja de Armas'));
+    c.appendChild(this.el('p', 'forge-intro',
+      'Gaste recursos para forjar equipamento. Cada carta revela raridade e <b>afixos</b> — equipe no herói ideal ou desmanche por materiais. Uma carta por vez.'));
+
+    const panel = this.el('div', 'forge-panel');
+    this.R.forge = { tiers: [], panel };
+
+    const tiers = this.el('div', 'forge-tiers');
+    for (const t of FORGE_TIERS) {
+      const btn = this.el('button', 'forge-tier');
+      btn.innerHTML = `<div class="ft-head">${t.icon} ${t.name}</div>
+        <div class="ft-odds">${this.forgeOddsHtml(t)}</div>
+        <div class="ft-cost"></div>`;
+      btn.onclick = () => { if (Game.forgeItem(t.id)) { this.dirty.heroes = true; this.renderActive(); } };
+      tiers.appendChild(btn);
+      this.R.forge.tiers.push({ id: t.id, btn, costEl: btn.querySelector('.ft-cost') });
+    }
+    panel.appendChild(tiers);
+
+    const cardArea = this.el('div', 'forge-card-area');
+    panel.appendChild(cardArea);
+    this.R.forge.cardArea = cardArea;
+    this._forgeToken = undefined;
+    this.updateForgeCard();
+
+    const stat = this.el('div', 'forge-stat', '');
+    panel.appendChild(stat);
+    this.R.forge.stat = stat;
+
+    c.appendChild(panel);
+  },
+
+  // Reconstrói a carta pendente só quando ela muda (token) — evita re-render por frame.
+  updateForgeCard() {
+    if (!this.R.forge) return;
+    const p = S.forge.pending;
+    const token = p ? p.icon + '|' + p.rarity + '|' + p.mult + '|' + p.affixes.length : 'none';
+    if (token === this._forgeToken) return;
+    this._forgeToken = token;
+
+    const area = this.R.forge.cardArea;
+    area.innerHTML = '';
+    if (!p) return;
+
+    const rar = RARITIES[p.rarity];
+    const slotName = GEAR_SLOTS.find(s => s.id === p.slot).name;
+    const card = this.el('div', 'forge-card reveal');
+    card.style.borderColor = rar.color;
+    card.style.boxShadow = `0 0 26px ${rar.color}55`;
+    const affHtml = p.affixes.length
+      ? p.affixes.map(a => `<div class="aff-line">${this.affixLabel(a)}</div>`).join('')
+      : '<div class="aff-line aff-none">Sem afixos</div>';
+    card.innerHTML = `<div class="fc-icon" style="color:${rar.color}">${p.icon}</div>
+      <div class="fc-body">
+        <div class="fc-rar" style="color:${rar.color}">${rar.name} · ${slotName}</div>
+        <div class="fc-mult">+${Math.round(p.mult * 100)}% DPS base</div>
+        ${affHtml}
+      </div>`;
+    area.appendChild(card);
+
+    const equip = this.el('div', 'forge-equip');
+    equip.appendChild(this.el('div', 'fe-label', `Equipar ${slotName.toLowerCase()} em:`));
+    const heroesRow = this.el('div', 'fe-heroes');
+    for (const def of HEROES) {
+      if (!S.heroes[def.id]) continue;
+      const delta = Game.forgeDelta(def.id);
+      const chip = this.el('button', 'fe-hero' + (delta > 0 ? ' up' : delta < 0 ? ' down' : ''));
+      chip.innerHTML = `<span class="feh-icon">${def.icon}</span><span class="feh-name">${def.name}</span><span class="feh-delta">${this.fmtScore(delta)}</span>`;
+      chip.title = delta > 0 ? 'Melhora o equipamento atual' : delta < 0 ? 'Pior que o equipamento atual' : 'Equivalente ao atual';
+      chip.onclick = () => { if (Game.equipForged(def.id)) { this.dirty.heroes = true; this.renderActive(); } };
+      heroesRow.appendChild(chip);
+    }
+    equip.appendChild(heroesRow);
+    area.appendChild(equip);
+
+    const scrap = this.el('button', 'forge-scrap', '♻️ Desmanchar por materiais');
+    scrap.onclick = () => { if (Game.scrapForged()) { this.dirty.heroes = true; this.renderActive(); } };
+    area.appendChild(scrap);
+  },
+
+  // Atualização por tick da forja (custos/afford + estatística + carta pendente)
+  updateForge() {
+    if (!this.R.forge) return;
+    const hasPending = !!S.forge.pending;
+    for (const ref of this.R.forge.tiers) {
+      const cost = Game.forgeCost(ref.id);
+      const parts = [
+        this.forgeCostPart('ouro', S.gold, cost.gold),
+        this.forgeCostPart('⛓️', S.res.ferro, cost.ferro),
+      ];
+      if (cost.cristal > 0) parts.push(this.forgeCostPart('💠', S.res.cristal, cost.cristal));
+      ref.costEl.innerHTML = parts.join(' · ');
+      const ok = Game.canForge(ref.id);
+      ref.btn.classList.toggle('afford', ok);
+      ref.btn.disabled = !ok;
+      ref.btn.title = hasPending ? 'Resolva a carta atual antes de forjar outra' : '';
+    }
+    this.R.forge.stat.innerHTML = `Itens forjados: <b>${S.forge.forged}</b>`
+      + (hasPending ? ' · <span class="forge-wait">carta aguardando decisão</span>' : '');
+    this.updateForgeCard();
+  },
+
+  forgeCostPart(label, have, need) {
+    if (need <= 0) return '';
+    const ok = have >= need;
+    return `<span class="${ok ? '' : 'cost-missing'}">${fmt(need)} ${label}</span>`;
   },
 
   // ---------- Aba: Base ----------
@@ -581,6 +722,9 @@ const UI = {
           ref.btn.disabled = !afford;
         }
       }
+
+      this.updateForge();
+
       // novos heróis visíveis?
       if (this._lastHeroCheck === undefined || Date.now() - this._lastHeroCheck > 3000) {
         this._lastHeroCheck = Date.now();

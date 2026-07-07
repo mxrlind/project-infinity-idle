@@ -21,6 +21,10 @@ function defaultState() {
     upgrades: {},     // id -> true
     heroes: {},       // id -> { lvl, gear: { arma: item|null, amuleto: item|null } }
 
+    // Forja: carta aguardando decisão (equipar/desmanchar) + total forjado (estatística)
+    // pending = item { slot, rarity, mult, icon, affixes:[{type,val}] } ou null
+    forge: { pending: null, forged: 0 },
+
     combat: {
       wave: 1, maxWave: 1,
       hp: 0, maxHp: 0,
@@ -71,6 +75,7 @@ function loadGame() {
     S.res = Object.assign(base.res, data.res || {});
     S.combat = Object.assign(base.combat, data.combat || {});
     S.unlocked = Object.assign(base.unlocked, data.unlocked || {});
+    S.forge = Object.assign(base.forge, data.forge || {});   // saves antigos: mantém pending:null, forged:0
     S.buffs = (data.buffs || []).filter(b => b && b.until > Date.now());
     S.lastClickAt = Date.now(); // reinicia o timer de inatividade a cada carregamento (conquista s4 conta só com o jogo aberto)
     // migração: saves antigos não têm maxPhaseId — reconstrói a partir dos sistemas já desbloqueados

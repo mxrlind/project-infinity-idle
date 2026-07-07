@@ -140,6 +140,33 @@ const GEAR_SLOTS = [
   { id: 'amuleto', name: 'Amuleto', icons: ['📿', '🧿', '💍', '🔱', '🪬'] },
 ];
 
+// ---- Forja de Armas (loop ativo de craft: gastar recursos → revelar carta → equipar/desmanchar) ----
+// Cada tier é uma aposta de risco×recompensa: custa mais (ouro escalado pela onda + ferro/cristais),
+// mas melhora as odds de raridade e a quantidade de afixos. Odds são pesos relativos por raridade
+// (índices casam com RARITIES: [Comum, Incomum, Raro, Épico, Lendário]).
+//   goldMult  → custo em ouro = enemyGold(maiorOnda) × goldMult  (auto-escala, nunca fica obsoleto)
+//   ferro/cristal → custo fixo em materiais (materiais também escalam com a onda ao dropar)
+//   affixMax  → teto de afixos que a carta pode receber (raridade decide quantos, até esse teto)
+const FORGE_TIERS = [
+  { id: 'bancada',  name: 'Bancada',        icon: '🔨', goldMult: 8,   ferro: 6,  cristal: 0, weights: [58, 32, 9, 1, 0],   affixMax: 1 },
+  { id: 'fornalha', name: 'Fornalha',       icon: '⚒️', goldMult: 32,  ferro: 20, cristal: 1, weights: [10, 34, 38, 15, 3], affixMax: 2 },
+  { id: 'cadinho',  name: 'Cadinho Arcano', icon: '🌋', goldMult: 120, ferro: 55, cristal: 6, weights: [0, 8, 32, 42, 18],  affixMax: 2 },
+];
+
+// Afixos = a camada de "build". Valores são frações (0.10 = +10%). O roll final escala com a raridade.
+//   scope 'hero'   → afeta só o herói que porta o item (aplicado em heroGearMult)
+//   scope 'global' → agregado em cache (Game.gearBonus) e aplicado uma vez no sistema correspondente
+const FORGE_AFFIXES = [
+  { type: 'dps',  name: 'Afiada',     icon: '⚔️', scope: 'hero',   min: 0.06, max: 0.14, tip: 'DPS deste herói' },
+  { type: 'team', name: 'Estandarte', icon: '🚩', scope: 'global', min: 0.03, max: 0.08, tip: 'DPS de todo o time' },
+  { type: 'gold', name: 'Cobiça',     icon: '💰', scope: 'global', min: 0.05, max: 0.12, tip: 'ouro por abate' },
+  { type: 'crit', name: 'Letal',      icon: '🎯', scope: 'global', min: 0.04, max: 0.10, tip: 'chance de crítico (×3) ao clicar no inimigo' },
+  { type: 'mat',  name: 'Garimpo',    icon: '⛏️', scope: 'global', min: 0.06, max: 0.15, tip: 'chance de material por abate' },
+];
+const FORGE_CRIT_MULT = 3;      // dano do clique crítico
+const FORGE_CRIT_CAP = 0.75;    // teto de chance de crítico (anti power-creep)
+const FORGE_SCRAP_FERRO = 0.4;  // fração do ferro devolvida ao desmanchar
+
 // ---- Eventos mundiais (Fase 6) ----
 const WORLD_EVENTS = [
   { id: 'meteoro',  name: 'Meteorito!',      icon: '☄️', desc: 'Um meteorito caiu! Pedra e ferro em abundância.', type: 'instant' },

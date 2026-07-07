@@ -80,6 +80,55 @@ const Game = {
 
   // ---------- Heróis e combate ----------
 
+  // ----- Cache de bônus de equipamento (afixos globais) -----
+  // Recalculado só quando o gear muda (equipar/desmanchar/drop/contratar/prestígio),
+  // via flag _gearDirty. teamDps/enemyGold/clickAttack leem o cache em O(1) por tick.
+  _gearDirty: true,
+  gearBonus: { team: 0, gold: 0, crit: 0, mat: 0 },
+
+  ensureGearBonus() {
+    if (this._gearDirty) { this.recomputeGearBonuses(); this._gearDirty = false; }
+  },
+
+  recomputeGearBonuses() {
+    const b = { team: 0, gold: 0, crit: 0, mat: 0 };
+    for (const id in S.heroes) {
+      const gear = S.heroes[id].gear;
+      for (const slot of GEAR_SLOTS) {
+        const item = gear[slot.id];
+        if (!item || !item.affixes) continue;
+        for (const a of item.affixes) {
+          if (a.type === 'team') b.team += a.val;
+          else if (a.type === 'gold') b.gold += a.val;
+          else if (a.type === 'crit') b.crit += a.val;
+          else if (a.type === 'mat')  b.mat  += a.val;
+        }
+      }
+    }
+    b.crit = Math.min(FORGE_CRIT_CAP, b.crit);
+    this.gearBonus = b;
+  },
+
+  // soma dos afixos de DPS (scope 'hero') de um item — aplicado só ao herói que o porta
+  itemDpsAffix(item) {
+    if (!item || !item.affixes) return 0;
+    let s = 0;
+    for (const a of item.affixes) if (a.type === 'dps') s += a.val;
+    return s;
+  },
+
+  // "força" comparável de um item (fonte única para auto-equip, comparação e venda).
+  // Converte cada afixo para um equivalente em multiplicador de DPS para comparar maçãs com maçãs.
+  itemScore(item) {
+    if (!item) return 0;
+    let s = item.mult || 0;
+    if (item.affixes) for (const a of item.affixes) {
+      if (a.type === 'dps' || a.type === 'team') s += a.val;   // DPS direto
+      else s += a.val * 0.5;                                    // utilitário (ouro/crit/mat) vale menos em "força"
+    }
+    return s;
+  },
+
   heroGearMult(heroId) {
     const h = S.heroes[heroId];
     if (!h) return 1;
@@ -87,7 +136,9 @@ const Game = {
     const power = 1 + 0.10 * this.roomLvl('oficina');
     for (const slot of GEAR_SLOTS) {
       const item = h.gear[slot.id];
-      if (item) m *= 1 + item.mult * power;
+      if (!item) continue;
+      m *= 1 + item.mult * power;              // poder-base do item (escalado pela Oficina, como antes)
+      m *= 1 + this.itemDpsAffix(item);        // afixos de DPS deste item (independentes da Oficina)
     }
     return m;
   },
@@ -100,11 +151,13 @@ const Game = {
   },
 
   teamDps() {
+    this.ensureGearBonus();
     let total = 0;
     for (const id in S.heroes) total += this.heroDps(id);
     total *= 1 + 0.10 * this.roomLvl('quartel');
     total *= 1 + 0.10 * this.talentLvl('furia');
     total *= 1 + 0.01 * this.achCount();
+    total *= 1 + this.gearBonus.team;          // afixo "Estandarte" (soma dos itens equipados)
     total *= this.buffMult('dps');
     return total;
   },
@@ -138,8 +191,10 @@ const Game = {
   },
 
   enemyGold(wave, boss) {
+    this.ensureGearBonus();
     let g = 4 * Math.pow(1.42, wave - 1) * (boss ? 14 : 1);
     g *= 1 + 0.08 * this.talentLvl('cacador');
+    g *= 1 + this.gearBonus.gold;              // afixo "Cobiça" (ouro por abate)
     if (S.invasion > 0 && !boss) g *= 3;
     return g;
   },
@@ -190,8 +245,8 @@ const Game = {
     c.kills++;
     if (S.invasion > 0 && !wasBoss) S.invasion--;
 
-    // materiais em ondas mais altas
-    if (c.wave >= 12 && Math.random() < 0.30) {
+    // materiais em ondas mais altas (afixo "Garimpo" aumenta a chance)
+    if (c.wave >= 12 && Math.random() < 0.30 + this.gearBonus.mat) {
       const amt = Math.ceil(c.wave / 10);
       S.res.pedra += amt;
       if (Math.random() < 0.5) S.res.ferro += Math.ceil(amt / 2);
@@ -223,12 +278,14 @@ const Game = {
   awardGear() {
     const item = this.rollGear();
     if (!item) return;
+    item.affixes = [];                       // drops não têm afixos (uniformiza a forma do item)
     const h = S.heroes[item.heroId];
     const def = HEROES.find(x => x.id === item.heroId);
     const rar = RARITIES[item.rarity];
     const current = h.gear[item.slot];
-    if (!current || item.mult > current.mult) {
+    if (!current || this.itemScore(item) > this.itemScore(current)) {  // compara por "força", não só mult
       h.gear[item.slot] = item;
+      this._gearDirty = true;
       const isRare = item.rarity >= 3; // Épico ou Lendário
       UI.log(`${item.icon} <b>${def.name}</b> equipou <span style="color:${rar.color}">${rar.name}</span> (+${Math.round(item.mult * 100)}% DPS)!`);
       UI.toast(`${item.icon} ${rar.name} para ${def.name}!`, rar.color, isRare);
@@ -248,11 +305,128 @@ const Game = {
     this.spawnEnemy();
   },
 
+  // ---------- Forja de Armas ----------
+
+  forgeUnlocked() {
+    // disponível assim que houver ao menos um herói contratado
+    for (const _ in S.heroes) return true;
+    return false;
+  },
+
+  forgeCost(tierId) {
+    const t = FORGE_TIERS.find(x => x.id === tierId);
+    // ouro escala com o progresso (reusa a curva já balanceada de recompensa da maior onda)
+    const gold = Math.ceil(this.enemyGold(S.combat.maxWave, false) * t.goldMult);
+    return { gold, ferro: t.ferro, cristal: t.cristal };
+  },
+
+  canForge(tierId) {
+    if (S.forge.pending) return false;                 // uma carta por vez (decisão limpa, sem inventário)
+    const c = this.forgeCost(tierId);
+    return S.gold >= c.gold && S.res.ferro >= c.ferro && S.res.cristal >= c.cristal;
+  },
+
+  rollForgeRarity(tier) {
+    let total = 0;
+    for (const w of tier.weights) total += w;
+    let roll = Math.random() * total;
+    for (let i = 0; i < tier.weights.length; i++) { roll -= tier.weights[i]; if (roll <= 0) return i; }
+    return 0;
+  },
+
+  rollAffixes(rarityIdx, tier) {
+    // quantidade: Raro+ ganham 2 (se o tier permitir), senão 1
+    const want = Math.min(tier.affixMax, rarityIdx >= 2 ? 2 : 1);
+    const pool = FORGE_AFFIXES.slice();
+    const out = [];
+    const rarMult = 1 + rarityIdx * 0.55;              // afixo melhor em raridades altas
+    for (let i = 0; i < want && pool.length; i++) {
+      const pick = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]; // sem tipo repetido
+      const base = pick.min + Math.random() * (pick.max - pick.min);
+      let val = base * rarMult;
+      if (pick.type === 'crit') val = Math.min(FORGE_CRIT_CAP, val);
+      out.push({ type: pick.type, val: Math.round(val * 1000) / 1000 });
+    }
+    return out;
+  },
+
+  forgeItem(tierId) {
+    if (!this.canForge(tierId)) return false;
+    const tier = FORGE_TIERS.find(x => x.id === tierId);
+    const cost = this.forgeCost(tierId);
+    S.gold -= cost.gold;
+    S.res.ferro -= cost.ferro;
+    S.res.cristal -= cost.cristal;
+
+    const rarityIdx = this.rollForgeRarity(tier);
+    const rar = RARITIES[rarityIdx];
+    const slot = GEAR_SLOTS[Math.floor(Math.random() * GEAR_SLOTS.length)];  // arma ou amuleto
+    const mult = rar.power * (1 + S.combat.maxWave / 40) * (0.85 + Math.random() * 0.30);
+    const icon = slot.icons[Math.floor(Math.random() * slot.icons.length)];
+    const affixes = this.rollAffixes(rarityIdx, tier);
+
+    S.forge.pending = { slot: slot.id, rarity: rarityIdx, mult, icon, affixes, forged: true };
+    S.forge.forged++;
+
+    const isRare = rarityIdx >= 3;
+    Sound.play('drop');
+    if (isRare) UI.legendaryFlash(rar.color);
+    UI.log(`${tier.icon} Forja (${tier.name}) revelou <span style="color:${rar.color}">${rar.name}</span> ${icon}!`);
+    UI.dirty.heroes = true;
+    return true;
+  },
+
+  // "força" da carta pendente para um herói específico, comparada ao item atual naquele slot
+  forgeDelta(heroId) {
+    const p = S.forge.pending;
+    if (!p) return 0;
+    const h = S.heroes[heroId];
+    if (!h) return 0;
+    return this.itemScore(p) - this.itemScore(h.gear[p.slot]);
+  },
+
+  equipForged(heroId) {
+    const p = S.forge.pending;
+    if (!p) return false;
+    const h = S.heroes[heroId];
+    if (!h) return false;
+    const def = HEROES.find(x => x.id === heroId);
+    const rar = RARITIES[p.rarity];
+    const item = { heroId, slot: p.slot, rarity: p.rarity, mult: p.mult, icon: p.icon, affixes: p.affixes, forged: true };
+    h.gear[p.slot] = item;
+    S.forge.pending = null;
+    this._gearDirty = true;
+    const slotName = GEAR_SLOTS.find(s => s.id === p.slot).name;
+    UI.log(`${p.icon} <b>${def.name}</b> equipou ${slotName} <span style="color:${rar.color}">${rar.name}</span> forjada!`);
+    UI.toast(`${p.icon} ${rar.name} → ${def.name}`, rar.color, p.rarity >= 3);
+    Sound.play('hire');
+    UI.dirty.heroes = true;
+    return true;
+  },
+
+  scrapForged() {
+    const p = S.forge.pending;
+    if (!p) return false;
+    // devolve parte do ferro (proporcional à raridade) + um pouco de ouro
+    const ferroBack = Math.ceil((1 + p.rarity) * 4 * FORGE_SCRAP_FERRO);
+    const goldBack = Math.ceil(this.enemyGold(S.combat.maxWave, false) * 3);
+    S.res.ferro += ferroBack;
+    this.gainGold(goldBack);
+    S.forge.pending = null;
+    UI.log(`♻️ Carta desmanchada: <b>+${fmt(ferroBack)}</b> ⛓️ ferro e <b>+${fmt(goldBack)}</b> ouro.`);
+    Sound.play('buy');
+    UI.dirty.heroes = true;
+    return true;
+  },
+
   clickAttack() {
-    // clicar no monstro causa dano
-    const dmg = Math.max(1, this.teamDps() * 0.05 + this.clickPower() * 0.5);
+    // clicar no monstro causa dano; afixo "Letal" dá chance de crítico ×FORGE_CRIT_MULT
+    this.ensureGearBonus();
+    let dmg = Math.max(1, this.teamDps() * 0.05 + this.clickPower() * 0.5);
+    const crit = this.gearBonus.crit > 0 && Math.random() < this.gearBonus.crit;
+    if (crit) dmg *= FORGE_CRIT_MULT;
     this.damageEnemy(dmg);
-    return dmg;
+    return { dmg, crit };
   },
 
   damageEnemy(dmg) {
@@ -440,6 +614,8 @@ const Game = {
     S.res = { madeira: 0, pedra: 0, ferro: 0, energia: 0, cristal: 0, conhecimento: S.res.conhecimento };
     S.buffs = [];
     S.invasion = 0;
+    S.forge = { pending: null, forged: 0 };   // heróis resetados → limpa carta pendente
+    this._gearDirty = true;                    // recalcula bônus de gear (agora zerados)
     this.spawnEnemy();
     UI.log(`🌅 <b>PRESTÍGIO ${S.prestiges}!</b> Você renasce com <b>+${gain} ✦ Essência</b> (agora ${S.essence} — produção global ×${(1 + 0.02 * S.essence).toFixed(2)})`);
     UI.toast(`✦ +${gain} Essência!`, '#e8a33d');
