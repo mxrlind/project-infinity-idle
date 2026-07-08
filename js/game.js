@@ -109,6 +109,37 @@ const Game = {
     this.gearBonus = b;
   },
 
+  // ----- Cache de sinergia de classe (campo de batalha) -----
+  // Recalculado só quando a composição do campo muda (contratar/escalar/desescalar/prestígio),
+  // via flag _fieldDirty. teamDps() lê o cache em O(1) por tick.
+  _fieldDirty: true,
+  synergyMult: 1,
+  _lastSynergy: { counts: { tank: 0, dps: 0, support: 0 }, score: 0, n: 0 },
+
+  ensureSynergy() {
+    if (this._fieldDirty) { this.recomputeSynergy(); this._fieldDirty = false; }
+  },
+
+  recomputeSynergy() {
+    const counts = { tank: 0, dps: 0, support: 0 };
+    let n = 0;
+    for (const id of this.fieldHeroes()) {
+      const def = HEROES.find(x => x.id === id);
+      counts[def.class]++;
+      n++;
+    }
+    if (n === 0) {
+      this.synergyMult = 1;
+      this._lastSynergy = { counts, score: 0, n: 0 };
+      return;
+    }
+    let dev = 0;
+    for (const cls in SYNERGY_TARGET) dev += Math.abs(counts[cls] / n - SYNERGY_TARGET[cls]);
+    const score = Math.max(0, 1 - dev / 2);
+    this.synergyMult = 1 + score * SYNERGY_MAX_BONUS;
+    this._lastSynergy = { counts, score, n };
+  },
+
   // soma dos afixos de DPS (scope 'hero') de um item — aplicado só ao herói que o porta
   itemDpsAffix(item) {
     if (!item || !item.affixes) return 0;
@@ -150,10 +181,49 @@ const Game = {
     return def.baseDps * h.lvl * Math.pow(2, Math.floor(h.lvl / HERO_MILESTONE)) * this.heroGearMult(heroId);
   },
 
+  // ----- Campo de batalha / reserva -----
+  // Só heróis com fieldSlot definido (0..FIELD_SLOTS-1) lutam; o resto fica na reserva.
+  fieldHeroes() {
+    return Object.keys(S.heroes)
+      .filter(id => S.heroes[id].fieldSlot !== null && S.heroes[id].fieldSlot !== undefined)
+      .sort((a, b) => S.heroes[a].fieldSlot - S.heroes[b].fieldSlot);
+  },
+
+  benchHeroes() {
+    return Object.keys(S.heroes).filter(id => S.heroes[id].fieldSlot === null || S.heroes[id].fieldSlot === undefined);
+  },
+
+  firstFreeFieldSlot() {
+    const used = new Set(this.fieldHeroes().map(id => S.heroes[id].fieldSlot));
+    for (let i = 0; i < FIELD_SLOTS; i++) if (!used.has(i)) return i;
+    return null;
+  },
+
+  // move heroId pro slotIndex (ou null = reserva). Se outro herói já ocupa o slot, troca de posição.
+  setFieldSlot(heroId, slotIndex) {
+    const h = S.heroes[heroId];
+    if (!h) return false;
+    if (slotIndex !== null && (slotIndex < 0 || slotIndex >= FIELD_SLOTS)) return false;
+    if (slotIndex !== null) {
+      const occupantId = this.fieldHeroes().find(id => S.heroes[id].fieldSlot === slotIndex && id !== heroId);
+      if (occupantId) S.heroes[occupantId].fieldSlot = (h.fieldSlot !== undefined ? h.fieldSlot : null);
+    }
+    h.fieldSlot = slotIndex;
+    this._fieldDirty = true;
+    UI.dirty.heroes = true;
+    return true;
+  },
+
+  benchHero(heroId) {
+    return this.setFieldSlot(heroId, null);
+  },
+
   teamDps() {
     this.ensureGearBonus();
+    this.ensureSynergy();
     let total = 0;
-    for (const id in S.heroes) total += this.heroDps(id);
+    for (const id of this.fieldHeroes()) total += this.heroDps(id);
+    total *= this.synergyMult;                 // sinergia de classe (Tank/DPS/Suporte)
     total *= 1 + 0.10 * this.roomLvl('quartel');
     total *= 1 + 0.10 * this.talentLvl('furia');
     total *= 1 + 0.01 * this.achCount();
@@ -321,7 +391,7 @@ const Game = {
   },
 
   canForge(tierId) {
-    if (S.forge.pending) return false;                 // uma carta por vez (decisão limpa, sem inventário)
+    if (S.forge.inventory.length >= FORGE_INVENTORY_CAP) return false;   // bolsa cheia
     const c = this.forgeCost(tierId);
     return S.gold >= c.gold && S.res.ferro >= c.ferro && S.res.cristal >= c.cristal;
   },
@@ -365,58 +435,76 @@ const Game = {
     const icon = slot.icons[Math.floor(Math.random() * slot.icons.length)];
     const affixes = this.rollAffixes(rarityIdx, tier);
 
-    S.forge.pending = { slot: slot.id, rarity: rarityIdx, mult, icon, affixes, forged: true };
+    const uid = S.forge.nextUid++;
+    S.forge.inventory.push({ uid, slot: slot.id, rarity: rarityIdx, mult, icon, affixes, forged: true });
     S.forge.forged++;
 
     const isRare = rarityIdx >= 3;
     Sound.play('drop');
     if (isRare) UI.legendaryFlash(rar.color);
-    UI.log(`${tier.icon} Forja (${tier.name}) revelou <span style="color:${rar.color}">${rar.name}</span> ${icon}!`);
+    UI.log(`${tier.icon} Forja (${tier.name}) revelou <span style="color:${rar.color}">${rar.name}</span> ${icon}! (na Bolsa)`);
     UI.dirty.forge = true;
+    UI.dirty.heroes = true;    // a bolsa vive na aba Heróis
     return true;
   },
 
-  // "força" da carta pendente para um herói específico, comparada ao item atual naquele slot
-  forgeDelta(heroId) {
-    const p = S.forge.pending;
-    if (!p) return 0;
-    const h = S.heroes[heroId];
-    if (!h) return 0;
-    return this.itemScore(p) - this.itemScore(h.gear[p.slot]);
+  findForgeItem(uid) {
+    return S.forge.inventory.find(x => x.uid === uid) || null;
   },
 
-  equipForged(heroId) {
-    const p = S.forge.pending;
-    if (!p) return false;
+  // "força" de uma carta específica pra um herói, comparada ao item atual naquele slot
+  itemDeltaForHero(uid, heroId) {
+    const item = this.findForgeItem(uid);
+    const h = S.heroes[heroId];
+    if (!item || !h) return 0;
+    return this.itemScore(item) - this.itemScore(h.gear[item.slot]);
+  },
+
+  equipItem(uid, heroId) {
+    const idx = S.forge.inventory.findIndex(x => x.uid === uid);
+    if (idx === -1) return false;
     const h = S.heroes[heroId];
     if (!h) return false;
+    const item = S.forge.inventory[idx];
     const def = HEROES.find(x => x.id === heroId);
-    const rar = RARITIES[p.rarity];
-    const item = { heroId, slot: p.slot, rarity: p.rarity, mult: p.mult, icon: p.icon, affixes: p.affixes, forged: true };
-    h.gear[p.slot] = item;
-    S.forge.pending = null;
+    const rar = RARITIES[item.rarity];
+    const old = h.gear[item.slot];
+    h.gear[item.slot] = item;
+    S.forge.inventory.splice(idx, 1);
+    if (old) S.forge.inventory.push(old);   // item antigo volta pra bolsa
     this._gearDirty = true;
-    const slotName = GEAR_SLOTS.find(s => s.id === p.slot).name;
-    UI.log(`${p.icon} <b>${def.name}</b> equipou ${slotName} <span style="color:${rar.color}">${rar.name}</span> forjada!`);
-    UI.toast(`${p.icon} ${rar.name} → ${def.name}`, rar.color, p.rarity >= 3);
+    const slotName = GEAR_SLOTS.find(s => s.id === item.slot).name;
+    UI.log(`${item.icon} <b>${def.name}</b> equipou ${slotName} <span style="color:${rar.color}">${rar.name}</span>!`);
+    UI.toast(`${item.icon} ${rar.name} → ${def.name}`, rar.color, item.rarity >= 3);
     Sound.play('hire');
     UI.dirty.heroes = true;
-    UI.dirty.forge = true;
     return true;
   },
 
-  scrapForged() {
-    const p = S.forge.pending;
-    if (!p) return false;
+  unequipItem(heroId, slotId) {
+    const h = S.heroes[heroId];
+    if (!h || !h.gear[slotId]) return false;
+    if (S.forge.inventory.length >= FORGE_INVENTORY_CAP) return false;   // bolsa cheia — evita perder o item
+    S.forge.inventory.push(h.gear[slotId]);
+    h.gear[slotId] = null;
+    this._gearDirty = true;
+    UI.dirty.heroes = true;
+    return true;
+  },
+
+  scrapItem(uid) {
+    const idx = S.forge.inventory.findIndex(x => x.uid === uid);
+    if (idx === -1) return false;
+    const item = S.forge.inventory[idx];
     // devolve parte do ferro (proporcional à raridade) + um pouco de ouro
-    const ferroBack = Math.ceil((1 + p.rarity) * 4 * FORGE_SCRAP_FERRO);
+    const ferroBack = Math.ceil((1 + item.rarity) * 4 * FORGE_SCRAP_FERRO);
     const goldBack = Math.ceil(this.enemyGold(S.combat.maxWave, false) * 3);
     S.res.ferro += ferroBack;
     this.gainGold(goldBack);
-    S.forge.pending = null;
+    S.forge.inventory.splice(idx, 1);
     UI.log(`♻️ Carta desmanchada: <b>+${fmt(ferroBack)}</b> ⛓️ ferro e <b>+${fmt(goldBack)}</b> ouro.`);
     Sound.play('buy');
-    UI.dirty.forge = true;
+    UI.dirty.heroes = true;
     return true;
   },
 
@@ -497,7 +585,8 @@ const Game = {
     if (def.reqPrestige && S.prestiges < def.reqPrestige) return false;
     if (S.heroes[heroId] || S.gold < def.baseCost) return false;
     S.gold -= def.baseCost;
-    S.heroes[heroId] = { lvl: 1, gear: { arma: null, amuleto: null } };
+    S.heroes[heroId] = { lvl: 1, gear: { arma: null, amuleto: null }, fieldSlot: this.firstFreeFieldSlot() };
+    this._fieldDirty = true;
     UI.log(`${def.icon} <b>${def.name}</b>, ${def.title}, entrou para o time!`);
     UI.log(`${def.icon} <b>${def.name}:</b> <i>"${def.lines[0]}"</i>`);
     Sound.play('hire');
@@ -616,8 +705,9 @@ const Game = {
     S.res = { madeira: 0, pedra: 0, ferro: 0, energia: 0, cristal: 0, conhecimento: S.res.conhecimento };
     S.buffs = [];
     S.invasion = 0;
-    S.forge = { pending: null, forged: 0 };   // heróis resetados → limpa carta pendente
+    // a bolsa de cartas (S.forge.inventory) sobrevive ao prestígio, como talentos/conquistas
     this._gearDirty = true;                    // recalcula bônus de gear (agora zerados)
+    this._fieldDirty = true;                   // heróis resetados → campo também
     this.spawnEnemy();
     UI.log(`🌅 <b>PRESTÍGIO ${S.prestiges}!</b> Você renasce com <b>+${gain} ✦ Essência</b> (agora ${S.essence} — produção global ×${(1 + 0.02 * S.essence).toFixed(2)})`);
     UI.toast(`✦ +${gain} Essência!`, '#e8a33d');

@@ -2,6 +2,8 @@
 
 (function boot() {
   const loaded = loadGame();
+  const showFieldMigrationNotice = !!S._fieldSlotMigrated;
+  delete S._fieldSlotMigrated;
   let offline = null;
   if (loaded) {
     offline = Game.computeOffline();
@@ -13,6 +15,10 @@
 
   UI.init();
   if (offline && offline.gold >= 1) UI.welcomeBack(offline);
+  if (showFieldMigrationNotice) {
+    UI.log(`${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"${ADVISOR_TIPS.fieldMigration}"</i>`);
+    UI.toast('⚔️ Novo: Campo de Batalha!', '#4fa8d8', true);
+  }
 
   let lastTick = performance.now();
   let achTimer = 0;

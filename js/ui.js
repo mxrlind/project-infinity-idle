@@ -135,8 +135,6 @@ const UI = {
   // ---------- Aba: Heróis ----------
 
   renderHeroes(c) {
-    const cb = S.combat;
-
     // painel de combate
     const combat = this.el('div', 'combat-panel');
     const waveEl = this.el('div', 'combat-wave', '');
@@ -166,46 +164,7 @@ const UI = {
     c.appendChild(combat);
     this.R.combat = { waveEl, enemy, hpFill, hpText, bossTimer, dpsEl };
 
-    // heróis
-    c.appendChild(this.el('h3', 'section-title', 'Heróis'));
-    const list = this.el('div', 'hero-list');
-    this.R.heroes = [];
-    for (const def of HEROES) {
-      if (def.reqPrestige && S.prestiges < def.reqPrestige) continue;
-      const h = S.heroes[def.id];
-      if (!h && S.earned < def.baseCost * 0.3) continue;
-
-      const row = this.el('div', 'hero-row' + (h ? '' : ' hero-locked'));
-      const portrait = this.el('div', 'hero-portrait');
-      portrait.style.backgroundImage = `url("img/heroes/${def.id}.jpg")`;
-      row.appendChild(portrait);
-      const info = this.el('div', 'hero-info');
-      info.appendChild(this.el('div', 'hero-name', `<span class="hero-icon">${def.icon}</span> <b>${def.name}</b> <span class="hero-title">${def.title}</span>`));
-      if (h) {
-        const stats = this.el('div', 'hero-stats', '');
-        info.appendChild(stats);
-        const gearLine = this.el('div', 'hero-gear', '');
-        info.appendChild(gearLine);
-        this.updateHeroGear(gearLine, def.id);
-        row.appendChild(info);
-        const btn = this.el('button', 'buy-btn');
-        btn.onclick = () => { if (Game.levelHero(def.id, this.buyAmount)) { this.dirty.heroes = true; this.renderActive(); } };
-        row.appendChild(btn);
-        this.R.heroes.push({ id: def.id, hired: true, btn, stats });
-      } else {
-        info.appendChild(this.el('div', 'hero-story', def.story));
-        row.appendChild(info);
-        const btn = this.el('button', 'buy-btn hire-btn');
-        btn.innerHTML = `Contratar<br><span class="btn-cost">${fmt(def.baseCost)} ouro</span>`;
-        btn.onclick = () => { if (Game.hireHero(def.id)) { this.dirty.heroes = true; this.renderActive(); } };
-        row.appendChild(btn);
-        this.R.heroes.push({ id: def.id, hired: false, btn, cost: def.baseCost });
-      }
-      list.appendChild(row);
-    }
-    c.appendChild(list);
-
-    // seletor de quantidade também vale para níveis
+    // seletor de quantidade (vale para subir níveis nos mini-cards)
     const bar = this.el('div', 'buy-bar');
     bar.appendChild(this.el('span', 'buy-label', 'Níveis por compra:'));
     for (const amt of [1, 10, 'max']) {
@@ -213,32 +172,337 @@ const UI = {
       b.onclick = () => { this.buyAmount = amt; this.dirty.heroes = true; this.renderActive(); };
       bar.appendChild(b);
     }
-    c.insertBefore(bar, c.children[1]);
+    c.appendChild(bar);
+
+    this.R.heroMinis = [];
+    this.R.recruit = [];
+    this.R.heroesVisible = HEROES.filter(d => (!d.reqPrestige || S.prestiges >= d.reqPrestige) && (S.heroes[d.id] || S.earned >= d.baseCost * 0.3)).length;
+
+    this.renderSynergyBar(c);
+    this.renderFieldGrid(c);
+    this.renderBench(c);
+    this.renderRecruit(c);
+    this.renderBag(c);
+  },
+
+  // barra de sinergia: contagem por classe em campo + bônus de DPS de time
+  renderSynergyBar(c) {
+    Game.ensureSynergy();
+    const s = Game._lastSynergy;
+    const bar = this.el('div', 'synergy-bar');
+    const classes = this.el('div', 'synergy-classes');
+    for (const cls of ['tank', 'dps', 'support']) {
+      const cd = HERO_CLASSES[cls];
+      const item = this.el('div', 'synergy-class');
+      item.style.color = cd.color;
+      item.innerHTML = `<span class="sc-icon">${cd.icon}</span><span class="sc-count">${s.counts[cls]}</span>`;
+      item.title = `${cd.name} em campo: ${s.counts[cls]} (proporção-alvo ${Math.round(SYNERGY_TARGET[cls] * 100)}%)`;
+      classes.appendChild(item);
+    }
+    bar.appendChild(classes);
+    const pct = Math.round((Game.synergyMult - 1) * 100);
+    const bonus = this.el('div', 'synergy-bonus');
+    bonus.innerHTML = s.n === 0
+      ? `<span class="sb-none">⚠️ Nenhum herói em campo — 0 DPS de time!</span>`
+      : `Sinergia de time: <b>+${pct}%</b> DPS <span class="sb-hint">alvo 🛡️1 : ⚔️2 : ✨1</span>`;
+    bar.appendChild(bonus);
+    c.appendChild(bar);
+  },
+
+  // grade de slots do campo (só heróis aqui lutam)
+  renderFieldGrid(c) {
+    c.appendChild(this.el('h3', 'section-title', '⚔️ Campo de Batalha'));
+    const grid = this.el('div', 'field-grid');
+    const bySlot = {};
+    for (const id of Game.fieldHeroes()) bySlot[S.heroes[id].fieldSlot] = id;
+    for (let i = 0; i < FIELD_SLOTS; i++) {
+      const slot = this.el('div', 'field-slot');
+      slot.dataset.slotIndex = i;
+      const occ = bySlot[i];
+      if (occ !== undefined) {
+        slot.classList.add('filled');
+        slot.appendChild(this.heroMini(occ));
+      } else {
+        slot.appendChild(this.el('div', 'fs-empty', `<span>Slot ${i + 1}</span>`));
+        slot.onclick = () => this.slotClicked(i);
+      }
+      this.attachSlotDrop(slot, i);
+      grid.appendChild(slot);
+    }
+    c.appendChild(grid);
+  },
+
+  // reserva: heróis contratados fora do campo (não contribuem DPS)
+  renderBench(c) {
+    const bench = Game.benchHeroes();
+    if (!bench.length) return;
+    c.appendChild(this.el('h3', 'section-title', '🏕️ Reserva'));
+    const grid = this.el('div', 'bench-grid');
+    this.attachBenchDrop(grid);
+    for (const id of bench) grid.appendChild(this.heroMini(id));
+    c.appendChild(grid);
+  },
+
+  // heróis ainda não contratados
+  renderRecruit(c) {
+    const list = this.el('div', 'hero-list');
+    let any = false;
+    for (const def of HEROES) {
+      if (def.reqPrestige && S.prestiges < def.reqPrestige) continue;
+      if (S.heroes[def.id]) continue;
+      if (S.earned < def.baseCost * 0.3) continue;
+      any = true;
+      const row = this.el('div', 'hero-row hero-locked');
+      const portrait = this.el('div', 'hero-portrait');
+      portrait.style.backgroundImage = `url("img/heroes/${def.id}.jpg")`;
+      row.appendChild(portrait);
+      const info = this.el('div', 'hero-info');
+      const cd = HERO_CLASSES[def.class];
+      info.appendChild(this.el('div', 'hero-name', `<span class="hero-icon">${def.icon}</span> <b>${def.name}</b> <span class="hero-title">${def.title}</span> <span class="hero-class-tag" style="color:${cd.color}">${cd.icon} ${cd.name}</span>`));
+      info.appendChild(this.el('div', 'hero-story', def.story));
+      row.appendChild(info);
+      const btn = this.el('button', 'buy-btn hire-btn');
+      btn.innerHTML = `Contratar<br><span class="btn-cost">${fmt(def.baseCost)} ouro</span>`;
+      btn.onclick = () => { if (Game.hireHero(def.id)) { this.dirty.heroes = true; this.renderActive(); } };
+      row.appendChild(btn);
+      this.R.recruit.push({ id: def.id, btn, cost: def.baseCost });
+      list.appendChild(row);
+    }
+    if (any) {
+      c.appendChild(this.el('h3', 'section-title', '🤝 Recrutar'));
+      c.appendChild(list);
+    }
+  },
+
+  // bolsa: cartas forjadas acumuladas
+  renderBag(c) {
+    c.appendChild(this.el('h3', 'section-title', `🎒 Bolsa <span class="bag-count">${S.forge.inventory.length}/${FORGE_INVENTORY_CAP}</span>`));
+    if (!S.forge.inventory.length) {
+      c.appendChild(this.el('div', 'empty-hint', `${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"Forje cartas na aba Forja — elas se acumulam aqui para você equipar quando quiser."</i>`));
+      return;
+    }
+    const grid = this.el('div', 'bag-grid');
+    for (const item of S.forge.inventory) grid.appendChild(this.bagCard(item));
+    c.appendChild(grid);
+  },
+
+  // mini-card de herói (campo ou reserva): arrastável, selecionável, com nível e gear
+  heroMini(heroId) {
+    const def = HEROES.find(x => x.id === heroId);
+    const cd = HERO_CLASSES[def.class];
+    const cardSel = this._selected && this._selected.type === 'card';
+    const delta = cardSel ? Game.itemDeltaForHero(this._selected.id, heroId) : 0;
+    const card = this.el('div', 'hero-mini');
+    card.dataset.heroId = heroId;
+    card.draggable = true;
+    if (this._selected && this._selected.type === 'hero' && this._selected.id === heroId) card.classList.add('selected');
+    if (cardSel) card.classList.add(delta > 0 ? 'eligible-up' : delta < 0 ? 'eligible-down' : 'eligible-eq');
+    card.innerHTML = `
+      <div class="hm-head">
+        <div class="hero-portrait hm-portrait" style="background-image:url('img/heroes/${heroId}.jpg')"></div>
+        <span class="hm-class" style="color:${cd.color}" title="${cd.name}">${cd.icon}</span>
+        ${cardSel ? `<span class="hm-delta">${this.fmtScore(delta)}</span>` : ''}
+      </div>
+      <div class="hm-name">${def.icon} <b>${def.name}</b></div>
+      <div class="hm-stats"></div>
+      <div class="hero-gear hm-gear"></div>
+      <button class="buy-btn hm-level"></button>`;
+    const statsEl = card.querySelector('.hm-stats');
+    const levelBtn = card.querySelector('.hm-level');
+    this.renderMiniGear(card.querySelector('.hm-gear'), heroId);
+    levelBtn.onclick = (e) => { e.stopPropagation(); if (Game.levelHero(heroId, this.buyAmount)) { this.dirty.heroes = true; this.renderActive(); } };
+    card.onclick = () => this.selectableClicked('hero', heroId);
+    card.ondragstart = (e) => this.startDrag(e, 'hero', heroId, card);
+    card.ondragend = () => { card.classList.remove('dragging'); this._dragData = null; };
+    this.attachMiniDrop(card, heroId);
+    this.R.heroMinis.push({ id: heroId, statsEl, levelBtn });
+    return card;
+  },
+
+  // chips de gear dentro do mini-card, clicáveis (equipar carta selecionada / desequipar)
+  renderMiniGear(gearEl, heroId) {
+    const h = S.heroes[heroId];
+    const cardItem = this._selected && this._selected.type === 'card' ? Game.findForgeItem(this._selected.id) : null;
+    gearEl.innerHTML = '';
+    for (const slot of GEAR_SLOTS) {
+      const item = h.gear[slot.id];
+      const chip = this.el('span', 'gear-chip mini-chip');
+      chip.dataset.slot = slot.id;
+      if (item) {
+        const r = RARITIES[item.rarity];
+        chip.style.borderColor = r.color;
+        chip.style.color = r.color;
+        const affIcons = (item.affixes || []).map(a => FORGE_AFFIXES.find(x => x.type === a.type).icon).join('');
+        chip.innerHTML = `${item.icon} +${Math.round(item.mult * 100)}%${affIcons ? ' <span class="chip-aff">' + affIcons + '</span>' : ''}`;
+        chip.title = `${slot.name} ${r.name}: +${Math.round(item.mult * 100)}% DPS`
+          + ((item.affixes && item.affixes.length) ? '\n' + item.affixes.map(a => this.affixLabel(a)).join('\n') : '')
+          + '\nClique para desequipar (→ Bolsa)';
+      } else {
+        chip.classList.add('gear-empty');
+        chip.innerHTML = `${slot.id === 'arma' ? '🗡️' : '📿'} —`;
+        chip.title = `${slot.name}: vazio`;
+      }
+      if (cardItem && cardItem.slot === slot.id) {
+        const delta = Game.itemDeltaForHero(this._selected.id, heroId);
+        chip.classList.add('droptarget', delta > 0 ? 'eligible-up' : delta < 0 ? 'eligible-down' : 'eligible-eq');
+      }
+      chip.onclick = (e) => { e.stopPropagation(); this.gearChipClicked(heroId, slot.id); };
+      gearEl.appendChild(chip);
+    }
+  },
+
+  // carta da bolsa: arrastável, selecionável, com botão de desmanchar
+  bagCard(item) {
+    const r = RARITIES[item.rarity];
+    const slotName = GEAR_SLOTS.find(s => s.id === item.slot).name;
+    const card = this.el('div', 'bag-card');
+    card.dataset.uid = item.uid;
+    card.draggable = true;
+    card.style.borderColor = r.color;
+    if (this._selected && this._selected.type === 'card' && this._selected.id === item.uid) card.classList.add('selected');
+    const affIcons = (item.affixes || []).map(a => FORGE_AFFIXES.find(x => x.type === a.type).icon).join(' ');
+    card.innerHTML = `
+      <div class="bc-icon" style="color:${r.color}">${item.icon}</div>
+      <div class="bc-rar" style="color:${r.color}">${r.name}</div>
+      <div class="bc-slot">${slotName}</div>
+      <div class="bc-mult">+${Math.round(item.mult * 100)}% DPS</div>
+      <div class="bc-aff">${affIcons || '—'}</div>
+      <button class="bc-scrap" title="Desmanchar por materiais">♻️</button>`;
+    card.title = `${r.name} ${slotName}: +${Math.round(item.mult * 100)}% DPS`
+      + ((item.affixes && item.affixes.length) ? '\n' + item.affixes.map(a => this.affixLabel(a)).join('\n') : '')
+      + '\nClique para selecionar · arraste até um herói para equipar';
+    card.onclick = () => this.selectableClicked('card', item.uid);
+    card.querySelector('.bc-scrap').onclick = (e) => {
+      e.stopPropagation();
+      if (Game.scrapItem(item.uid)) {
+        if (this._selected && this._selected.type === 'card' && this._selected.id === item.uid) this._selected = null;
+        this.dirty.heroes = true;
+        this.renderActive();
+      }
+    };
+    card.ondragstart = (e) => this.startDrag(e, 'card', item.uid, card);
+    card.ondragend = () => { card.classList.remove('dragging'); this._dragData = null; };
+    return card;
+  },
+
+  // ----- Seleção + arrastar/soltar (um só caminho de lógica para clique e drop) -----
+  _selected: null,
+  _dragData: null,
+
+  selectableClicked(type, id) {
+    const sel = this._selected;
+    if (sel && sel.type === type && sel.id === id) this._selected = null;      // clicar de novo = desselecionar
+    else if (!sel) this._selected = { type, id };                              // primeira seleção
+    else if (sel.type === 'hero' && type === 'hero') { this.resolveHeroSwap(sel.id, id); this._selected = null; }
+    else if (sel.type === 'card' && type === 'hero') { Game.equipItem(sel.id, id); this._selected = null; }
+    else this._selected = { type, id };                                        // troca a seleção
+    this.dirty.heroes = true;
+    this.renderActive();
+  },
+
+  slotClicked(i) {
+    const sel = this._selected;
+    if (sel && sel.type === 'hero') Game.setFieldSlot(sel.id, i);
+    this._selected = null;
+    this.dirty.heroes = true;
+    this.renderActive();
+  },
+
+  gearChipClicked(heroId, slotId) {
+    const sel = this._selected;
+    if (sel && sel.type === 'card') {
+      const item = Game.findForgeItem(sel.id);
+      if (item && item.slot === slotId) {
+        Game.equipItem(sel.id, heroId);
+        this._selected = null;
+        this.dirty.heroes = true;
+        this.renderActive();
+      }
+      return;
+    }
+    const h = S.heroes[heroId];
+    if (h && h.gear[slotId]) {
+      if (!Game.unequipItem(heroId, slotId)) { this.toast('🎒 Bolsa cheia!', '#ff6b5e'); return; }
+      this.dirty.heroes = true;
+      this.renderActive();
+    }
+  },
+
+  // troca posições de dois heróis (campo↔campo, campo↔reserva); setFieldSlot desloca o ocupante
+  resolveHeroSwap(selId, targetId) {
+    if (selId === targetId) return;
+    const sel = S.heroes[selId], tgt = S.heroes[targetId];
+    if (!sel || !tgt) return;
+    const selSlot = (sel.fieldSlot === undefined ? null : sel.fieldSlot);
+    const tgtSlot = (tgt.fieldSlot === undefined ? null : tgt.fieldSlot);
+    if (tgtSlot !== null) Game.setFieldSlot(selId, tgtSlot);
+    else if (selSlot !== null) Game.setFieldSlot(targetId, selSlot);
+    // ambos na reserva: sem troca de posição
+  },
+
+  startDrag(e, type, id, card) {
+    this._dragData = { type, id };
+    try { e.dataTransfer.setData('text/plain', type + ':' + id); e.dataTransfer.effectAllowed = 'move'; } catch (_) {}
+    setTimeout(() => card.classList.add('dragging'), 0);
+  },
+
+  attachSlotDrop(slot, i) {
+    slot.ondragover = (e) => { if (this._dragData) { e.preventDefault(); slot.classList.add('dragover'); } };
+    slot.ondragleave = () => slot.classList.remove('dragover');
+    slot.ondrop = (e) => {
+      e.preventDefault();
+      slot.classList.remove('dragover');
+      const d = this._dragData;
+      this._dragData = null;
+      if (!d) return;
+      if (d.type === 'hero') Game.setFieldSlot(d.id, i);
+      else if (d.type === 'card') {
+        const occ = Game.fieldHeroes().find(id => S.heroes[id].fieldSlot === i);
+        if (occ) Game.equipItem(d.id, occ);
+      }
+      this._selected = null;
+      this.dirty.heroes = true;
+      this.renderActive();
+    };
+  },
+
+  attachMiniDrop(card, heroId) {
+    card.ondragover = (e) => { if (this._dragData) { e.preventDefault(); e.stopPropagation(); card.classList.add('dragover'); } };
+    card.ondragleave = () => card.classList.remove('dragover');
+    card.ondrop = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      card.classList.remove('dragover');
+      const d = this._dragData;
+      this._dragData = null;
+      if (!d) return;
+      if (d.type === 'hero') this.resolveHeroSwap(d.id, heroId);
+      else if (d.type === 'card') Game.equipItem(d.id, heroId);
+      this._selected = null;
+      this.dirty.heroes = true;
+      this.renderActive();
+    };
+  },
+
+  attachBenchDrop(grid) {
+    grid.ondragover = (e) => { if (this._dragData && this._dragData.type === 'hero') { e.preventDefault(); grid.classList.add('dragover'); } };
+    grid.ondragleave = () => grid.classList.remove('dragover');
+    grid.ondrop = (e) => {
+      e.preventDefault();
+      grid.classList.remove('dragover');
+      const d = this._dragData;
+      this._dragData = null;
+      if (!d || d.type !== 'hero') return;
+      Game.benchHero(d.id);
+      this._selected = null;
+      this.dirty.heroes = true;
+      this.renderActive();
+    };
   },
 
   affixLabel(a) {
     const def = FORGE_AFFIXES.find(x => x.type === a.type);
     return `${def.icon} +${Math.round(a.val * 100)}% ${def.tip}`;
-  },
-
-  updateHeroGear(elGear, heroId) {
-    const h = S.heroes[heroId];
-    let html = '';
-    for (const slot of GEAR_SLOTS) {
-      const item = h.gear[slot.id];
-      if (item) {
-        const r = RARITIES[item.rarity];
-        const affixes = item.affixes || [];
-        const affIcons = affixes.map(a => FORGE_AFFIXES.find(x => x.type === a.type).icon).join('');
-        const tip = `${slot.name} ${r.name}: +${Math.round(item.mult * 100)}% DPS`
-          + (affixes.length ? '\n' + affixes.map(a => this.affixLabel(a)).join('\n') : '')
-          + (item.forged ? '\n(forjada)' : '');
-        html += `<span class="gear-chip" style="border-color:${r.color};color:${r.color}" title="${tip}">${item.icon} +${Math.round(item.mult * 100)}%${affIcons ? ' <span class="chip-aff">' + affIcons + '</span>' : ''}</span>`;
-      } else {
-        html += `<span class="gear-chip gear-empty" title="${slot.name}: vazio (forje na Forja ou derrote chefes)">${slot.id === 'arma' ? '🗡️' : '📿'} —</span>`;
-      }
-    }
-    elGear.innerHTML = html;
   },
 
   // ---------- Forja de Armas ----------
@@ -263,7 +527,7 @@ const UI = {
 
     c.appendChild(this.el('h3', 'section-title', '🔨 Forja de Armas'));
     c.appendChild(this.el('p', 'forge-intro',
-      'Gaste recursos para forjar equipamento. Cada carta revela raridade e <b>afixos</b> — equipe no herói ideal ou desmanche por materiais. Uma carta por vez.'));
+      'Gaste recursos para forjar equipamento. Cada carta revela raridade e <b>afixos</b> — as cartas vão para a <b>Bolsa</b> (na aba Heróis), onde você as equipa ou desmancha quando quiser.'));
 
     const panel = this.el('div', 'forge-panel');
     this.R.forge = { tiers: [], panel };
@@ -274,17 +538,11 @@ const UI = {
       btn.innerHTML = `<div class="ft-head">${t.icon} ${t.name}</div>
         <div class="ft-odds">${this.forgeOddsHtml(t)}</div>
         <div class="ft-cost"></div>`;
-      btn.onclick = () => { if (Game.forgeItem(t.id)) { this.dirty.forge = true; this.renderActive(); } };
+      btn.onclick = () => { if (Game.forgeItem(t.id)) { this.dirty.forge = true; this.dirty.heroes = true; this.renderActive(); } };
       tiers.appendChild(btn);
       this.R.forge.tiers.push({ id: t.id, btn, costEl: btn.querySelector('.ft-cost') });
     }
     panel.appendChild(tiers);
-
-    const cardArea = this.el('div', 'forge-card-area');
-    panel.appendChild(cardArea);
-    this.R.forge.cardArea = cardArea;
-    this._forgeToken = undefined;
-    this.updateForgeCard();
 
     const stat = this.el('div', 'forge-stat', '');
     panel.appendChild(stat);
@@ -293,58 +551,10 @@ const UI = {
     c.appendChild(panel);
   },
 
-  // Reconstrói a carta pendente só quando ela muda (token) — evita re-render por frame.
-  updateForgeCard() {
-    if (!this.R.forge) return;
-    const p = S.forge.pending;
-    const token = p ? p.icon + '|' + p.rarity + '|' + p.mult + '|' + p.affixes.length : 'none';
-    if (token === this._forgeToken) return;
-    this._forgeToken = token;
-
-    const area = this.R.forge.cardArea;
-    area.innerHTML = '';
-    if (!p) return;
-
-    const rar = RARITIES[p.rarity];
-    const slotName = GEAR_SLOTS.find(s => s.id === p.slot).name;
-    const card = this.el('div', 'forge-card reveal');
-    card.style.borderColor = rar.color;
-    card.style.boxShadow = `0 0 26px ${rar.color}55`;
-    const affHtml = p.affixes.length
-      ? p.affixes.map(a => `<div class="aff-line">${this.affixLabel(a)}</div>`).join('')
-      : '<div class="aff-line aff-none">Sem afixos</div>';
-    card.innerHTML = `<div class="fc-icon" style="color:${rar.color}">${p.icon}</div>
-      <div class="fc-body">
-        <div class="fc-rar" style="color:${rar.color}">${rar.name} · ${slotName}</div>
-        <div class="fc-mult">+${Math.round(p.mult * 100)}% DPS base</div>
-        ${affHtml}
-      </div>`;
-    area.appendChild(card);
-
-    const equip = this.el('div', 'forge-equip');
-    equip.appendChild(this.el('div', 'fe-label', `Equipar ${slotName.toLowerCase()} em:`));
-    const heroesRow = this.el('div', 'fe-heroes');
-    for (const def of HEROES) {
-      if (!S.heroes[def.id]) continue;
-      const delta = Game.forgeDelta(def.id);
-      const chip = this.el('button', 'fe-hero' + (delta > 0 ? ' up' : delta < 0 ? ' down' : ''));
-      chip.innerHTML = `<span class="feh-icon">${def.icon}</span><span class="feh-name">${def.name}</span><span class="feh-delta">${this.fmtScore(delta)}</span>`;
-      chip.title = delta > 0 ? 'Melhora o equipamento atual' : delta < 0 ? 'Pior que o equipamento atual' : 'Equivalente ao atual';
-      chip.onclick = () => { if (Game.equipForged(def.id)) { this.dirty.heroes = true; this.dirty.forge = true; this.renderActive(); } };
-      heroesRow.appendChild(chip);
-    }
-    equip.appendChild(heroesRow);
-    area.appendChild(equip);
-
-    const scrap = this.el('button', 'forge-scrap', '♻️ Desmanchar por materiais');
-    scrap.onclick = () => { if (Game.scrapForged()) { this.dirty.forge = true; this.renderActive(); } };
-    area.appendChild(scrap);
-  },
-
-  // Atualização por tick da forja (custos/afford + estatística + carta pendente)
+  // Atualização por tick da forja (custos/afford + estatística + teto da bolsa)
   updateForge() {
     if (!this.R.forge) return;
-    const hasPending = !!S.forge.pending;
+    const full = S.forge.inventory.length >= FORGE_INVENTORY_CAP;
     for (const ref of this.R.forge.tiers) {
       const cost = Game.forgeCost(ref.id);
       const parts = [
@@ -352,15 +562,14 @@ const UI = {
         this.forgeCostPart('⛓️', S.res.ferro, cost.ferro),
       ];
       if (cost.cristal > 0) parts.push(this.forgeCostPart('💠', S.res.cristal, cost.cristal));
-      ref.costEl.innerHTML = parts.join(' · ');
+      ref.costEl.innerHTML = parts.filter(Boolean).join(' · ');
       const ok = Game.canForge(ref.id);
       ref.btn.classList.toggle('afford', ok);
       ref.btn.disabled = !ok;
-      ref.btn.title = hasPending ? 'Resolva a carta atual antes de forjar outra' : '';
+      ref.btn.title = full ? 'Bolsa cheia — equipe ou desmanche cartas na aba Heróis' : '';
     }
-    this.R.forge.stat.innerHTML = `Itens forjados: <b>${S.forge.forged}</b>`
-      + (hasPending ? ' · <span class="forge-wait">carta aguardando decisão</span>' : '');
-    this.updateForgeCard();
+    this.R.forge.stat.innerHTML = `Itens forjados: <b>${S.forge.forged}</b> · Bolsa: <b>${S.forge.inventory.length}/${FORGE_INVENTORY_CAP}</b>`
+      + (full ? ' · <span class="forge-wait">bolsa cheia</span>' : '');
   },
 
   forgeCostPart(label, have, need) {
@@ -706,28 +915,30 @@ const UI = {
       rc.bossTimer.textContent = cb.boss ? '⏳ ' + fmtTime(cb.bossT) : '';
       rc.dpsEl.innerHTML = `DPS do time: <b>${fmt(Game.teamDps())}</b> · recompensa: <b>${fmt(Game.enemyGold(cb.wave, cb.boss))}</b> ouro`;
 
-      for (const ref of this.R.heroes) {
-        if (ref.hired) {
-          const h = S.heroes[ref.id];
-          const n = this.buyAmount === 'max' ? Game.heroMaxLevels(ref.id) : this.buyAmount;
-          const cost = Game.heroLvlCost(ref.id, Math.max(1, n));
-          ref.btn.innerHTML = `Nível ×${n}<br><span class="btn-cost">${fmt(cost)} ouro</span>`;
-          const afford = n > 0 && S.gold >= cost;
-          ref.btn.classList.toggle('afford', afford);
-          ref.btn.disabled = !afford;
-          ref.stats.innerHTML = `Nv <b>${h.lvl}</b> · DPS: <b>${fmt(Game.heroDps(ref.id))}</b>`;
-        } else {
-          const afford = S.gold >= ref.cost;
-          ref.btn.classList.toggle('afford', afford);
-          ref.btn.disabled = !afford;
-        }
+      // mini-cards de heróis em campo/reserva: botão de nível + stats/DPS
+      if (this.R.heroMinis) for (const ref of this.R.heroMinis) {
+        const h = S.heroes[ref.id];
+        if (!h) continue;
+        const n = this.buyAmount === 'max' ? Game.heroMaxLevels(ref.id) : this.buyAmount;
+        const cost = Game.heroLvlCost(ref.id, Math.max(1, n));
+        ref.levelBtn.innerHTML = `Nv ×${n}<br><span class="btn-cost">${fmt(cost)}</span>`;
+        const afford = n > 0 && S.gold >= cost;
+        ref.levelBtn.classList.toggle('afford', afford);
+        ref.levelBtn.disabled = !afford;
+        ref.statsEl.innerHTML = `Nv <b>${h.lvl}</b> · DPS <b>${fmt(Game.heroDps(ref.id))}</b>`;
+      }
+      // botões de recrutar
+      if (this.R.recruit) for (const ref of this.R.recruit) {
+        const afford = S.gold >= ref.cost;
+        ref.btn.classList.toggle('afford', afford);
+        ref.btn.disabled = !afford;
       }
 
       // novos heróis visíveis?
       if (this._lastHeroCheck === undefined || Date.now() - this._lastHeroCheck > 3000) {
         this._lastHeroCheck = Date.now();
         const visible = HEROES.filter(d => (!d.reqPrestige || S.prestiges >= d.reqPrestige) && (S.heroes[d.id] || S.earned >= d.baseCost * 0.3)).length;
-        if (visible !== this.R.heroes.length) { this.dirty.heroes = true; this.renderActive(); }
+        if (visible !== this.R.heroesVisible) { this.dirty.heroes = true; this.renderActive(); }
       }
     }
 

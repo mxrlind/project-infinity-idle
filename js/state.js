@@ -19,11 +19,11 @@ function defaultState() {
 
     gens: {},         // id -> quantidade
     upgrades: {},     // id -> true
-    heroes: {},       // id -> { lvl, gear: { arma: item|null, amuleto: item|null } }
+    heroes: {},       // id -> { lvl, gear: { arma: item|null, amuleto: item|null }, fieldSlot: null|0..FIELD_SLOTS-1 }
 
-    // Forja: carta aguardando decisão (equipar/desmanchar) + total forjado (estatística)
-    // pending = item { slot, rarity, mult, icon, affixes:[{type,val}] } ou null
-    forge: { pending: null, forged: 0 },
+    // Forja: bolsa de cartas acumuladas (equipar/desmanchar quando quiser) + total forjado (estatística)
+    // item = { uid, slot, rarity, mult, icon, affixes:[{type,val}] }
+    forge: { inventory: [], forged: 0, nextUid: 1 },
 
     combat: {
       wave: 1, maxWave: 1,
@@ -75,9 +75,34 @@ function loadGame() {
     S.res = Object.assign(base.res, data.res || {});
     S.combat = Object.assign(base.combat, data.combat || {});
     S.unlocked = Object.assign(base.unlocked, data.unlocked || {});
-    S.forge = Object.assign(base.forge, data.forge || {});   // saves antigos: mantém pending:null, forged:0
+    // migração: saves antigos tinham forge.pending (carta única) — descartado (perda aceitável de 1 carta não decidida)
+    const rawForge = data.forge || {};
+    S.forge = {
+      inventory: Array.isArray(rawForge.inventory) ? rawForge.inventory : [],
+      forged: typeof rawForge.forged === 'number' ? rawForge.forged : 0,
+      nextUid: typeof rawForge.nextUid === 'number' ? rawForge.nextUid : 1,
+    };
+    if (S.forge.inventory.length) {
+      const maxUid = S.forge.inventory.reduce((m, i) => Math.max(m, i.uid || 0), 0);
+      S.forge.nextUid = Math.max(S.forge.nextUid, maxUid + 1);
+    }
     S.buffs = (data.buffs || []).filter(b => b && b.until > Date.now());
     S.lastClickAt = Date.now(); // reinicia o timer de inatividade a cada carregamento (conquista s4 conta só com o jogo aberto)
+
+    // migração: saves antigos não têm fieldSlot nos heróis — aloca os mais fortes em campo
+    // pra preservar o DPS que o jogador já tinha (senão todo mundo cairia pra reserva e o DPS zeraria)
+    const ids = Object.keys(S.heroes);
+    const needsFieldMigration = ids.some(id => S.heroes[id].fieldSlot === undefined);
+    if (needsFieldMigration) {
+      ids.sort((a, b) => {
+        const ha = S.heroes[a], hb = S.heroes[b];
+        const strA = (ha.lvl || 0) * (1 + (ha.gear.arma ? ha.gear.arma.mult : 0) + (ha.gear.amuleto ? ha.gear.amuleto.mult : 0));
+        const strB = (hb.lvl || 0) * (1 + (hb.gear.arma ? hb.gear.arma.mult : 0) + (hb.gear.amuleto ? hb.gear.amuleto.mult : 0));
+        return strB - strA;
+      });
+      ids.forEach((id, i) => { S.heroes[id].fieldSlot = i < FIELD_SLOTS ? i : null; });
+      S._fieldSlotMigrated = true; // flag transitória — main.js mostra o aviso do conselheiro uma única vez
+    }
     // migração: saves antigos não têm maxPhaseId — reconstrói a partir dos sistemas já desbloqueados
     if (data.maxPhaseId === undefined) {
       let m = 1;

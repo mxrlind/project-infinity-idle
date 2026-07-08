@@ -69,30 +69,43 @@ const UPGRADES = [
 
 // ---- Heróis (NPCs com personalidade) ----
 const HEROES = [
-  { id: 'bran', name: 'Bran', title: 'Escudeiro Teimoso', icon: '🛡️', baseCost: 200, baseDps: 4,
+  { id: 'bran', name: 'Bran', title: 'Escudeiro Teimoso', icon: '🛡️', baseCost: 200, baseDps: 4, class: 'tank',
     story: 'Ex-fazendeiro que decidiu que porcos não revidam, mas monstros sim.',
     lines: ['Meu escudo já foi uma porta de celeiro. Ainda range.', 'Se eu cair, me levantem. De novo.', 'Um dia serei cavaleiro. Hoje, aparo pancadas.'] },
-  { id: 'lyra', name: 'Lyra', title: 'Arqueira do Crepúsculo', icon: '🏹', baseCost: 4e3, baseDps: 22,
+  { id: 'lyra', name: 'Lyra', title: 'Arqueira do Crepúsculo', icon: '🏹', baseCost: 4e3, baseDps: 22, class: 'dps',
     story: 'Nunca errou um alvo. Uma vez errou de propósito e ainda se arrepende.',
     lines: ['Vejo o ponto fraco daqui.', 'Uma flecha, uma história encerrada.', 'O vento me deve favores.'] },
-  { id: 'magnus', name: 'Magnus', title: 'Mago Distraído', icon: '🔮', baseCost: 90e3, baseDps: 160,
+  { id: 'magnus', name: 'Magnus', title: 'Mago Distraído', icon: '🔮', baseCost: 90e3, baseDps: 160, class: 'support',
     story: 'Esqueceu mais feitiços do que a maioria dos magos aprendeu. Alguns explodem sozinhos.',
     lines: ['Hmm? Ah sim, a bola de fogo. Onde deixei mesmo...', 'A magia é 90% memória. Estou perdido.', 'Isso vai fazer BUM. Provavelmente.'] },
-  { id: 'thora', name: 'Thora', title: 'Berserker Sorridente', icon: '🪓', baseCost: 2.2e6, baseDps: 1.3e3,
+  { id: 'thora', name: 'Thora', title: 'Berserker Sorridente', icon: '🪓', baseCost: 2.2e6, baseDps: 1.3e3, class: 'dps',
     story: 'Sorri durante a batalha. Os inimigos acham isso profundamente perturbador.',
     lines: ['HAHA! Mais! MAIS!', 'Meu machado tem nome: Segunda-feira.', 'Dor é só fraqueza fazendo cócegas.'] },
-  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 60e6, baseDps: 11e3,
+  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 60e6, baseDps: 11e3, class: 'dps',
     story: 'Chega sempre três segundos antes do necessário. Ninguém sabe como.',
     lines: ['Você não me viu. Ninguém nunca vê.', 'Contratos são sagrados. Alvos, nem tanto.', '...', ], },
-  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 1.8e9, baseDps: 95e3,
+  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 1.8e9, baseDps: 95e3, class: 'support',
     story: 'Sua luz cega aliados desavisados. Ela pede desculpas. Sempre.',
     lines: ['A luz cobra caro, mas paga em dobro.', 'Perdão pela claridade. De novo.', 'Nenhuma sombra resiste para sempre.'] },
-  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1,
+  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank',
     story: 'Saiu da aposentadoria porque o plano de previdência do Além faliu.',
     lines: ['Os mortos trabalham de graça. Aprendam.', 'Aposentadoria era tediosa demais.', 'Todo fim é só um contrato renovável.'] },
 ];
 const HERO_LVL_COST_MULT = 1.08;
 const HERO_MILESTONE = 25; // a cada 25 níveis, DPS ×2
+
+// ---- Classes e Campo de Batalha (sinergia de time) ----
+// Cada herói pertence a uma classe. Só heróis alocados num slot de campo lutam (fieldSlot !== null);
+// o resto fica na Reserva, sem contribuir DPS. O bônus de sinergia cresce conforme a composição
+// do campo se aproxima da proporção-alvo (1 tank : 2 dps : 1 suporte) — contínuo, não binário.
+const HERO_CLASSES = {
+  tank:    { name: 'Tanque',  icon: '🛡️', color: '#4fa8d8' },
+  dps:     { name: 'Dano',    icon: '⚔️', color: '#ff6b5e' },
+  support: { name: 'Suporte', icon: '✨', color: '#5fbf6b' },
+};
+const FIELD_SLOTS = 5;
+const SYNERGY_TARGET = { tank: 0.25, dps: 0.5, support: 0.25 };
+const SYNERGY_MAX_BONUS = 0.30; // +30% DPS de time com composição perfeita
 
 // ---- Salas da Base ----
 const ROOMS = [
@@ -166,6 +179,7 @@ const FORGE_AFFIXES = [
 const FORGE_CRIT_MULT = 3;      // dano do clique crítico
 const FORGE_CRIT_CAP = 0.75;    // teto de chance de crítico (anti power-creep)
 const FORGE_SCRAP_FERRO = 0.4;  // fração do ferro devolvida ao desmanchar
+const FORGE_INVENTORY_CAP = 24; // teto de cartas na Bolsa (evita acúmulo infinito)
 
 // ---- Eventos mundiais (Fase 6) ----
 const WORLD_EVENTS = [
@@ -240,6 +254,7 @@ const ADVISOR_TIPS = {
   start:    'Bem-vindo! Clique na moeda para começar. Grandes impérios nascem de trocados.',
   firstGen: 'Um Aprendiz Coletor! Agora o ouro flui sozinho. É assim que começa... todos os impérios.',
   heroes:   'Ouço tambores... A aba de Heróis foi desbloqueada! Monte um time e deixe-os lutar por você.',
+  fieldMigration: 'Reorganizei seu exército em um novo sistema de Campo de Batalha — seus heróis mais fortes já estão posicionados. Veja a aba Heróis!',
   base:     'Temos capital suficiente para uma Base! Cada sala tem uma função. Comece pela Serraria.',
   talents:  'O Laboratório produz Conhecimento — gaste-o na nova aba de Talentos. Escolha um caminho... ou todos.',
   prestige: 'Sinto uma energia estranha... O Prestígio foi desbloqueado. Recomeçar nunca foi tão lucrativo.',
