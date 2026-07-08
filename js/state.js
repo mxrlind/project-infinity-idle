@@ -103,6 +103,11 @@ function loadGame() {
       ids.forEach((id, i) => { S.heroes[id].fieldSlot = i < FIELD_SLOTS ? i : null; });
       S._fieldSlotMigrated = true; // flag transitória — main.js mostra o aviso do conselheiro uma única vez
     }
+    // migração: FIELD_SLOTS pode ter diminuído desde o save — manda pra reserva quem ficou fora de faixa
+    for (const id of ids) {
+      const slot = S.heroes[id].fieldSlot;
+      if (slot !== null && slot !== undefined && slot >= FIELD_SLOTS) S.heroes[id].fieldSlot = null;
+    }
     // migração: saves antigos não têm maxPhaseId — reconstrói a partir dos sistemas já desbloqueados
     if (data.maxPhaseId === undefined) {
       let m = 1;

@@ -235,8 +235,12 @@ const UI = {
   // reserva: heróis contratados fora do campo (não contribuem DPS)
   renderBench(c) {
     const bench = Game.benchHeroes();
-    if (!bench.length) return;
-    c.appendChild(this.el('h3', 'section-title', '🏕️ Reserva'));
+    const totalHired = Object.keys(S.heroes).length;
+    c.appendChild(this.el('h3', 'section-title', `🏕️ Reserva <span class="bag-count">${totalHired}/${HEROES.length}</span>`));
+    if (!bench.length) {
+      c.appendChild(this.el('div', 'empty-hint', `${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"Todo herói contratado está em campo agora. Contrate mais para formar uma reserva."</i>`));
+      return;
+    }
     const grid = this.el('div', 'bench-grid');
     this.attachBenchDrop(grid);
     for (const id of bench) grid.appendChild(this.heroMini(id));

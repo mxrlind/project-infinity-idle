@@ -90,6 +90,15 @@ const HEROES = [
   { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank',
     story: 'Saiu da aposentadoria porque o plano de previdência do Além faliu.',
     lines: ['Os mortos trabalham de graça. Aprendam.', 'Aposentadoria era tediosa demais.', 'Todo fim é só um contrato renovável.'] },
+  { id: 'io', name: 'Io', title: 'Golem de Areia Antiga', icon: '🗿', baseCost: 3.2e12, baseDps: 1.4e7, reqPrestige: 2, class: 'tank',
+    story: 'Construído para guardar um templo que ninguém mais lembra onde fica. Ainda guarda.',
+    lines: ['Areia não esquece. Eu também não.', 'Mil anos de pé. Nem uma rachadura.', 'Templo? Que templo?'] },
+  { id: 'kael', name: 'Kael', title: 'Duelista Relâmpago', icon: '⚡', baseCost: 1.1e14, baseDps: 1.8e8, reqPrestige: 2, class: 'dps',
+    story: 'Vence duelos antes do oponente perceber que começaram.',
+    lines: ['Já acabou. Você só não viu.', 'Rápido demais pra ter medo.', 'Relâmpago não erra duas vezes.'] },
+  { id: 'orin', name: 'Orin', title: 'Bardo do Fim dos Tempos', icon: '🕊️', baseCost: 3.8e15, baseDps: 2.3e9, reqPrestige: 3, class: 'support',
+    story: 'Canta a mesma canção desde antes do primeiro prestígio. Ainda não chegou ao refrão.',
+    lines: ['Essa música ainda não acabou. Nem vai.', 'Toda batalha precisa de trilha sonora.', 'Já vi isso terminar. E recomeçar.'] },
 ];
 const HERO_LVL_COST_MULT = 1.08;
 const HERO_MILESTONE = 25; // a cada 25 níveis, DPS ×2
@@ -103,7 +112,7 @@ const HERO_CLASSES = {
   dps:     { name: 'Dano',    icon: '⚔️', color: '#ff6b5e' },
   support: { name: 'Suporte', icon: '✨', color: '#5fbf6b' },
 };
-const FIELD_SLOTS = 5;
+const FIELD_SLOTS = 4;
 const SYNERGY_TARGET = { tank: 0.25, dps: 0.5, support: 0.25 };
 const SYNERGY_MAX_BONUS = 0.30; // +30% DPS de time com composição perfeita
 
