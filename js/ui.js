@@ -25,15 +25,15 @@ const UI = {
 
   tabDefs() {
     return [
-      { id: 'prod',     name: 'Produção',   icon: '⚒️', unlocked: true },
-      { id: 'heroes',   name: 'Heróis',     icon: '⚔️', unlocked: S.unlocked.heroes },
-      { id: 'forge',    name: 'Forja',      icon: '🔨', unlocked: S.unlocked.heroes && Game.forgeUnlocked() },
-      { id: 'base',     name: 'Base',       icon: '🏰', unlocked: S.unlocked.base },
-      { id: 'talents',  name: 'Talentos',   icon: '🌳', unlocked: S.unlocked.talents },
-      { id: 'prestige', name: 'Prestígio',  icon: '✦',  unlocked: S.unlocked.prestige },
-      { id: 'ach',      name: 'Conquistas', icon: '🏅', unlocked: true },
-      { id: 'guilds',   name: '???',        icon: '🔒', unlocked: false, teaser: S.unlocked.phase7 },
-      { id: 'config',   name: 'Ajustes',    icon: '⚙️', unlocked: true },
+      { id: 'prod',     name: 'Produção',   icon: 'prod',     unlocked: true },
+      { id: 'heroes',   name: 'Heróis',     icon: 'heroes',   unlocked: S.unlocked.heroes },
+      { id: 'forge',    name: 'Forja',      icon: 'forge',    unlocked: S.unlocked.heroes && Game.forgeUnlocked() },
+      { id: 'base',     name: 'Base',       icon: 'base',     unlocked: S.unlocked.base },
+      { id: 'talents',  name: 'Talentos',   icon: 'talents',  unlocked: S.unlocked.talents },
+      { id: 'prestige', name: 'Prestígio',  icon: 'prestige', unlocked: S.unlocked.prestige },
+      { id: 'ach',      name: 'Conquistas', icon: 'ach',      unlocked: true },
+      { id: 'guilds',   name: '???',        icon: 'locked',   unlocked: false, teaser: S.unlocked.phase7 },
+      { id: 'config',   name: 'Ajustes',    icon: 'config',   unlocked: true },
     ];
   },
 
@@ -43,7 +43,9 @@ const UI = {
     for (const t of this.tabDefs()) {
       if (t.id === 'guilds' && !t.teaser) continue; // teaser só aparece na fase 7
       const b = this.el('button', 'tab-btn' + (this.activeTab === t.id ? ' active' : '') + (!t.unlocked ? ' locked' : ''));
-      b.innerHTML = t.unlocked ? `<span class="tab-icon">${t.icon}</span>${t.name}` : `<span class="tab-icon">🔒</span>???`;
+      b.innerHTML = t.unlocked
+        ? `<span class="tab-icon"><img src="img/tabs/${t.icon}.png" alt=""></span>${t.name}`
+        : `<span class="tab-icon"><img src="img/tabs/locked.png" alt=""></span>???`;
       if (t.unlocked) {
         b.onclick = () => { this.activeTab = t.id; this.dirty.tabs = true; this.dirty[t.id] = true; this.renderActive(); };
       } else {

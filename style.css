@@ -277,7 +277,8 @@ body {
   border-color: var(--border);
 }
 .tab-btn.locked { color: #4d4660; cursor: not-allowed; }
-.tab-icon { margin-right: 6px; }
+.tab-icon { margin-right: 6px; display: inline-flex; vertical-align: -5px; }
+.tab-icon img { width: 20px; height: 20px; object-fit: contain; }
 
 #tab-content {
   flex: 1; overflow-y: auto;
