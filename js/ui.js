@@ -5,8 +5,17 @@ const UI = {
   buyAmount: 1,           // 1 | 10 | 'max'
   dirty: { tabs: true, prod: true, heroes: true, forge: true, base: true, talents: true, prestige: true, ach: true, config: true, left: true },
   R: {},                  // refs dinâmicos do tab ativo
+  _seenIds: {},            // ids já renderizados por lista, pra animar só linhas novas
 
   dirtyAll() { for (const k in this.dirty) this.dirty[k] = true; },
+
+  // true só na primeira vez que esse id aparece numa lista (usado pra não repetir a animação de entrada)
+  isNewRow(listKey, id) {
+    const set = this._seenIds[listKey] || (this._seenIds[listKey] = new Set());
+    const isNew = !set.has(id);
+    set.add(id);
+    return isNew;
+  },
 
   el(tag, cls, html) {
     const e = document.createElement(tag);
@@ -74,6 +83,7 @@ const UI = {
       case 'config':   this.renderConfig(c); break;
     }
     this.dirty[id] = false;
+    this.updateDynamic(); // aplica custos/afford imediatamente, sem esperar o próximo tick (evita flash de "indisponível")
   },
 
   // ---------- Aba: Produção ----------
@@ -97,7 +107,7 @@ const UI = {
       const owned = S.gens[g.id] || 0;
       if (owned === 0 && S.earned < g.baseCost * 0.4) continue;
 
-      const row = this.el('div', 'gen-row');
+      const row = this.el('div', 'gen-row' + (this.isNewRow('gens', g.id) ? ' row-enter' : ''));
       const info = this.el('div', 'gen-info');
       info.appendChild(this.el('div', 'gen-name', `<span class="gen-icon">${g.icon}</span> ${g.name} <span class="gen-owned">×${owned}</span>`));
       info.appendChild(this.el('div', 'gen-flavor', g.flavor));
@@ -106,7 +116,7 @@ const UI = {
       row.appendChild(info);
 
       const btn = this.el('button', 'buy-btn');
-      btn.onclick = () => { if (Game.buyGen(g.id, this.buyAmount)) { this.dirty.prod = true; this.renderActive(); } };
+      btn.onclick = () => { if (Game.buyGen(g.id, this.buyAmount)) this.updateDynamic(); };
       row.appendChild(btn);
       list.appendChild(row);
       this.R.gens.push({ id: g.id, btn, prodEl, ownedEl: info.querySelector('.gen-owned') });
@@ -258,7 +268,7 @@ const UI = {
       if (S.heroes[def.id]) continue;
       if (S.earned < def.baseCost * 0.3) continue;
       any = true;
-      const row = this.el('div', 'hero-row hero-locked');
+      const row = this.el('div', 'hero-row hero-locked' + (this.isNewRow('recruit', def.id) ? ' row-enter' : ''));
       const portrait = this.el('div', 'hero-portrait');
       portrait.style.backgroundImage = `url("img/heroes/${def.id}.jpg")`;
       row.appendChild(portrait);
@@ -298,7 +308,7 @@ const UI = {
     const cd = HERO_CLASSES[def.class];
     const cardSel = this._selected && this._selected.type === 'card';
     const delta = cardSel ? Game.itemDeltaForHero(this._selected.id, heroId) : 0;
-    const card = this.el('div', 'hero-mini');
+    const card = this.el('div', 'hero-mini' + (this.isNewRow('heroMini', heroId) ? ' row-enter-sm' : ''));
     card.dataset.heroId = heroId;
     card.draggable = true;
     if (this._selected && this._selected.type === 'hero' && this._selected.id === heroId) card.classList.add('selected');
@@ -316,7 +326,7 @@ const UI = {
     const statsEl = card.querySelector('.hm-stats');
     const levelBtn = card.querySelector('.hm-level');
     this.renderMiniGear(card.querySelector('.hm-gear'), heroId);
-    levelBtn.onclick = (e) => { e.stopPropagation(); if (Game.levelHero(heroId, this.buyAmount)) { this.dirty.heroes = true; this.renderActive(); } };
+    levelBtn.onclick = (e) => { e.stopPropagation(); if (Game.levelHero(heroId, this.buyAmount)) this.updateDynamic(); };
     card.onclick = () => this.selectableClicked('hero', heroId);
     card.ondragstart = (e) => this.startDrag(e, 'hero', heroId, card);
     card.ondragend = () => { card.classList.remove('dragging'); this._dragData = null; };
@@ -361,7 +371,7 @@ const UI = {
   bagCard(item) {
     const r = RARITIES[item.rarity];
     const slotName = GEAR_SLOTS.find(s => s.id === item.slot).name;
-    const card = this.el('div', 'bag-card');
+    const card = this.el('div', 'bag-card' + (this.isNewRow('bag', item.uid) ? ' row-enter-sm' : ''));
     card.dataset.uid = item.uid;
     card.draggable = true;
     card.style.borderColor = r.color;
@@ -544,7 +554,7 @@ const UI = {
       btn.innerHTML = `<div class="ft-head">${t.icon} ${t.name}</div>
         <div class="ft-odds">${this.forgeOddsHtml(t)}</div>
         <div class="ft-cost"></div>`;
-      btn.onclick = () => { if (Game.forgeItem(t.id)) { this.dirty.forge = true; this.dirty.heroes = true; this.renderActive(); } };
+      btn.onclick = () => { if (Game.forgeItem(t.id)) this.updateDynamic(); };
       tiers.appendChild(btn);
       this.R.forge.tiers.push({ id: t.id, btn, costEl: btn.querySelector('.ft-cost') });
     }
@@ -554,7 +564,28 @@ const UI = {
     panel.appendChild(stat);
     this.R.forge.stat = stat;
 
+    const cardArea = this.el('div', 'forge-card-area');
+    panel.appendChild(cardArea);
+    this.R.forge.cardArea = cardArea;
+
     c.appendChild(panel);
+  },
+
+  // painel de revelação: mostra a carta recém-forjada com animação (Forja de Armas)
+  showForgeReveal(item) {
+    if (!this.R.forge || !this.R.forge.cardArea) return;
+    const r = RARITIES[item.rarity];
+    const slotName = GEAR_SLOTS.find(s => s.id === item.slot).name;
+    const affHtml = (item.affixes || []).map(a => this.affixLabel(a)).join('<br>');
+    this.R.forge.cardArea.innerHTML = `<div class="forge-card">
+      <div class="bc-icon" style="color:${r.color};font-size:34px">${item.icon}</div>
+      <div>
+        <div class="bc-rar" style="color:${r.color}">${r.name} · ${slotName}</div>
+        <div class="bc-mult">+${Math.round(item.mult * 100)}% DPS</div>
+        <div class="bc-aff">${affHtml}</div>
+      </div>
+    </div>`;
+    this.R.forge.cardArea.querySelector('.forge-card').classList.add('reveal');
   },
 
   // Atualização por tick da forja (custos/afford + estatística + teto da bolsa)
@@ -592,14 +623,15 @@ const UI = {
     this.R.rooms = [];
     for (const r of ROOMS) {
       const lvl = Game.roomLvl(r.id);
-      const card = this.el('div', 'room-card');
-      card.appendChild(this.el('div', 'room-head', `<span class="room-icon">${r.icon}</span> <b>${r.name}</b> <span class="room-lvl">Nv ${lvl}</span>`));
+      const card = this.el('div', 'room-card' + (this.isNewRow('rooms', r.id) ? ' row-enter' : ''));
+      const head = this.el('div', 'room-head', `<span class="room-icon">${r.icon}</span> <b>${r.name}</b> <span class="room-lvl">Nv ${lvl}</span>`);
+      card.appendChild(head);
       card.appendChild(this.el('div', 'room-desc', r.desc));
       const btn = this.el('button', 'buy-btn room-btn');
-      btn.onclick = () => { if (Game.buildRoom(r.id)) { this.dirty.base = true; this.renderActive(); } };
+      btn.onclick = () => { if (Game.buildRoom(r.id)) this.updateDynamic(); };
       card.appendChild(btn);
       grid.appendChild(card);
-      this.R.rooms.push({ id: r.id, btn });
+      this.R.rooms.push({ id: r.id, btn, lvlEl: head.querySelector('.room-lvl') });
     }
     c.appendChild(grid);
   },
@@ -635,9 +667,9 @@ const UI = {
         card.innerHTML = `<div class="tal-head">${t.icon} <b>${t.name}</b> <span class="tal-lvl">${lvl}/${t.max}</span></div>
           <div class="tal-desc">${t.desc}</div>
           <div class="tal-cost">${lvl >= t.max ? 'MÁXIMO' : fmt(Game.talentCost(t.id)) + ' 📘 conhecimento'}</div>`;
-        card.onclick = () => { if (Game.buyTalent(t.id)) { this.dirty.talents = true; this.renderActive(); } };
+        card.onclick = () => { if (Game.buyTalent(t.id)) this.updateDynamic(); };
         col.appendChild(card);
-        this.R.talents.push({ id: t.id, btn: card, max: t.max });
+        this.R.talents.push({ id: t.id, btn: card, max: t.max, lvlEl: card.querySelector('.tal-lvl'), costEl: card.querySelector('.tal-cost') });
       }
       wrap.appendChild(col);
     }
@@ -958,6 +990,7 @@ const UI = {
         const afford = Game.canAffordRoom(ref.id);
         ref.btn.classList.toggle('afford', afford);
         ref.btn.disabled = !afford;
+        if (ref.lvlEl) ref.lvlEl.textContent = 'Nv ' + Game.roomLvl(ref.id);
       }
     }
 
@@ -965,9 +998,13 @@ const UI = {
       if (this.R.knowBanner) this.R.knowBanner.innerHTML = `📘 Conhecimento: <b>${fmt(S.res.conhecimento)}</b> (${fmtRate(Game.knowledgePerSec())})`;
       if (this.R.talents) for (const ref of this.R.talents) {
         const lvl = Game.talentLvl(ref.id);
-        const afford = lvl < ref.max && S.res.conhecimento >= Game.talentCost(ref.id);
+        const maxed = lvl >= ref.max;
+        const afford = !maxed && S.res.conhecimento >= Game.talentCost(ref.id);
         ref.btn.classList.toggle('afford', afford);
+        ref.btn.classList.toggle('maxed', maxed);
         ref.btn.disabled = !afford;
+        if (ref.lvlEl) ref.lvlEl.textContent = `${lvl}/${ref.max}`;
+        if (ref.costEl) ref.costEl.textContent = maxed ? 'MÁXIMO' : fmt(Game.talentCost(ref.id)) + ' 📘 conhecimento';
       }
     }
 
@@ -1082,6 +1119,79 @@ const UI = {
     box.appendChild(row);
   },
 
+  // modal narrativo de fase: conta a história do momento + explica a mecânica nova.
+  // se outra lore já estiver aberta (ex.: várias fases desbloqueadas de uma vez após tempo offline),
+  // enfileira em vez de sobrescrever, pra nenhuma história ser perdida.
+  _loreQueue: [],
+
+  showLoreModal(key) {
+    if (!PHASE_LORE[key]) return;
+    const layer = document.getElementById('modal-layer');
+    if (!layer.classList.contains('hidden') && layer.dataset.loreOpen === '1') {
+      if (!this._loreQueue.includes(key)) this._loreQueue.push(key);
+      return;
+    }
+    this._openLoreModal(key);
+  },
+
+  _openLoreModal(key) {
+    const data = PHASE_LORE[key];
+    const box = this.showModal(`
+      <div class="lore-head">
+        <span class="lore-icon">${ADVISOR.icon}</span>
+        <div>
+          <h3>${data.title}</h3>
+          <div class="lore-sub">${ADVISOR.name}</div>
+        </div>
+      </div>
+      <div class="modal-text lore-body"></div>
+      ${data.tip ? `<div class="lore-tip">💡 ${data.tip}</div>` : ''}
+    `, true);
+    const layer = document.getElementById('modal-layer');
+    layer.dataset.loreOpen = '1';
+    this.typewrite(box.querySelector('.lore-body'), data.body);
+    const ok = this.el('button', 'cfg-btn', 'Continuar');
+    ok.onclick = () => this._closeLoreModal();
+    box.appendChild(ok);
+    // garante que fechar pelo X ou clicando fora também avança a fila
+    const xBtn = box.querySelector('.modal-close');
+    if (xBtn) xBtn.onclick = () => this._closeLoreModal();
+    layer.onclick = (e) => { if (e.target === layer) this._closeLoreModal(); };
+  },
+
+  _closeLoreModal() {
+    const layer = document.getElementById('modal-layer');
+    layer.classList.add('hidden');
+    layer.dataset.loreOpen = '';
+    const next = this._loreQueue.shift();
+    if (next) this._openLoreModal(next);
+  },
+
+  // revela o texto aos poucos (efeito de máquina de escrever); pula direto se o usuário preferir menos movimento
+  typewrite(el, text) {
+    const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) { el.textContent = text; return; }
+    let i = 0;
+    const id = setInterval(() => {
+      i++;
+      el.textContent = text.slice(0, i);
+      if (i >= text.length) clearInterval(id);
+    }, 18);
+  },
+
+  // Códex: lista as fases já vividas para reler a lore a qualquer momento
+  showCodex() {
+    const order = ['phase1', 'heroes', 'base', 'talents', 'prestige', 'events', 'phase7'];
+    const seen = order.filter(k => k === 'phase1' || S.unlocked[k]);
+    const rows = seen.map(k => `<button class="cfg-btn codex-entry" data-key="${k}">${ADVISOR.icon} <b>${PHASE_LORE[k].title}</b></button>`).join('');
+    const box = this.showModal(`<h3>📖 Códex de ${ADVISOR.name}</h3>
+      <div class="modal-text">Releia as histórias já vividas nesta jornada.</div>
+      <div class="codex-list">${rows}</div>`, true);
+    box.querySelectorAll('.codex-entry').forEach(btn => {
+      btn.onclick = () => this.showLoreModal(btn.dataset.key);
+    });
+  },
+
   welcomeBack(off) {
     const box = this.showModal(`<h3>🌙 Bem-vindo de volta!</h3>
       <div class="modal-text">Você ficou fora por <b>${fmtTime(off.seconds)}</b>.<br>
@@ -1122,7 +1232,8 @@ const UI = {
       if (S.titleClicks === 42) Game.checkAchievements();
     };
 
-    this.log(`${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"${ADVISOR_TIPS.start}"</i>`);
+    document.getElementById('codex-btn').onclick = () => this.showCodex();
+
     this.renderTabs();
     this.renderLeft();
     this.renderActive();

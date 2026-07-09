@@ -443,8 +443,9 @@ const Game = {
     Sound.play('drop');
     if (isRare) UI.legendaryFlash(rar.color);
     UI.log(`${tier.icon} Forja (${tier.name}) revelou <span style="color:${rar.color}">${rar.name}</span> ${icon}! (na Bolsa)`);
-    UI.dirty.forge = true;
-    UI.dirty.heroes = true;    // a bolsa vive na aba Heróis
+    UI.toast(`${icon} ${rar.name}!`, rar.color, isRare);
+    UI.showForgeReveal(S.forge.inventory[S.forge.inventory.length - 1]);
+    UI.dirty.heroes = true;    // a bolsa vive na aba Heróis — atualiza quando o jogador for até lá
     return true;
   },
 
@@ -727,6 +728,7 @@ const Game = {
         UI.toast('🔓 Novo sistema desbloqueado!', '#e8a33d');
         Sound.play('unlock');
         UI.dirtyAll();
+        UI.showLoreModal(key);
       }
     };
     if (S.earned >= PHASES[1].at) notify('heroes', ADVISOR_TIPS.heroes);

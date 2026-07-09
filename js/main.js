@@ -14,6 +14,10 @@
   if (S.combat.maxHp <= 0) Game.spawnEnemy();
 
   UI.init();
+  if (!loaded) {
+    UI.log(`${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"${ADVISOR_TIPS.start}"</i>`);
+    UI.showLoreModal('phase1');
+  }
   if (offline && offline.gold >= 1) UI.welcomeBack(offline);
   if (showFieldMigrationNotice) {
     UI.log(`${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"${ADVISOR_TIPS.fieldMigration}"</i>`);

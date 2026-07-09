@@ -270,3 +270,42 @@ const ADVISOR_TIPS = {
   events:   'O mundo desperta! Eventos acontecerão de tempos em tempos. Fique atento aos céus.',
   phase7:   'Há rumores de Guildas se formando ao norte... mas ainda não é hora. (Em breve.)',
 };
+
+// ---- Lore/tutorial por fase, exibido em modal ao desbloquear (e revisitável no Códex) ----
+const PHASE_LORE = {
+  phase1: {
+    title: 'O Despertar',
+    body: 'Você acorda num porão empoeirado, uma única moeda de cobre na mão e um grimório aberto sobre a mesa. Uma voz sai das páginas: "Ah, finalmente. Eu sou Mestre Aldric — vou te guiar enquanto você constrói algo grande a partir de quase nada." A moeda ainda está quente. Alguém — ou algo — quer que você comece a juntar ouro.',
+    tip: 'Clique na moeda dourada para minerar ouro. Depois, use esse ouro para comprar seu primeiro gerador — ele trabalha por você mesmo enquanto você não está clicando.',
+  },
+  heroes: {
+    title: 'Chamado às Armas',
+    body: 'O ouro atraiu atenção — e nem toda ela é amigável. Aldric fecha o grimório com um estalo. "Monstros nas fronteiras. Vamos precisar de gente disposta a lutar." Ele te entrega uma lista de nomes: aventureiros, desertores, um ou outro fazendeiro teimoso — todos dispostos a vender a espada por uma fatia do seu ouro.',
+    tip: 'Contrate heróis na aba Heróis e os posicione no Campo de Batalha. Eles causam dano automaticamente a cada segundo — suba o nível deles para acelerar o combate.',
+  },
+  base: {
+    title: 'Fundações',
+    body: '"Acampamento improvisado já não serve mais", diz Aldric, olhando ao redor com desdém. Com capital suficiente, é hora de erguer paredes de verdade — uma sede com salas dedicadas: madeira, pedra, conhecimento, o que for preciso para sustentar o que você está construindo.',
+    tip: 'Construa e evolua salas na aba Base. Cada uma produz um recurso diferente — a Serraria é um bom começo, e o Laboratório abre caminho para os Talentos.',
+  },
+  talents: {
+    title: 'Iluminação',
+    body: 'O Laboratório zumbe baixinho, dia e noite. Aldric folheia anotações febris. "Conhecimento puro. Podemos moldar seu destino com ele — força, riqueza, o que você quiser perseguir." Três caminhos se abrem diante de você, e nada te obriga a escolher só um.',
+    tip: 'Gaste Conhecimento 📘 (produzido pelo Laboratório) na aba Talentos para desbloquear bônus permanentes em três árvores diferentes.',
+  },
+  prestige: {
+    title: 'Transcendência',
+    body: 'Aldric fica estranhamente quieto por um momento. "Existe um jeito de recomeçar — abrir mão de tudo que você construiu aqui, e voltar mais forte do que nunca. Chamam isso de Essência. Eu chamo de coragem." A escolha, como sempre, é sua.',
+    tip: 'Na aba Prestígio, "renasça" para trocar seu progresso atual por Essência ✦ permanente — cada ponto vale +2% de produção global para sempre, mesmo depois de recomeçar.',
+  },
+  events: {
+    title: 'Convergência',
+    body: '"O mundo notou você agora", murmura Aldric, os olhos virados para o céu. Ventos estranhos, moedas douradas fugidias, e às vezes um mercador enigmático batendo à sua porta com ofertas boas demais para ignorar — nada disso é acaso.',
+    tip: 'Fique de olho no banner no topo da tela: eventos temporários e moedas douradas aparecem de tempos em tempos e valem a pena perseguir.',
+  },
+  phase7: {
+    title: 'Rumores do Norte',
+    body: 'Aldric baixa a voz, quase um sussurro. "Há quem esteja se organizando ao norte — bandeiras, juramentos, um poder maior que o de um só império." Ele não diz mais nada. Ainda não é hora.',
+    tip: 'As Guildas ainda estão por vir — esta fase é só um aviso do que está guardado para o futuro.',
+  },
+};
