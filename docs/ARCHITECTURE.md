@@ -13,12 +13,18 @@ js/format.js    — fmt(), fmtRate(), fmtTime(), fmtMult(), fmtPct()
 js/data.js      — TODO o conteúdo do jogo (const arrays/objects, sem lógica)
 js/state.js     — objeto S (estado mutável) + save/load/export/import/reset
 js/game.js      — objeto Game (motor/regras) + objeto Sound (áudio)
+js/expansion.js — EXPANSÃO do motor via Object.assign(Game, …): Mundo Vivo, Mascotes, Pesquisa,
+                  Mercado, NPCs, Lore, Segredos, automação + extensão do Sound (volume/música/throttle)
 js/ui.js        — objeto UI (renderização, DOM, feedback visual, modais)
+js/ui-ext.js    — EXPANSÃO da UI via Object.assign(UI, …): abas Mascotes/Pesquisa/Mercado/Cidade,
+                  widget do mundo, calendário, segredos de input (initExt/updateExt)
 js/main.js      — boot() : carrega save, calcula offline, inicia o loop de tick
 img/            — artes estáticas (retratos, inimigos, textura de fundo, favicon) — ver seção "Assets visuais"
 ```
 
-Ordem de carregamento no `index.html` importa: `format.js` → `data.js` → `state.js` → `game.js` → `ui.js` → `main.js`, pois cada um assume que os anteriores já definiram suas globais (`fmt`, `GENERATORS`, `S`, `Game`, `UI`).
+Ordem de carregamento no `index.html` importa: `format.js` → `data.js` → `state.js` → `game.js` → `expansion.js` → `ui.js` → `ui-ext.js` → `main.js`, pois cada um assume que os anteriores já definiram suas globais (`fmt`, `GENERATORS`, `S`, `Game`, `UI`).
+
+A expansão se integra ao motor original por **hooks pontuais** (grep por "expansão" em `game.js`): agregadores `Game.ext*Mult()` dentro das fórmulas (`globalProdMult`, `teamDps`, `knowledgePerSec`, `dropChance`, `enemyGold`, `essenceGain`, custos), `tickExt(dt)` no fim do `tick`, `onKillExt(wasBoss)` em `onEnemyKilled`, `onPrestigeExt(prevEarned)` no `doPrestige` e `offlineExt(seconds)` no `computeOffline`. Todo o estado novo (`S.world/pets/research/market/npcs/codex/secrets/audio`) é **permanente** — não é tocado pelo reset do prestígio.
 
 ## Modelo mental
 

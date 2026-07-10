@@ -297,3 +297,69 @@ Todo o áudio é **sintetizado via Web Audio API** (osciladores simples) — nã
 - Ficar **10 minutos sem clicar na moeda** (com o jogo aberto) desbloqueia "Paciência de Monge".
 
 Todas ficam listadas como "???" na aba Conquistas até serem desbloqueadas.
+
+---
+
+## 18. Mundo Vivo (calendário, estações e climas)
+
+Calendário interno permanente (sobrevive ao prestígio): **1 hora do mundo = 50s reais → 1 dia = 20 min; estação = 7 dias**. Dia começa às 6h, noite às 20h (noite: conhecimento ×1,15, ouro ×0,95). Widget clicável no painel esquerdo mostra hora/estação/dia/clima; o modal lista o calendário completo (climas ainda não vistos ficam ocultos).
+
+| Estação | Efeito |
+|---|---|
+| 🌸 Primavera | +20% materiais |
+| ☀️ Verão | +10% ouro |
+| 🍂 Outono | +15% conhecimento |
+| ❄️ Inverno | +15% DPS, −10% ouro |
+
+Climas (sorteio a cada 4–10h do mundo, ~55% de chance): 🌧️ Chuva (+30% materiais, não no inverno), ⛈️ Tempestade (+60% energia, −10% ouro), 🌨️ Neve (+20% drop, só inverno), 🌕 Lua Cheia (+25% DPS, +20% ouro por abate, só à noite), 🌑 Eclipse (raro: conhecimento ×2, XP de mascote +50%; com a pesquisa Portais Estelares, chefes dão +1 ✦).
+
+Dados em `SEASONS`/`WEATHERS` (js/data.js); motor em `Game.worldInfo/tickWorld/worldMults` (js/expansion.js).
+
+## 19. Mascotes
+
+Permanentes (sobrevivem ao prestígio). Só mascotes **ativos** (1 slot; 2 com a pesquisa Vínculo Animal) dão bônus. XP por abate (`(1 + onda×0,04) × 6 se chefe`, dividido entre ativos) e por alimentação (25% do nível; custo em material cresce 1,18^(nível/3)). Curva: `30 × lvl^1,55 × (1 + raridade×0,15)`, máx 100. **Evolução** nos níveis 25 e 50 (bônus ×1,5 / ×2, novo nome).
+
+| Mascote | Bônus/nível | Desbloqueio |
+|---|---|---|
+| 🐺 Lobo (Raro) | +1,5% DPS, +0,2% crítico | 1º herói contratado (automático) |
+| 🦉 Coruja (Raro) | +2% conhecimento, +1% vel. pesquisa | pesquisa Domesticação |
+| 🐉 Dragão (Épico) | +2% ouro, +0,3% drop | 3 relíquias com o Colecionador |
+| 🔥 Fênix (Lendário) | +1% Essência; ninho de ouro pós-prestígio (+0,2%/nível do ouro da run, teto 25%) | 1º prestígio |
+
+Novos mascotes = só cadastrar em `PETS` (js/data.js).
+
+## 20. Pesquisa (árvore tecnológica)
+
+Aba desbloqueada junto com Talentos. **Tempo real** (5 min a 3 dias), continua **offline**; fila de 3; cancelar devolve 50%. Custo: conhecimento + ouro auto-escalado (`enemyGold(maiorOnda) × goldMult`) + materiais. 9 categorias, 22 tecnologias — várias desbloqueiam **mecânicas**, não só números: Rotas de Comércio → Mercado; Distrito da Cidade → NPCs; Domesticação/Vínculo Animal → Coruja/2º slot de mascote; Formação Estendida → 5º slot do campo; Autocomprador/Mão Fantasma → automação; Memória Persistente → começa o prestígio com 10 Aprendizes/Minas/Mercados; Astronomia → previsão do clima; Portais Estelares → +1 ✦ por chefe em eclipse.
+
+Dados em `RESEARCH`/`RESEARCH_CATS`; motor em `Game.startResearch/advanceResearch/researchMult...`.
+
+## 21. Mercado (economia dinâmica)
+
+Desbloqueado pela pesquisa Rotas de Comércio. Negocia madeira/pedra/ferro/cristal. Valor-base auto-escala com a maior onda (`enemyGold × k`); o **índice de preço** (0,35–2,8) dá um passo por hora do mundo: pressão de demanda por estação/clima + ruído. Sparkline com 48h de histórico; badges de **ESCASSEZ** (≥2,0), **PROMOÇÃO** (≤0,7) e demanda sazonal. Taxa de 6% (metade com Especulação; −3%/nível de amizade com Dorian). Comprar barato, estocar e vender na alta é loop real de especulação.
+
+## 22. Cidade (NPCs)
+
+Desbloqueada pela pesquisa Distrito da Cidade. 5 NPCs com **amizade** (níveis 0–5 por XP: ofertas +2, missões +8, relíquias +15), **estoque diário** (determinístico pelo dia do mundo) e **missão diária** (recompensa: ouro escalado + amizade):
+
+| NPC | Ofertas | Perk de amizade | Missão diária |
+|---|---|---|---|
+| 🧑‍💼 Dorian (Mercador) | pacotes de recursos −25% | −3%/nv nas taxas do Mercado | vender N no Mercado |
+| 🧑‍🏭 Bruna (Ferreira) | Temperar (+10% num item equipado), Reforjar afixos | +10%/nv de ferro ao desmanchar | forjar N cartas |
+| 🧙 Zephyr (Mago) | feitiços-buff (prod/DPS/clique ×2,5–5 por 10 min) | −10%/nv no preço | concluir pesquisa |
+| ⚗️ Mira (Alquimista) | poções (conhecimento ×3, drop +25%, XP de mascote ×2) | +5%/nv de potência | alimentar mascotes |
+| 🧐 Silas (Colecionador) | troca relíquias por conhecimento (3 relíquias → Dragão 🐉) | relíquias revelam lore | derrotar N chefes |
+
+Poções duram o dobro com a pesquisa Alquimia Maior.
+
+## 23. Lore Oculta (Códex → Descobertas)
+
+14 fragmentos (ruínas, livros, diários, memórias...) com gatilhos silenciosos espalhados pelos sistemas (ondas 25/75/200, eclipse, prestígio 2, todas as salas, amizade nv 3, mascote nv 50, 10 Singularidades, Orin, árvore de pesquisa completa...). Registro automático no **📖 Códex** (nova seção "Descobertas", com contagem e texto em máquina de escrever). Dados em `LORE_ITEMS`; checagem junto das conquistas (a cada 2s).
+
+## 24. Novos segredos
+
+Além dos 4 originais: 🔤 digitar `aldric` em qualquer tela; 🕸️ um pontinho quase invisível no canto inferior esquerdo; ⏱️ vender no Mercado com índice ≥ 2,2; 🥶 desmanchar uma carta Lendária; 🌖 derrotar um chefe sob a Lua Cheia. Todas são conquistas secretas (+1% produção cada) e nunca dizem como.
+
+## 25. Áudio 2.0
+
+Ganho-mestre com **slider de volume** em Ajustes; anti-sobreposição (mesmo som não repete em <60ms); novos efeitos (pesquisa, mascote, evolução, NPC, venda, erro, lore, clima, portal); **música ambiente gerativa** (pentatônica sintetizada, toggle em Ajustes, com fade-in/out). Tudo WebAudio, sem arquivos.

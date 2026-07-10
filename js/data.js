@@ -276,6 +276,246 @@ const ACHIEVEMENTS = [
   { id: 's2',  cat: 'Segredos',  name: 'Número da Sorte',    icon: '🎰', desc: 'Possua exatamente 77 de um gerador', secret: true, check: (S) => S.luckyNumberSeen, progress: (S) => [S.luckyNumberSeen ? 1 : 0, 1] },
   { id: 's3',  cat: 'Segredos',  name: 'O Vazio Olha de Volta', icon: '🕳️', desc: 'Compre uma Singularidade', secret: true, check: (S) => (S.gens.singular || 0) >= 1, progress: (S) => [S.gens.singular || 0, 1] },
   { id: 's4',  cat: 'Segredos',  name: 'Paciência de Monge', icon: '🧘', desc: 'Fique 10 minutos sem clicar na moeda (com o jogo aberto)', secret: true, check: (S, D) => D.idleTime >= 600, progress: (S, D) => [D.idleTime, 600] },
+  // Mascotes
+  { id: 'pt1', cat: 'Mascotes',  name: 'Melhor Amigo',        icon: '🐾', desc: 'Tenha seu primeiro mascote',            check: (S) => { for (const k in S.pets.owned) return true; return false; }, progress: (S) => [Object.keys(S.pets.owned).length, 1] },
+  { id: 'pt2', cat: 'Mascotes',  name: 'Metamorfose',         icon: '🦋', desc: 'Evolua um mascote (nível 25)',          check: (S) => { for (const k in S.pets.owned) if (S.pets.owned[k].lvl >= 25) return true; return false; }, progress: (S) => { let m = 0; for (const k in S.pets.owned) m = Math.max(m, S.pets.owned[k].lvl); return [m, 25]; } },
+  { id: 'pt3', cat: 'Mascotes',  name: 'Alcateia Completa',   icon: '🏞️', desc: 'Tenha os 4 mascotes',                   check: (S) => Object.keys(S.pets.owned).length >= 4, progress: (S) => [Object.keys(S.pets.owned).length, 4] },
+  { id: 'pt4', cat: 'Mascotes',  name: 'Banquete',            icon: '🍖', desc: 'Alimente mascotes 50 vezes',            check: (S) => S.pets.fed >= 50, progress: (S) => [S.pets.fed, 50] },
+  // Pesquisa
+  { id: 'rs1', cat: 'Sabedoria', name: 'Eureka',              icon: '💡', desc: 'Conclua sua primeira pesquisa',         check: (S) => { for (const k in S.research.done) return true; return false; }, progress: (S) => [Object.keys(S.research.done).length, 1] },
+  { id: 'rs2', cat: 'Sabedoria', name: 'Renascentista',       icon: '🎨', desc: 'Conclua 10 pesquisas',                  check: (S) => Object.keys(S.research.done).length >= 10, progress: (S) => [Object.keys(S.research.done).length, 10] },
+  { id: 'rs3', cat: 'Sabedoria', name: 'Singularidade Mental', icon: '🧠', desc: 'Conclua todas as pesquisas',           check: (S) => Object.keys(S.research.done).length >= RESEARCH.length, progress: (S) => [Object.keys(S.research.done).length, RESEARCH.length] },
+  // Mercado / Cidade
+  { id: 'mk1', cat: 'Exploração', name: 'Primeira Barganha',  icon: '🤝', desc: 'Faça uma transação no Mercado',         check: (S) => S.market.stats.trades >= 1, progress: (S) => [S.market.stats.trades, 1] },
+  { id: 'mk2', cat: 'Exploração', name: 'Tubarão do Mercado', icon: '🦈', desc: 'Faça 100 transações no Mercado',        check: (S) => S.market.stats.trades >= 100, progress: (S) => [S.market.stats.trades, 100] },
+  { id: 'np1', cat: 'Exploração', name: 'Gente da Cidade',    icon: '🏘️', desc: 'Alcance amizade nível 3 com um NPC',    check: (S) => { for (const k in S.npcs.rep) if (S.npcs.rep[k] >= NPC_FRIEND_XP[3]) return true; return false; }, progress: (S) => { let m = 0; for (const k in S.npcs.rep) m = Math.max(m, S.npcs.rep[k]); return [m, NPC_FRIEND_XP[3]]; } },
+  { id: 'np2', cat: 'Exploração', name: 'Pilar da Comunidade', icon: '🏆', desc: 'Cumpra 20 missões de NPCs',            check: (S) => S.npcs.missionsDone >= 20, progress: (S) => [S.npcs.missionsDone || 0, 20] },
+  // Mundo
+  { id: 'wd1', cat: 'Exploração', name: 'As Quatro Estações', icon: '🍥', desc: 'Testemunhe as 4 estações',              check: (S) => Object.keys(S.world.seenSeasons || {}).length >= 4, progress: (S) => [Object.keys(S.world.seenSeasons || {}).length, 4] },
+  { id: 'wd2', cat: 'Exploração', name: 'Sob a Sombra',       icon: '🌑', desc: 'Testemunhe um eclipse',                 check: (S) => !!(S.world.seenWeathers && S.world.seenWeathers.eclipse), progress: (S) => [S.world.seenWeathers && S.world.seenWeathers.eclipse ? 1 : 0, 1] },
+  { id: 'lo1', cat: 'Exploração', name: 'Arqueólogo',         icon: '🏺', desc: 'Descubra 5 fragmentos de lore',         check: (S) => Object.keys(S.codex.lore).length >= 5, progress: (S) => [Object.keys(S.codex.lore).length, 5] },
+  { id: 'lo2', cat: 'Exploração', name: 'A História Completa', icon: '📚', desc: 'Descubra todos os fragmentos de lore', check: (S) => Object.keys(S.codex.lore).length >= LORE_ITEMS.length, progress: (S) => [Object.keys(S.codex.lore).length, LORE_ITEMS.length] },
+  // Novos segredos (nunca dizemos como — desc genérica até desbloquear)
+  { id: 's5',  cat: 'Segredos',  name: 'Palavra Mágica',      icon: '🔤', desc: 'Digite o nome de quem sempre esteve com você', secret: true, check: (S) => !!(S.secrets && S.secrets.aldric), progress: (S) => [S.secrets && S.secrets.aldric ? 1 : 0, 1] },
+  { id: 's6',  cat: 'Segredos',  name: 'Poeira nos Cantos',   icon: '🕸️', desc: 'Encontre o ponto que ninguém vê',       secret: true, check: (S) => !!(S.secrets && S.secrets.dot), progress: (S) => [S.secrets && S.secrets.dot ? 1 : 0, 1] },
+  { id: 's7',  cat: 'Segredos',  name: 'Timing Perfeito',     icon: '⏱️', desc: 'Venda no Mercado com o preço nas alturas (índice ≥ 2,2)', secret: true, check: (S) => !!(S.secrets && S.secrets.highSell), progress: (S) => [S.secrets && S.secrets.highSell ? 1 : 0, 1] },
+  { id: 's8',  cat: 'Segredos',  name: 'Coração de Pedra',    icon: '🥶', desc: 'Desmanche uma carta Lendária',          secret: true, check: (S) => !!(S.secrets && S.secrets.scrapLegend), progress: (S) => [S.secrets && S.secrets.scrapLegend ? 1 : 0, 1] },
+  { id: 's9',  cat: 'Segredos',  name: 'Caçador Lunar',       icon: '🌖', desc: 'Derrote um chefe sob a Lua Cheia',      secret: true, check: (S) => !!(S.secrets && S.secrets.moonBoss), progress: (S) => [S.secrets && S.secrets.moonBoss ? 1 : 0, 1] },
+];
+
+// ===================================================================
+// ==== EXPANSÃO: Mundo Vivo · Mascotes · Pesquisa · Mercado · NPCs ====
+// ===================================================================
+
+// ---- Mundo Vivo: calendário interno ----
+// 1 hora de jogo = 50s reais → 1 dia de jogo = 20 min. Estação = 7 dias de jogo.
+const WORLD_MIN_PER_SEC = 1.2;   // minutos de jogo por segundo real
+const WORLD_DAY_START = 6;       // hora em que amanhece
+const WORLD_NIGHT_START = 20;    // hora em que anoitece
+const SEASON_DAYS = 7;
+
+// mults: multiplicadores aplicados no motor enquanto a estação está ativa
+const SEASONS = [
+  { id: 'primavera', name: 'Primavera', icon: '🌸', desc: '+20% coleta de materiais',        mults: { material: 1.2 } },
+  { id: 'verao',     name: 'Verão',     icon: '☀️', desc: '+10% produção de ouro',            mults: { gold: 1.1 } },
+  { id: 'outono',    name: 'Outono',    icon: '🍂', desc: '+15% conhecimento',                mults: { knowledge: 1.15 } },
+  { id: 'inverno',   name: 'Inverno',   icon: '❄️', desc: '+15% DPS, −10% ouro',              mults: { dps: 1.15, gold: 0.9 } },
+];
+
+// Climas: sorteados a cada poucas horas de jogo; `only`/`not` restringem por estação,
+// `night: true` só ocorre à noite. Duração em horas de jogo (faixa [min, max]).
+const WEATHERS = [
+  { id: 'chuva',      name: 'Chuva',      icon: '🌧️', weight: 30, hours: [2, 5], desc: '+30% materiais',                          mults: { material: 1.3 }, not: ['inverno'] },
+  { id: 'tempestade', name: 'Tempestade', icon: '⛈️', weight: 12, hours: [1, 3], desc: '+60% energia, −10% ouro',                 mults: { gold: 0.9 }, energy: 1.6 },
+  { id: 'neve',       name: 'Neve',       icon: '🌨️', weight: 30, hours: [2, 6], desc: '+20% chance de drop',                     drop: 0.2, only: ['inverno'] },
+  { id: 'luacheia',   name: 'Lua Cheia',  icon: '🌕', weight: 14, hours: [3, 6], desc: '+25% DPS e monstros valem +20% ouro',     mults: { dps: 1.25 }, killGold: 1.2, night: true },
+  { id: 'eclipse',    name: 'Eclipse',    icon: '🌑', weight: 3,  hours: [1, 2], desc: 'Conhecimento ×2 e XP de mascote +50%',    mults: { knowledge: 2 }, petXp: 1.5 },
+];
+
+// ---- Mascotes ----
+// bonus: valor POR NÍVEL (multiplicado pelo nível e pelo estágio de evolução).
+//   dps/gold/knowledge/essence → multiplicadores; crit → chance aditiva (compartilha o teto FORGE_CRIT_CAP);
+//   drop → chance aditiva de drop; research → velocidade de pesquisa; keep → fração do ouro da run
+//   anterior que a Fênix devolve como "ninho" após o prestígio (teto PET_KEEP_CAP).
+const PET_MAX_LVL = 100;
+const PET_EVO_LEVELS = [25, 50];       // níveis em que o mascote evolui (estágio 2 e 3)
+const PET_EVO_MULTS = [1, 1.5, 2];     // multiplicador do bônus por estágio
+const PET_KEEP_CAP = 0.25;
+const PETS = [
+  { id: 'lobo',   name: 'Lobo',   icon: '🐺', rarity: 2, food: 'ferro',   foodBase: 8,
+    desc: 'Caçador leal que corre com o seu time.', bonus: { dps: 0.015, crit: 0.002 },
+    bonusTip: ['+1,5% DPS do time por nível', '+0,2% chance de crítico por nível'],
+    evo: ['Lobo', 'Lobo de Guerra', 'Fenrir'],
+    unlockText: 'Contrate seu primeiro herói — um lobo vai te adotar.' },
+  { id: 'coruja', name: 'Coruja', icon: '🦉', rarity: 2, food: 'madeira', foodBase: 25,
+    desc: 'Sábia e curiosa, sussurra ideias no seu ouvido.', bonus: { knowledge: 0.02, research: 0.01 },
+    bonusTip: ['+2% conhecimento por nível', '+1% velocidade de pesquisa por nível'],
+    evo: ['Coruja', 'Coruja-Oráculo', 'Athenix'],
+    unlockText: 'Conclua a pesquisa "Domesticação".' },
+  { id: 'dragao', name: 'Dragão', icon: '🐉', rarity: 3, food: 'pedra',   foodBase: 30,
+    desc: 'Cobiçoso: fareja ouro e tesouros raros.', bonus: { gold: 0.02, drop: 0.003 },
+    bonusTip: ['+2% produção de ouro por nível', '+0,3% chance de drop por nível'],
+    evo: ['Dragonete', 'Dragão', 'Dragão Ancião'],
+    unlockText: 'Troque 3 relíquias com o Colecionador, na Cidade.' },
+  { id: 'fenix',  name: 'Fênix',  icon: '🔥', rarity: 4, food: 'cristal', foodBase: 1,
+    desc: 'Renasce das cinzas — e você renasce com ela.', bonus: { essence: 0.01, keep: 0.002 },
+    bonusTip: ['+1% ganho de Essência por nível', 'Após o prestígio, devolve +0,2% do ouro da run anterior por nível (ninho de ouro)'],
+    evo: ['Fênix', 'Fênix Solar', 'Fênix Eterna'],
+    unlockText: 'Faça seu primeiro prestígio.' },
+];
+
+// ---- Pesquisa (árvore tecnológica) ----
+// time em segundos REAIS. cost: know (conhecimento) + goldMult (ouro = enemyGold(maiorOnda)×goldMult,
+// auto-escala como a Forja) + materiais fixos. req: pré-requisitos. unlock: mecânica nova (não só "+X%").
+const RESEARCH_CATS = {
+  prod:   { name: 'Produção',    icon: '🏭' },
+  war:    { name: 'Combate',     icon: '⚔️' },
+  build:  { name: 'Construções', icon: '🏗️' },
+  hero:   { name: 'Heróis',      icon: '🛡️' },
+  prest:  { name: 'Prestígio',   icon: '✦' },
+  auto:   { name: 'Automação',   icon: '⚙️' },
+  eco:    { name: 'Economia',    icon: '💱' },
+  magic:  { name: 'Magia',       icon: '🔮' },
+  cosmos: { name: 'Universo',    icon: '🌌' },
+};
+const RESEARCH = [
+  // Produção
+  { id: 'metodos',      cat: 'prod',  name: 'Métodos de Produção', icon: '📊', time: 300,    cost: { know: 15 },                              desc: '+10% produção global', mult: { gold: 1.10 } },
+  { id: 'industria',    cat: 'prod',  name: 'Industrialização',    icon: '🏭', time: 28800,  cost: { know: 120, goldMult: 60 },  req: ['metodos'],   desc: '+25% produção global', mult: { gold: 1.25 } },
+  { id: 'logistica',    cat: 'prod',  name: 'Logística',           icon: '📦', time: 7200,   cost: { know: 60, madeira: 300 },   req: ['metodos'],   desc: 'Geradores custam −5%', genCost: 0.95 },
+  // Combate
+  { id: 'taticas',      cat: 'war',   name: 'Táticas de Guerra',   icon: '🗺️', time: 1800,   cost: { know: 30 },                              desc: '+15% DPS do time', mult: { dps: 1.15 } },
+  { id: 'balistica',    cat: 'war',   name: 'Balística',           icon: '🏹', time: 7200,   cost: { know: 70, ferro: 120 },     req: ['taticas'],   desc: '+6% chance de drop de equipamento', drop: 0.06 },
+  { id: 'cacada',       cat: 'war',   name: 'Caçada Ritual',       icon: '🩸', time: 28800,  cost: { know: 140, goldMult: 40 },  req: ['balistica'], desc: 'Monstros valem +20% ouro', killGold: 1.2 },
+  // Construções
+  { id: 'engenharia',   cat: 'build', name: 'Engenharia Anã',      icon: '⛏️', time: 7200,   cost: { know: 60, pedra: 400 },                  desc: 'Salas da Base custam −10%', roomCost: 0.9 },
+  { id: 'urbanismo',    cat: 'build', name: 'Urbanismo Arcano',    icon: '🏙️', time: 28800,  cost: { know: 150, madeira: 600, pedra: 600 }, req: ['engenharia'], desc: 'Sinergias de vizinhança da Base +25% mais fortes', synergy: 1.25 },
+  // Heróis
+  { id: 'treinamento',  cat: 'hero',  name: 'Campo de Treino',     icon: '🎽', time: 1800,   cost: { know: 35 },                              desc: 'Níveis de herói custam −5%', heroCost: 0.95 },
+  { id: 'quinto_slot',  cat: 'hero',  name: 'Formação Estendida',  icon: '🖐️', time: 86400,  cost: { know: 250, goldMult: 120 }, req: ['treinamento'], desc: 'Desbloqueia o 5º slot do Campo de Batalha', unlock: 'slot5' },
+  // Prestígio
+  { id: 'alma',         cat: 'prest', name: 'Estudo da Alma',      icon: '🕯️', time: 28800,  cost: { know: 180 },                             desc: '+10% ganho de Essência', essence: 1.10 },
+  { id: 'memoria',      cat: 'prest', name: 'Memória Persistente', icon: '🧬', time: 86400,  cost: { know: 350, goldMult: 150 }, req: ['alma'],     desc: 'Após o prestígio, você começa com 10 Aprendizes, 10 Minas e 10 Mercados', unlock: 'memoria' },
+  // Automação
+  { id: 'autocomprador', cat: 'auto', name: 'Autocomprador',       icon: '🤖', time: 7200,   cost: { know: 90, goldMult: 30 },                desc: 'Compra automaticamente o gerador mais barato a cada 10s (liga/desliga em Ajustes)', unlock: 'autobuy' },
+  { id: 'autoclique',   cat: 'auto',  name: 'Mão Fantasma',        icon: '👻', time: 28800,  cost: { know: 160, goldMult: 80 }, req: ['autocomprador'], desc: 'Uma mão espectral clica na moeda por você (50% do seu clique, 1×/s)', unlock: 'autoclick' },
+  // Economia
+  { id: 'comercio',     cat: 'eco',   name: 'Rotas de Comércio',   icon: '⚖️', time: 1800,   cost: { know: 40, goldMult: 15 },  req: ['metodos'],   desc: 'Desbloqueia o MERCADO — compre e venda recursos com preços vivos', unlock: 'market' },
+  { id: 'cidade',       cat: 'eco',   name: 'Distrito da Cidade',  icon: '🏘️', time: 7200,   cost: { know: 90, madeira: 400, pedra: 300 }, req: ['comercio'], desc: 'Desbloqueia a CIDADE e seus 5 NPCs (mercador, ferreira, mago, alquimista, colecionador)', unlock: 'npcs' },
+  { id: 'especulacao',  cat: 'eco',   name: 'Especulação',         icon: '📈', time: 28800,  cost: { know: 200, goldMult: 90 }, req: ['cidade'],    desc: 'Taxas do Mercado caem pela metade', fee: 0.5 },
+  // Magia
+  { id: 'domesticacao', cat: 'magic', name: 'Domesticação',        icon: '🐾', time: 300,    cost: { know: 20 },                              desc: 'Desbloqueia a Coruja 🦉 (mascote de conhecimento)', unlock: 'coruja' },
+  { id: 'vinculo',      cat: 'magic', name: 'Vínculo Animal',      icon: '💞', time: 28800,  cost: { know: 150 },               req: ['domesticacao'], desc: 'Permite 2 mascotes ativos ao mesmo tempo', unlock: 'petslot2' },
+  { id: 'alquimia',     cat: 'magic', name: 'Alquimia Maior',      icon: '⚗️', time: 28800,  cost: { know: 180, cristal: 8 },   req: ['cidade'],    desc: 'Poções da Alquimista duram o dobro', potion: 2 },
+  // Universo
+  { id: 'astronomia',   cat: 'cosmos', name: 'Astronomia',         icon: '🔭', time: 1800,   cost: { know: 45 },                              desc: 'Prevê o próximo clima no calendário do mundo', unlock: 'forecast' },
+  { id: 'portais',      cat: 'cosmos', name: 'Portais Estelares',  icon: '🌀', time: 259200, cost: { know: 800, goldMult: 400, cristal: 20 }, req: ['astronomia', 'alma'], desc: 'Chefes derrotados durante um ECLIPSE dão +1 ✦ Essência', unlock: 'eclipseBoss' },
+];
+const RESEARCH_QUEUE_MAX = 3;
+const RESEARCH_CANCEL_REFUND = 0.5;
+
+// ---- Economia Dinâmica (Mercado) ----
+// Valor-base por unidade = enemyGold(maiorOnda) × k (auto-escala, nunca fica obsoleto).
+// season/weather: pressão de demanda — empurra o índice de preço na direção do valor.
+const MARKET_GOODS = [
+  { id: 'madeira', icon: '🪵', name: 'Madeira', k: 0.06, season: { inverno: 1.5 } },
+  { id: 'pedra',   icon: '🪨', name: 'Pedra',   k: 0.09, season: { primavera: 1.3 } },
+  { id: 'ferro',   icon: '⛓️', name: 'Ferro',   k: 0.22, season: { verao: 1.25 }, weather: { tempestade: 1.5 } },
+  { id: 'cristal', icon: '💠', name: 'Cristal', k: 9,    weather: { eclipse: 1.8, luacheia: 1.3 } },
+];
+const MARKET_FEE = 0.06;        // taxa sobre compra e venda (Especulação corta pela metade)
+const MARKET_IDX_MIN = 0.35;    // piso do índice de preço
+const MARKET_IDX_MAX = 2.8;     // teto do índice de preço
+const MARKET_HIST = 48;         // pontos de histórico por recurso (1 por hora de jogo)
+const MARKET_SCARCITY = 2.0;    // índice acima disso = "escassez"
+const MARKET_PROMO = 0.7;       // índice abaixo disso = "promoção"
+
+// ---- NPCs da Cidade ----
+// Amizade sobe usando ofertas (+2), cumprindo missões (+8) e trocando relíquias (+15).
+const NPC_FRIEND_XP = [0, 20, 60, 150, 400, 1000];  // XP acumulado para nível 0..5
+const NPCS = [
+  { id: 'mercador',     name: 'Dorian', title: 'Mercador',     icon: '🧑‍💼',
+    story: 'Vende de tudo, inclusive o que ainda não tem. Cobra adiantado.',
+    lines: ['Preço de amigo! Quase.', 'Hoje tem oferta. Amanhã, quem sabe.', 'Confie em mim. Eu confiaria.'],
+    perk: 'Cada nível de amizade: −3% nas taxas do Mercado' },
+  { id: 'ferreiro',     name: 'Bruna',  title: 'Ferreira',     icon: '🧑‍🏭',
+    story: 'Diz que todo metal tem uma forma escondida. Ela encontra na marreta.',
+    lines: ['Isso aqui aguenta mais uma têmpera.', 'Aço bom não reclama.', 'Volta amanhã que eu melhoro.'],
+    perk: 'Cada nível de amizade: +10% de ferro ao desmanchar cartas' },
+  { id: 'mago',         name: 'Zephyr', title: 'Mago',         icon: '🧙',
+    story: 'Especialista em encantamentos de curto prazo e desculpas de longo prazo.',
+    lines: ['A magia expira. A fatura, não.', 'Um feitiço por dia mantém o tédio à distância.', 'Isso pode ou não explodir.'],
+    perk: 'Cada nível de amizade: feitiços 10% mais baratos' },
+  { id: 'alquimista',   name: 'Mira',   title: 'Alquimista',   icon: '⚗️',
+    story: 'Transforma sobras de mineração em milagres engarrafados. Às vezes vinagre.',
+    lines: ['Agite antes de usar. Sempre.', 'Isso é chá... provavelmente.', 'Efeitos colaterais? Só os bons.'],
+    perk: 'Cada nível de amizade: poções 5% mais fortes' },
+  { id: 'colecionador', name: 'Silas',  title: 'Colecionador', icon: '🧐',
+    story: 'Compra relíquias que ninguém entende e paga com histórias que ninguém confere.',
+    lines: ['Isso pertence a um museu. O meu.', 'Toda relíquia tem dono. Eu, geralmente.', 'O passado está em promoção.'],
+    perk: 'Relíquias trocadas revelam fragmentos de lore (e 3 delas atraem um Dragão 🐉)' },
+];
+// Missões diárias por NPC: type é o gancho no motor (Game.missionEvent), n = faixa da meta
+const NPC_MISSIONS = {
+  mercador:     { type: 'sell',     text: 'Venda {n} unidades no Mercado',   n: [40, 160] },
+  ferreiro:     { type: 'forge',    text: 'Forje {n} cartas na Forja',       n: [2, 4] },
+  mago:         { type: 'research', text: 'Conclua {n} pesquisa(s)',         n: [1, 1] },
+  alquimista:   { type: 'feed',     text: 'Alimente mascotes {n} vezes',     n: [3, 6] },
+  colecionador: { type: 'boss',     text: 'Derrote {n} chefes',              n: [3, 8] },
+};
+const NPC_RELICS_FOR_DRAGON = 3;
+
+// ---- Lore Oculta (Codex → Descobertas) ----
+// check(S, D) → bool, avaliado junto com as conquistas. Nunca dizemos COMO desbloquear.
+const LORE_ITEMS = [
+  { id: 'ruina1',    kind: 'Ruína',      icon: '🏛️', title: 'A Primeira Muralha',
+    text: 'Na onda 25, entre os escombros, uma pedra angular com um selo: o mesmo símbolo do grimório de Aldric. Alguém construiu aqui antes de você. E também caiu.',
+    check: (S) => S.combat.maxWave >= 25 },
+  { id: 'ruina2',    kind: 'Ruína',      icon: '🗿', title: 'O Salão dos Nomes',
+    text: 'Um salão soterrado, paredes cobertas de nomes riscados. No fim da lista, um espaço em branco — do tamanho exato do seu nome.',
+    check: (S) => S.combat.maxWave >= 75 },
+  { id: 'ruina3',    kind: 'Ruína',      icon: '⚰️', title: 'A Fronteira de Cinzas',
+    text: 'Além da onda 200 o chão vira vidro. Aqui algo queimou tão forte que o mundo desistiu de crescer de volta. A Fênix evita olhar para este lugar.',
+    check: (S) => S.combat.maxWave >= 200 },
+  { id: 'livro1',    kind: 'Livro',      icon: '📕', title: 'Tratado do Ouro Vivo',
+    text: '"O ouro não é metal. É atenção condensada. Quanto mais o mundo olha para você, mais pesa o seu bolso." — página 1 de 900. As outras 899 estão em branco.',
+    check: (S) => S.market && S.market.stats.trades >= 1 },
+  { id: 'pergaminho1', kind: 'Pergaminho', icon: '📜', title: 'Nota de Laboratório nº 0',
+    text: 'Caligrafia de Aldric, décadas mais jovem: "A pesquisa não descobre o novo. Ela LEMBRA o que o mundo esqueceu de propósito."',
+    check: (S) => { for (const k in S.research.done) return true; return false; } },
+  { id: 'diario1',   kind: 'Diário',     icon: '📔', title: 'Diário de um Renascido',
+    text: '"Segunda vez que recomeço. Os outros não lembram de nada — mas o lobo lembrou de mim. Os animais atravessam o véu. Nós só damos a volta."',
+    check: (S) => S.prestiges >= 2 },
+  { id: 'fragmento1', kind: 'Fragmento',  icon: '🌑', title: 'Fragmento do Eclipse',
+    text: 'Durante o eclipse, as sombras apontam todas para o mesmo lugar: para cima. O que quer que esteja cobrando dízimo do sol, também anota o seu nome.',
+    check: (S) => S.world.seenWeathers && S.world.seenWeathers.eclipse },
+  { id: 'memoria1',  kind: 'Memória',    icon: '🌕', title: 'A Caçada da Lua',
+    text: 'Sob a lua cheia, o chefe hesitou antes de atacar — como quem reconhece alguém. Os monstros das ondas não nascem. Eles voltam.',
+    check: (S) => S.secrets && S.secrets.moonBoss },
+  { id: 'monumento1', kind: 'Monumento', icon: '🏯', title: 'O Coração da Cidadela',
+    text: 'Com todas as salas erguidas, a Base ressoa numa nota grave e contínua. A Serraria, o Cofre e o Laboratório batem no mesmo compasso. Isto não é uma construção. É um organismo.',
+    check: (S) => { let n = 0; for (const k in S.rooms) if (S.rooms[k] >= 1) n++; return n >= 8; } },
+  { id: 'carta1',    kind: 'Mensagem',   icon: '💌', title: 'Carta Nunca Enviada',
+    text: '"Se você está lendo isto, ficamos amigos de verdade. Então preciso confessar: eu já te vendi coisas que eram suas." — assinatura ilegível, mas o perfume é de loja.',
+    check: (S) => { for (const k in S.npcs.rep) if (S.npcs.rep[k] >= NPC_FRIEND_XP[3]) return true; return false; } },
+  { id: 'ovo1',      kind: 'Memória',    icon: '🥚', title: 'A Terceira Forma',
+    text: 'No estágio final, o seu mascote para de te seguir — e passa a te guiar. Os antigos não domesticavam animais. Eram escolhidos por eles.',
+    check: (S) => { for (const id in S.pets.owned) if (S.pets.owned[id].lvl >= 50) return true; return false; } },
+  { id: 'void1',     kind: 'Mensagem',   icon: '🕳️', title: 'Resposta do Vazio',
+    text: 'Dez singularidades alinhadas emitem um padrão. Traduzido, diz apenas: "RECEBIDO. AGUARDE." Aguardar o quê, o grimório não explica.',
+    check: (S) => (S.gens.singular || 0) >= 10 },
+  { id: 'hino1',     kind: 'Livro',      icon: '🎼', title: 'Partitura Inacabada',
+    text: 'A canção de Orin tem 47 movimentos escritos. O 48º é só um espaço em branco com uma anotação: "esperar o público certo." Ele olha para você quando canta.',
+    check: (S) => !!S.heroes.orin },
+  { id: 'genesis1',  kind: 'Pergaminho', icon: '🌌', title: 'Protocolo Gênese',
+    text: 'A última página do grimório, visível só para quem esgotou uma árvore inteira de pesquisa: "Fase 9 não se desbloqueia. Fase 9 se constrói." O resto foi arrancado.',
+    check: (S) => {
+      for (const catId in RESEARCH_CATS) {
+        const all = RESEARCH.filter(r => r.cat === catId);
+        if (all.length && all.every(r => S.research.done[r.id])) return true;
+      }
+      return false;
+    } },
 ];
 
 // ---- Diálogos do conselheiro (tutoriais em forma de NPC) ----

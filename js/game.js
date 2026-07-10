@@ -24,6 +24,7 @@ const Game = {
     m *= 1 + 0.06 * this.roomLvl('cofre');                 // sala
     m *= 1 + this.synergyBonuses().gold;                   // sinergia de vizinhança na Base
     for (const u of UPGRADES) if (u.type === 'global' && S.upgrades[u.id]) m *= u.mult;
+    m *= this.extGoldMult();                               // expansão: mundo + mascotes + pesquisa
     m *= this.buffMult('prod');
     return m;
   },
@@ -54,7 +55,7 @@ const Game = {
     const disc = Math.max(0.5, 1 - 0.015 * this.talentLvl('barganha'));
     // soma geométrica fechada: base·r^owned·(r^count − 1)/(r − 1)
     const r = GEN_COST_MULT;
-    return g.baseCost * Math.pow(r, owned) * (Math.pow(r, count) - 1) / (r - 1) * disc;
+    return g.baseCost * Math.pow(r, owned) * (Math.pow(r, count) - 1) / (r - 1) * disc * this.extGenCostMult();
   },
 
   genMaxBuy(genId) {
@@ -194,9 +195,14 @@ const Game = {
     return Object.keys(S.heroes).filter(id => S.heroes[id].fieldSlot === null || S.heroes[id].fieldSlot === undefined);
   },
 
+  // nº de slots do campo (a pesquisa "Formação Estendida" concede um 5º)
+  fieldSlots() {
+    return FIELD_SLOTS + (S.research && S.research.done && S.research.done.quinto_slot ? 1 : 0);
+  },
+
   firstFreeFieldSlot() {
     const used = new Set(this.fieldHeroes().map(id => S.heroes[id].fieldSlot));
-    for (let i = 0; i < FIELD_SLOTS; i++) if (!used.has(i)) return i;
+    for (let i = 0; i < this.fieldSlots(); i++) if (!used.has(i)) return i;
     return null;
   },
 
@@ -204,7 +210,7 @@ const Game = {
   setFieldSlot(heroId, slotIndex) {
     const h = S.heroes[heroId];
     if (!h) return false;
-    if (slotIndex !== null && (slotIndex < 0 || slotIndex >= FIELD_SLOTS)) return false;
+    if (slotIndex !== null && (slotIndex < 0 || slotIndex >= this.fieldSlots())) return false;
     if (slotIndex !== null) {
       const occupantId = this.fieldHeroes().find(id => S.heroes[id].fieldSlot === slotIndex && id !== heroId);
       if (occupantId) S.heroes[occupantId].fieldSlot = (h.fieldSlot !== undefined ? h.fieldSlot : null);
@@ -230,6 +236,7 @@ const Game = {
     total *= 1 + 0.10 * this.talentLvl('furia');
     total *= 1 + 0.01 * this.achCount();
     total *= 1 + this.gearBonus.team;          // afixo "Estandarte" (soma dos itens equipados)
+    total *= this.extDpsMult();                // expansão: mundo + mascotes + pesquisa
     total *= this.buffMult('dps');
     return total;
   },
@@ -244,7 +251,7 @@ const Game = {
     const lvl = h ? h.lvl : 0;
     // soma geométrica fechada: base·0.2·r^lvl·(r^count − 1)/(r − 1)
     const r = HERO_LVL_COST_MULT;
-    return def.baseCost * 0.2 * Math.pow(r, lvl) * (Math.pow(r, count) - 1) / (r - 1);
+    return def.baseCost * 0.2 * Math.pow(r, lvl) * (Math.pow(r, count) - 1) / (r - 1) * this.extHeroCostMult();
   },
 
   heroMaxLevels(heroId) {
@@ -267,6 +274,7 @@ const Game = {
     let g = 4 * Math.pow(1.42, wave - 1) * (boss ? 14 : 1);
     g *= 1 + 0.08 * this.talentLvl('cacador');
     g *= 1 + this.gearBonus.gold;              // afixo "Cobiça" (ouro por abate)
+    g *= this.extKillGoldMult();               // expansão: Lua Cheia + pesquisa "Caçada Ritual"
     if (S.invasion > 0 && !boss) g *= 3;
     return g;
   },
@@ -286,6 +294,7 @@ const Game = {
     ch += 0.05 * this.roomLvl('oficina');
     ch += this.synergyBonuses().equip;          // sinergia de vizinhança (ex.: Oficina + Mina)
     ch += 0.04 * this.talentLvl('pilhagem');
+    ch += this.extDropBonus();                  // expansão: Dragão + Neve + pesquisa + poções
     return Math.min(0.95, ch);
   },
 
@@ -328,6 +337,8 @@ const Game = {
       S.res.cristal += 1;
       UI.log(`💠 O chefe soltou um <b>Cristal</b>!`);
     }
+
+    this.onKillExt(wasBoss);                    // expansão: XP de mascote, missões, segredos
 
     if (wasBoss) {
       c.bossKills++;
@@ -441,6 +452,7 @@ const Game = {
     const uid = S.forge.nextUid++;
     S.forge.inventory.push({ uid, slot: slot.id, rarity: rarityIdx, mult, icon, affixes, forged: true });
     S.forge.forged++;
+    this.missionEvent('forge', 1);              // missão diária da Ferreira
 
     const isRare = rarityIdx >= 3;
     Sound.play('drop');
@@ -500,8 +512,9 @@ const Game = {
     const idx = S.forge.inventory.findIndex(x => x.uid === uid);
     if (idx === -1) return false;
     const item = S.forge.inventory[idx];
-    // devolve parte do ferro (proporcional à raridade) + um pouco de ouro
-    const ferroBack = Math.ceil((1 + item.rarity) * 4 * FORGE_SCRAP_FERRO);
+    if (item.rarity >= 4) S.secrets.scrapLegend = true;   // segredo "Coração de Pedra"
+    // devolve parte do ferro (proporcional à raridade) + um pouco de ouro; amizade com a Ferreira melhora o retorno
+    const ferroBack = Math.ceil((1 + item.rarity) * 4 * FORGE_SCRAP_FERRO * (1 + 0.10 * this.npcLevel('ferreiro')));
     const goldBack = Math.ceil(this.enemyGold(S.combat.maxWave, false) * 3);
     S.res.ferro += ferroBack;
     this.gainGold(goldBack);
@@ -516,7 +529,8 @@ const Game = {
     // clicar no monstro causa dano; afixo "Letal" dá chance de crítico ×FORGE_CRIT_MULT
     this.ensureGearBonus();
     let dmg = Math.max(1, this.teamDps() * 0.05 + this.clickPower() * 0.5);
-    const crit = this.gearBonus.crit > 0 && Math.random() < this.gearBonus.crit;
+    const critCh = Math.min(FORGE_CRIT_CAP, this.gearBonus.crit + this.extCritBonus());  // afixo "Letal" + Lobo
+    const crit = critCh > 0 && Math.random() < critCh;
     if (crit) dmg *= FORGE_CRIT_MULT;
     this.damageEnemy(dmg);
     return { dmg, crit };
@@ -626,7 +640,8 @@ const Game = {
     const r = ROOMS.find(x => x.id === roomId);
     const lvl = this.roomLvl(roomId);
     const cost = {};
-    for (const k in r.baseCost) cost[k] = r.baseCost[k] * Math.pow(r.costMult, lvl);
+    const disc = this.extRoomCostMult();   // pesquisa "Engenharia Anã"
+    for (const k in r.baseCost) cost[k] = r.baseCost[k] * Math.pow(r.costMult, lvl) * disc;
     return cost;
   },
 
@@ -661,7 +676,8 @@ const Game = {
       * (1 + 0.15 * this.roomLvl('biblioteca'))
       * (1 + 0.10 * this.talentLvl('sabedoria'))
       * this.energyBoost()
-      * (1 + this.synergyBonuses().knowledge);
+      * (1 + this.synergyBonuses().knowledge)
+      * this.extKnowMult();                     // expansão: noite/outono/eclipse + Coruja + poções
   },
 
   // ---------- Grade da Base (posicionamento + sinergias de vizinhança) ----------
@@ -733,7 +749,8 @@ const Game = {
   // bônus agregados por tipo, aplicados nas fórmulas do motor
   synergyBonuses() {
     const b = { gold: 0, dps: 0, knowledge: 0, material: 0, equip: 0 };
-    for (const s of this.activeSynergies()) b[s.def.type] += s.value;
+    const mul = this.extSynergyMult();          // pesquisa "Urbanismo Arcano"
+    for (const s of this.activeSynergies()) b[s.def.type] += s.value * mul;
     return b;
   },
 
@@ -772,13 +789,14 @@ const Game = {
   essenceGain() {
     if (S.earned < 1e8) return 0;
     let g = Math.floor(Math.pow(S.earned / 1e8, 0.45));
-    g = Math.floor(g * (1 + 0.05 * this.talentLvl('transcend')));
+    g = Math.floor(g * (1 + 0.05 * this.talentLvl('transcend')) * this.extEssenceMult());  // + Fênix + pesquisa
     return g;
   },
 
   doPrestige() {
     const gain = this.essenceGain();
     if (gain < 1) return false;
+    const prevEarned = S.earned;               // para o "ninho de ouro" da Fênix
     S.essence += gain;
     S.prestiges++;
     // reseta a run — mantém: essência, prestígios, conquistas, talentos, fases desbloqueadas
@@ -792,9 +810,11 @@ const Game = {
     S.res = { madeira: 0, pedra: 0, ferro: 0, energia: 0, cristal: 0, conhecimento: S.res.conhecimento };
     S.buffs = [];
     S.invasion = 0;
-    // a bolsa de cartas (S.forge.inventory) sobrevive ao prestígio, como talentos/conquistas
+    // a bolsa de cartas (S.forge.inventory) sobrevive ao prestígio, como talentos/conquistas.
+    // Mascotes, pesquisas, mercado, NPCs, mundo e códex também são PERMANENTES.
     this._gearDirty = true;                    // recalcula bônus de gear (agora zerados)
     this._fieldDirty = true;                   // heróis resetados → campo também
+    this.onPrestigeExt(prevEarned);            // Fênix (ninho de ouro) + Memória Persistente
     this.spawnEnemy();
     UI.log(`🌅 <b>PRESTÍGIO ${S.prestiges}!</b> Você renasce com <b>+${gain} ✦ Essência</b> (agora ${S.essence} — produção global ×${(1 + 0.02 * S.essence).toFixed(2)})`);
     UI.toast(`✦ +${gain} Essência!`, '#e8a33d');
@@ -882,6 +902,7 @@ const Game = {
         UI.dirty.prod = true;
       }
     }
+    this.checkLore();                          // descobertas do Códex seguem o mesmo cadenciamento
   },
 
   // conquista (normal ou secreta) mais perto de ser batida
@@ -1003,12 +1024,14 @@ const Game = {
     if (know > 0) S.res.conhecimento += know;
     // salas produzem materiais offline
     const eb = this.energyBoost();
-    const mat = 1 + this.synergyBonuses().material;   // sinergia de vizinhança (ex.: Serraria + Mina)
+    const mat = (1 + this.synergyBonuses().material) * this.extMaterialMult();   // sinergia + estação/clima
     S.res.madeira += 2 * this.roomLvl('serraria') * eb * mat * capped * offMult;
     S.res.pedra += 1.5 * this.roomLvl('mina_r') * eb * mat * capped * offMult;
     S.res.ferro += 0.5 * this.roomLvl('mina_r') * eb * mat * capped * offMult;
     S.res.energia += 1 * this.roomLvl('gerador') * mat * capped * offMult;
-    return { seconds: capped, gold, know };
+    // expansão: o mundo gira, a pesquisa continua e o mercado se move enquanto você dorme
+    const ext = this.offlineExt(capped);
+    return { seconds: capped, gold, know, research: ext.research };
   },
 
   // ---------- Tick principal ----------
@@ -1017,11 +1040,11 @@ const Game = {
     // produção
     this.gainGold(this.goldPerSec() * dt);
     const eb = this.energyBoost();
-    const mat = 1 + this.synergyBonuses().material;   // sinergia de vizinhança na Base
+    const mat = (1 + this.synergyBonuses().material) * this.extMaterialMult();   // sinergia + estação/clima
     S.res.madeira += 2 * this.roomLvl('serraria') * eb * mat * dt;
     S.res.pedra += 1.5 * this.roomLvl('mina_r') * eb * mat * dt;
     S.res.ferro += 0.5 * this.roomLvl('mina_r') * eb * mat * dt;
-    S.res.energia += 1 * this.roomLvl('gerador') * mat * dt;
+    S.res.energia += 1 * this.roomLvl('gerador') * mat * this.extEnergyMult() * dt;   // tempestade turbina a energia
     S.res.conhecimento += this.knowledgePerSec() * dt;
     S.playTime += dt;
 
@@ -1057,6 +1080,8 @@ const Game = {
       UI.spawnGoldenCoin();
       this.scheduleGolden();
     }
+
+    this.tickExt(dt);   // expansão: mundo vivo, pesquisa, mercado, NPCs, mascotes, automação
 
     this.updatePhases();
   },

@@ -2,6 +2,21 @@
 
 ## Não lançado
 
+### Expansão: Mundo Vivo, Mascotes, Pesquisa, Mercado, Cidade, Lore, Segredos e Áudio 2.0
+Oito sistemas novos, integrados entre si (detalhes e números em [FEATURES.md](FEATURES.md) §18–25):
+- **🗓️ Mundo Vivo**: calendário permanente (1 dia = 20 min reais), dia/noite, 4 estações e 5 climas (chuva, tempestade, neve, lua cheia, eclipse) que alteram produção, DPS, conhecimento, materiais e drops. Widget no painel esquerdo + modal de calendário.
+- **🐾 Mascotes**: Lobo/Coruja/Dragão/Fênix com nível, XP (abates + alimentação), evolução (nv 25/50) e bônus passivos só quando **ativos**. Fênix devolve um "ninho de ouro" após o prestígio. Data-driven (`PETS`).
+- **🔬 Pesquisa**: 22 tecnologias em 9 categorias, tempo real (5 min–3 dias) com fila, cancelamento, progresso offline e notificações. Várias desbloqueiam mecânicas: Mercado, Cidade, mascotes, 5º slot do campo, automação (autocomprador/autoclique), previsão do tempo, +1 ✦ por chefe em eclipse.
+- **📈 Mercado**: preços vivos por hora do mundo (demanda sazonal/climática + ruído), sparklines de 48h, escassez/promoção, taxas reduzíveis (pesquisa + amizade). Especulação de verdade: comprar, estocar, vender.
+- **🏘️ Cidade**: 5 NPCs (Dorian, Bruna, Zephyr, Mira, Silas) com amizade, perks permanentes, estoque diário determinístico e missões diárias ligadas aos outros sistemas (vender, forjar, pesquisar, alimentar, chefes).
+- **📖 Lore Oculta**: 14 descobertas com gatilhos silenciosos, registradas automaticamente na nova seção "Descobertas" do Códex.
+- **🤫 5 segredos novos** (conquistas secretas): palavra mágica, ponto escondido, timing de mercado, desmanche lendário, caçada lunar.
+- **🔊 Áudio 2.0**: volume-mestre, anti-sobreposição, 9 efeitos novos e música ambiente gerativa com fade.
+- Save **v2** com migração automática de saves v1 (merge profundo; tudo da expansão é permanente e sobrevive ao prestígio). Hooks pontuais no motor original (`ext*Mult`, `tickExt`, `onKillExt`, `onPrestigeExt`, `offlineExt`).
+  - Arquivos novos: `js/expansion.js` (motor), `js/ui-ext.js` (UI). Tocados: `js/data.js`, `js/state.js`, `js/game.js`, `js/ui.js`, `index.html`, `style.css`.
+
+
+
 ### Segurança
 - **Requisito de prestígio agora é validado no motor, não só na UI.** `Game.buyGen()` e `Game.hireHero()` checam `reqPrestige` antes de qualquer compra — antes, chamar esses métodos pelo console permitia comprar a Singularidade/contratar Nyx sem nunca ter prestigiado (a única barreira era a lista não renderizar o botão). Fecha o item 🔴1 da [AUDIT.md](AUDIT.md).
   - Arquivo: `js/game.js`.

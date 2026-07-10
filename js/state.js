@@ -1,6 +1,6 @@
 // ===== Estado do jogo + persistência =====
 const SAVE_KEY = 'project-infinity-idle-save';
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2;
 
 function defaultState() {
   return {
@@ -48,6 +48,43 @@ function defaultState() {
     unlocked: { heroes: false, base: false, talents: false, prestige: false, events: false, phase7: false },
     maxPhaseId: 1,    // maior fase já alcançada (permanente — não regride com prestígio)
 
+    // ---- Expansão: sistemas permanentes (sobrevivem ao prestígio) ----
+    world: {          // calendário interno: min = minutos de jogo acumulados
+      min: 8 * 60,    // começa às 8h do dia 0, primavera
+      weather: null,  // { id, until } (until em minutos de jogo)
+      nextAt: 12 * 60,       // minuto de jogo do próximo sorteio de clima
+      seenSeasons: {},       // id -> true (conquista "As Quatro Estações")
+      seenWeathers: {},      // id -> true
+    },
+    pets: {
+      owned: {},      // id -> { lvl, xp }
+      active: [],     // ids ativos (1 slot; pesquisa "Vínculo Animal" → 2)
+      fed: 0,         // total de alimentações (conquistas/missões)
+    },
+    research: {
+      done: {},       // id -> true
+      queue: [],      // [{ id, left }] — só o primeiro progride
+      autoBuy: false, // toggle do Autocomprador (após pesquisado)
+    },
+    market: {
+      idx: {},        // recurso -> índice de preço (0.35..2.8)
+      hist: {},       // recurso -> [índices por hora de jogo]
+      lastHour: -1,
+      stats: { trades: 0, sold: 0, bought: 0 },
+    },
+    npcs: {
+      rep: {},        // npcId -> XP de amizade
+      day: -1,        // dia de jogo do último reabastecimento
+      offers: {},     // npcId -> [ofertas geradas do dia]
+      used: {},       // npcId -> { idx: true } ofertas já usadas hoje
+      mission: {},    // npcId -> { type, need, prog, done, claimed }
+      relics: 0,
+      missionsDone: 0,
+    },
+    codex: { lore: {} },   // loreId -> true (descobertas)
+    secrets: {},           // flags de segredos: aldric, dot, highSell, scrapLegend, moonBoss
+    audio: { vol: 0.7, music: false },
+
     sound: true,
     flashFx: true,    // efeitos de tela cheia (flash de drop lendário)
     hand: 'right',    // 'right' (destro: moeda à direita no mobile) | 'left' (canhoto: à esquerda)
@@ -77,6 +114,21 @@ function loadGame() {
     S.res = Object.assign(base.res, data.res || {});
     S.combat = Object.assign(base.combat, data.combat || {});
     S.unlocked = Object.assign(base.unlocked, data.unlocked || {});
+    // expansão: merge profundo tolerante (saves v1 não têm nada disso)
+    S.world = Object.assign(base.world, data.world || {});
+    S.world.seenSeasons = Object.assign({}, (data.world || {}).seenSeasons || {});
+    S.world.seenWeathers = Object.assign({}, (data.world || {}).seenWeathers || {});
+    S.pets = Object.assign(base.pets, data.pets || {});
+    if (!Array.isArray(S.pets.active)) S.pets.active = [];
+    S.research = Object.assign(base.research, data.research || {});
+    if (!Array.isArray(S.research.queue)) S.research.queue = [];
+    S.market = Object.assign(base.market, data.market || {});
+    S.market.stats = Object.assign({ trades: 0, sold: 0, bought: 0 }, (data.market || {}).stats || {});
+    S.npcs = Object.assign(base.npcs, data.npcs || {});
+    S.codex = Object.assign(base.codex, data.codex || {});
+    if (typeof S.codex.lore !== 'object' || !S.codex.lore) S.codex.lore = {};
+    S.secrets = Object.assign({}, data.secrets || {});
+    S.audio = Object.assign(base.audio, data.audio || {});
     // migração: saves antigos tinham forge.pending (carta única) — descartado (perda aceitável de 1 carta não decidida)
     const rawForge = data.forge || {};
     S.forge = {
@@ -105,10 +157,12 @@ function loadGame() {
       ids.forEach((id, i) => { S.heroes[id].fieldSlot = i < FIELD_SLOTS ? i : null; });
       S._fieldSlotMigrated = true; // flag transitória — main.js mostra o aviso do conselheiro uma única vez
     }
-    // migração: FIELD_SLOTS pode ter diminuído desde o save — manda pra reserva quem ficou fora de faixa
+    // migração: nº de slots pode ter diminuído desde o save — manda pra reserva quem ficou fora de faixa
+    // (a pesquisa "Formação Estendida" concede um 5º slot, então o teto é dinâmico)
+    const slotCap = FIELD_SLOTS + (S.research.done && S.research.done.quinto_slot ? 1 : 0);
     for (const id of ids) {
       const slot = S.heroes[id].fieldSlot;
-      if (slot !== null && slot !== undefined && slot >= FIELD_SLOTS) S.heroes[id].fieldSlot = null;
+      if (slot !== null && slot !== undefined && slot >= slotCap) S.heroes[id].fieldSlot = null;
     }
     // migração: saves antigos não têm maxPhaseId — reconstrói a partir dos sistemas já desbloqueados
     if (data.maxPhaseId === undefined) {

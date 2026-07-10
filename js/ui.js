@@ -5,7 +5,7 @@ const UI = {
   buyAmount: 1,           // 1 | 10 | 'max'
   baseSel: null,          // célula da grade da Base selecionada para mover (índice) | null
   baseDrag: null,         // índice da célula sendo arrastada (desktop) | null
-  dirty: { tabs: true, prod: true, heroes: true, forge: true, base: true, talents: true, prestige: true, ach: true, config: true, left: true },
+  dirty: { tabs: true, prod: true, heroes: true, forge: true, base: true, talents: true, prestige: true, ach: true, config: true, left: true, pets: true, research: true, market: true, city: true },
   R: {},                  // refs dinâmicos do tab ativo
   _seenIds: {},            // ids já renderizados por lista, pra animar só linhas novas
 
@@ -39,8 +39,12 @@ const UI = {
       { id: 'prod',     name: 'Produção',   icon: 'prod',     unlocked: true },
       { id: 'heroes',   name: 'Heróis',     icon: 'heroes',   unlocked: S.unlocked.heroes },
       { id: 'forge',    name: 'Forja',      icon: 'forge',    unlocked: S.unlocked.heroes && Game.forgeUnlocked() },
+      { id: 'pets',     name: 'Mascotes',   emo: '🐾',        unlocked: Game.petsUnlocked(), hideLocked: true },
       { id: 'base',     name: 'Base',       icon: 'base',     unlocked: S.unlocked.base },
       { id: 'talents',  name: 'Talentos',   icon: 'talents',  unlocked: S.unlocked.talents },
+      { id: 'research', name: 'Pesquisa',   emo: '🔬',        unlocked: S.unlocked.talents, hideLocked: true },
+      { id: 'market',   name: 'Mercado',    emo: '📈',        unlocked: Game.marketUnlocked(), hideLocked: true },
+      { id: 'city',     name: 'Cidade',     emo: '🏘️',        unlocked: Game.npcsUnlocked(), hideLocked: true },
       { id: 'prestige', name: 'Prestígio',  icon: 'prestige', unlocked: S.unlocked.prestige },
       { id: 'ach',      name: 'Conquistas', icon: 'ach',      unlocked: true },
       { id: 'guilds',   name: '???',        icon: 'locked',   unlocked: false, teaser: S.unlocked.phase7 },
@@ -53,9 +57,13 @@ const UI = {
     nav.innerHTML = '';
     for (const t of this.tabDefs()) {
       if (t.id === 'guilds' && !t.teaser) continue; // teaser só aparece na fase 7
+      if (t.hideLocked && !t.unlocked) continue;    // abas da expansão só aparecem quando desbloqueadas
       const b = this.el('button', 'tab-btn' + (this.activeTab === t.id ? ' active' : '') + (!t.unlocked ? ' locked' : ''));
+      const iconHtml = t.emo
+        ? `<span class="tab-icon tab-emo">${t.emo}</span>`
+        : `<span class="tab-icon"><img src="img/tabs/${t.icon}.png" alt=""></span>`;
       b.innerHTML = t.unlocked
-        ? `<span class="tab-icon"><img src="img/tabs/${t.icon}.png" alt=""></span>${t.name}`
+        ? `${iconHtml}${t.name}`
         : `<span class="tab-icon"><img src="img/tabs/locked.png" alt=""></span>???`;
       if (t.unlocked) {
         b.onclick = () => { this.activeTab = t.id; this.dirty.tabs = true; this.dirty[t.id] = true; this.renderActive(); };
@@ -78,8 +86,12 @@ const UI = {
       case 'prod':     this.renderProd(c); break;
       case 'heroes':   this.renderHeroes(c); break;
       case 'forge':    this.renderForge(c); break;
+      case 'pets':     this.renderPets(c); break;
       case 'base':     this.renderBase(c); break;
       case 'talents':  this.renderTalents(c); break;
+      case 'research': this.renderResearch(c); break;
+      case 'market':   this.renderMarket(c); break;
+      case 'city':     this.renderCity(c); break;
       case 'prestige': this.renderPrestige(c); break;
       case 'ach':      this.renderAch(c); break;
       case 'config':   this.renderConfig(c); break;
@@ -236,7 +248,7 @@ const UI = {
     const grid = this.el('div', 'field-grid');
     const bySlot = {};
     for (const id of Game.fieldHeroes()) bySlot[S.heroes[id].fieldSlot] = id;
-    for (let i = 0; i < FIELD_SLOTS; i++) {
+    for (let i = 0; i < Game.fieldSlots(); i++) {
       const slot = this.el('div', 'field-slot');
       slot.dataset.slotIndex = i;
       const occ = bySlot[i];
@@ -836,8 +848,44 @@ const UI = {
     const box = this.el('div', 'config-box');
 
     const soundBtn = this.el('button', 'cfg-btn', (S.sound ? '🔊 Som: Ligado' : '🔇 Som: Desligado'));
-    soundBtn.onclick = () => { S.sound = !S.sound; Sound.ensure(); this.dirty.config = true; soundBtn.innerHTML = S.sound ? '🔊 Som: Ligado' : '🔇 Som: Desligado'; };
+    soundBtn.onclick = () => {
+      S.sound = !S.sound;
+      Sound.ensure();
+      if (!S.sound) Sound.stopMusic();
+      else if (S.audio.music) Sound.startMusic();
+      this.dirty.config = true;
+      soundBtn.innerHTML = S.sound ? '🔊 Som: Ligado' : '🔇 Som: Desligado';
+    };
     box.appendChild(soundBtn);
+
+    // volume-mestre (efeitos + música)
+    const volWrap = this.el('div', 'cfg-hand');
+    volWrap.appendChild(this.el('div', 'cfg-hand-label', `🎚️ Volume <small>(efeitos e música)</small>`));
+    const vol = this.el('input', 'cfg-vol');
+    vol.type = 'range'; vol.min = 0; vol.max = 100; vol.value = Math.round((S.audio.vol || 0.7) * 100);
+    vol.oninput = () => Sound.setVolume(vol.value / 100);
+    vol.onchange = () => Sound.play('click');
+    volWrap.appendChild(vol);
+    box.appendChild(volWrap);
+
+    // música ambiente gerativa
+    const musicBtn = this.el('button', 'cfg-btn', (S.audio.music ? '🎵 Música ambiente: Ligada' : '🎵 Música ambiente: Desligada'));
+    musicBtn.onclick = () => {
+      S.audio.music = !S.audio.music;
+      if (S.audio.music) { Sound.startMusic(); } else { Sound.stopMusic(); }
+      musicBtn.innerHTML = S.audio.music ? '🎵 Música ambiente: Ligada' : '🎵 Música ambiente: Desligada';
+    };
+    box.appendChild(musicBtn);
+
+    // Autocomprador (após a pesquisa)
+    if (Game.hasResearch('autocomprador')) {
+      const autoBtn = this.el('button', 'cfg-btn', (S.research.autoBuy ? '🤖 Autocomprador: Ligado' : '🤖 Autocomprador: Desligado'));
+      autoBtn.onclick = () => {
+        S.research.autoBuy = !S.research.autoBuy;
+        autoBtn.innerHTML = S.research.autoBuy ? '🤖 Autocomprador: Ligado' : '🤖 Autocomprador: Desligado';
+      };
+      box.appendChild(autoBtn);
+    }
 
     const flashBtn = this.el('button', 'cfg-btn', (S.flashFx ? '✨ Efeitos de tela cheia: Ligados' : '✨ Efeitos de tela cheia: Desligados'));
     flashBtn.onclick = () => { S.flashFx = !S.flashFx; flashBtn.innerHTML = S.flashFx ? '✨ Efeitos de tela cheia: Ligados' : '✨ Efeitos de tela cheia: Desligados'; };
@@ -1119,6 +1167,8 @@ const UI = {
       }
     }
 
+    if (this.updateExt) this.updateExt();   // abas da expansão (mundo, pesquisa, mercado, cidade, mascotes)
+
     if (this.dirty.tabs) this.renderTabs();
   },
 
@@ -1290,24 +1340,46 @@ const UI = {
     }, 18);
   },
 
-  // Códex: lista as fases já vividas para reler a lore a qualquer momento
+  // Códex: histórias das fases + Descobertas (lore oculta encontrada pelo mundo)
   showCodex() {
     const order = ['phase1', 'heroes', 'base', 'talents', 'prestige', 'events', 'phase7'];
     const seen = order.filter(k => k === 'phase1' || S.unlocked[k]);
     const rows = seen.map(k => `<button class="cfg-btn codex-entry" data-key="${k}">${ADVISOR.icon} <b>${PHASE_LORE[k].title}</b></button>`).join('');
+
+    // descobertas: registradas automaticamente ao explorar o mundo; as não achadas ficam ocultas
+    const found = LORE_ITEMS.filter(l => S.codex.lore[l.id]);
+    const loreRows = found.map(l =>
+      `<button class="cfg-btn codex-entry lore-found" data-lore="${l.id}">${l.icon} <b>${l.title}</b> <span class="codex-kind">${l.kind}</span></button>`).join('');
+    const missing = LORE_ITEMS.length - found.length;
+
     const box = this.showModal(`<h3>📖 Códex de ${ADVISOR.name}</h3>
       <div class="modal-text">Releia as histórias já vividas nesta jornada.</div>
-      <div class="codex-list">${rows}</div>`, true);
-    box.querySelectorAll('.codex-entry').forEach(btn => {
+      <div class="codex-list">${rows}</div>
+      <h3 class="codex-sec">🏺 Descobertas <span class="bag-count">${found.length}/${LORE_ITEMS.length}</span></h3>
+      <div class="codex-list">${loreRows || '<div class="modal-text"><i>Nada descoberto ainda. O mundo guarda segredos para quem explora...</i></div>'}</div>
+      ${missing > 0 && found.length > 0 ? `<div class="modal-text codex-missing"><i>${missing} fragmento(s) ainda perdidos por aí.</i></div>` : ''}`, true);
+
+    box.querySelectorAll('.codex-entry[data-key]').forEach(btn => {
       btn.onclick = () => this.showLoreModal(btn.dataset.key);
+    });
+    box.querySelectorAll('.codex-entry[data-lore]').forEach(btn => {
+      btn.onclick = () => {
+        const l = LORE_ITEMS.find(x => x.id === btn.dataset.lore);
+        const b2 = this.showModal(`<div class="lore-head"><span class="lore-icon">${l.icon}</span><div><h3>${l.title}</h3><div class="lore-sub">${l.kind}</div></div></div>
+          <div class="modal-text lore-body"></div>`, true);
+        this.typewrite(b2.querySelector('.lore-body'), l.text);
+      };
     });
   },
 
   welcomeBack(off) {
+    const research = (off.research && off.research.length)
+      ? '<br>🔬 Pesquisas concluídas: <b>' + off.research.map(id => Game.researchDef(id).name).join(', ') + '</b>'
+      : '';
     const box = this.showModal(`<h3>🌙 Bem-vindo de volta!</h3>
       <div class="modal-text">Você ficou fora por <b>${fmtTime(off.seconds)}</b>.<br>
       Sua organização trabalhou sem você:<br><br>
-      <b>+${fmt(off.gold)}</b> ouro${off.know > 0.5 ? `<br><b>+${fmt(off.know)}</b> 📘 conhecimento` : ''}</div>`, true);
+      <b>+${fmt(off.gold)}</b> ouro${off.know > 0.5 ? `<br><b>+${fmt(off.know)}</b> 📘 conhecimento` : ''}${research}</div>`, true);
     const ok = this.el('button', 'cfg-btn', 'Coletar!');
     ok.onclick = () => { document.getElementById('modal-layer').classList.add('hidden'); Sound.play('golden'); };
     box.appendChild(ok);
@@ -1346,6 +1418,7 @@ const UI = {
     document.getElementById('codex-btn').onclick = () => this.showCodex();
 
     this.applyHand();
+    if (this.initExt) this.initExt();   // expansão: widget do mundo, segredos, música
     this.renderTabs();
     this.renderLeft();
     this.renderActive();

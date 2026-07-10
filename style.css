@@ -1132,3 +1132,155 @@ body {
 .forge-wait { color: var(--gold); }
 
 .chip-aff { font-size: 10px; margin-left: 2px; opacity: 0.9; }
+
+/* ===================================================================
+   ==== EXPANSÃO: Mundo Vivo · Mascotes · Pesquisa · Mercado · NPCs ====
+   =================================================================== */
+
+/* ---- abas com ícone emoji (novas abas da expansão) ---- */
+.tab-emo { font-size: 16px; line-height: 1; }
+
+/* ---- widget do Mundo (painel esquerdo) ---- */
+#world-box {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color .2s;
+}
+#world-box:hover { border-color: var(--border-hi); }
+.world-line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.world-sky { font-size: 15px; }
+.world-season { color: var(--gold); }
+.world-day { color: var(--text-dim); margin-left: auto; font-family: var(--font-num); font-size: 11px; }
+.world-weather { margin-top: 4px; color: #4fa8d8; font-size: 11.5px; }
+.world-forecast { margin-top: 3px; color: var(--text-dim); font-size: 11px; font-style: italic; }
+.cal-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.cal-row { font-size: 13px; padding: 4px 8px; border-radius: 6px; background: rgba(255,255,255,.03); }
+.cal-row.cal-now { border: 1px solid var(--gold); background: rgba(232,163,61,.08); }
+.codex-sec { margin: 14px 0 4px; font-family: var(--font-display); color: var(--gold); font-size: 17px; }
+.codex-kind { color: var(--text-dim); font-size: 11px; margin-left: auto; }
+.codex-missing { opacity: .7; margin-top: 6px; }
+.lore-found { display: flex; align-items: center; gap: 6px; }
+
+/* ---- Mascotes ---- */
+.pet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.pet-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.pet-card.pet-active { box-shadow: 0 0 14px rgba(232,163,61,.18); }
+.pet-card.pet-locked { opacity: .55; align-items: center; text-align: center; justify-content: center; min-height: 160px; }
+.pet-head { display: flex; align-items: center; gap: 10px; }
+.pet-icon { font-size: 34px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); }
+.pet-name { font-family: var(--font-display); font-size: 18px; }
+.pet-rar { font-size: 11px; letter-spacing: .5px; text-transform: uppercase; }
+.pet-desc { color: var(--text-dim); font-size: 12.5px; font-style: italic; }
+.pet-lvl { font-size: 12.5px; }
+.pet-xp-bar { height: 7px; background: rgba(255,255,255,.06); border-radius: 4px; overflow: hidden; }
+.pet-xp-fill { height: 100%; background: linear-gradient(90deg, var(--arcane), var(--gold)); border-radius: 4px; transition: width .3s; }
+.pet-bonus { font-size: 12px; color: var(--text); }
+.pet-actions { display: flex; gap: 6px; margin-top: 4px; }
+.pet-actions .buy-btn { flex: 1; }
+.pet-actions .cfg-btn { flex: 1; margin: 0; font-size: 12px; padding: 6px; }
+
+/* ---- Pesquisa ---- */
+.rq-box { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.rq-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px;
+}
+.rq-row.rq-current { border-color: var(--green); }
+.rq-icon { font-size: 22px; }
+.rq-info { flex: 1; min-width: 0; }
+.rq-name { font-size: 13.5px; }
+.rq-wait { color: var(--text-dim); font-size: 11px; font-style: italic; }
+.rq-bar { height: 6px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; margin: 4px 0 2px; }
+.rq-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width .3s linear; }
+.rq-time { font-family: var(--font-num); font-size: 11px; color: var(--text-dim); }
+.research-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.research-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.rc-head { font-size: 14px; display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.rc-time { margin-left: auto; font-family: var(--font-num); font-size: 11px; color: var(--text-dim); }
+.rc-desc { color: var(--text-dim); font-size: 12.5px; flex: 1; }
+.rc-cost { font-family: var(--font-num); font-size: 11.5px; }
+.rc-start { align-self: stretch; }
+
+/* ---- Mercado ---- */
+.market-list { display: flex; flex-direction: column; gap: 10px; }
+.market-row {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px;
+  flex-wrap: wrap;
+}
+.mkt-good { display: flex; align-items: center; gap: 10px; min-width: 130px; }
+.mkt-icon { font-size: 26px; }
+.mkt-owned { color: var(--text-dim); font-size: 11.5px; }
+.mkt-chart { flex: 1; min-width: 150px; }
+.spark { width: 100%; max-width: 190px; height: 32px; display: block; background: rgba(255,255,255,.03); border-radius: 4px; }
+.mkt-idx { font-size: 11.5px; font-family: var(--font-num); color: var(--text-dim); margin-top: 3px; }
+.mkt-up { color: var(--green); }
+.mkt-down { color: var(--ember); }
+.mkt-badges { margin-top: 2px; display: flex; gap: 4px; flex-wrap: wrap; }
+.mkt-badge { font-size: 10px; padding: 1px 6px; border-radius: 8px; letter-spacing: .5px; }
+.mkt-scarce { background: rgba(255,107,94,.15); color: var(--ember); border: 1px solid var(--ember); }
+.mkt-promo { background: rgba(95,191,107,.15); color: var(--green); border: 1px solid var(--green); }
+.mkt-season { background: rgba(232,163,61,.12); color: var(--gold); border: 1px solid var(--gold); }
+.mkt-actions { display: flex; gap: 6px; }
+.mkt-actions .buy-btn { min-width: 108px; }
+
+/* ---- Cidade (NPCs) ---- */
+.npc-card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  padding: 12px 14px; margin-bottom: 12px;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.npc-head { display: flex; align-items: center; gap: 12px; }
+.npc-icon { font-size: 32px; }
+.npc-name { font-size: 15px; }
+.npc-line { color: var(--text-dim); font-size: 12px; font-style: italic; }
+.npc-friend { margin-left: auto; text-align: right; min-width: 90px; }
+.npc-friend-lvl { font-size: 12px; }
+.npc-friend-bar { height: 5px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; margin-top: 3px; }
+.npc-friend-fill { height: 100%; background: var(--gold); border-radius: 3px; }
+.npc-perk { font-size: 11.5px; color: var(--gold); opacity: .85; }
+.npc-mission { font-size: 12.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.npc-prog { font-family: var(--font-num); color: var(--text-dim); font-size: 11px; }
+.npc-claim { padding: 4px 10px; }
+.npc-offers { display: flex; flex-direction: column; gap: 6px; }
+.npc-offer {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,.03); border-radius: 8px; padding: 6px 10px;
+}
+.npc-offer.used { opacity: .45; }
+.npc-offer-label { flex: 1; font-size: 12.5px; }
+.npc-offer-btn { min-width: 120px; }
+.npc-disc { color: var(--green); font-size: 11px; }
+
+/* ---- Ajustes: volume ---- */
+.cfg-vol { width: 100%; accent-color: var(--gold); margin-top: 6px; }
+
+/* ---- segredo: o pontinho no canto ---- */
+#void-dot {
+  position: fixed; left: 3px; bottom: 3px; width: 7px; height: 7px;
+  background: rgba(143,111,216,.16); border: none; border-radius: 50%;
+  cursor: default; z-index: 40; padding: 0;
+}
+#void-dot:hover { background: rgba(143,111,216,.35); }
+
+/* ---- responsivo ---- */
+@media (max-width: 900px) {
+  .market-row { flex-direction: column; align-items: stretch; }
+  .mkt-actions .buy-btn { flex: 1; }
+  .npc-friend { min-width: 70px; }
+  .pet-grid, .research-grid { grid-template-columns: 1fr; }
+}
