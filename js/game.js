@@ -22,6 +22,7 @@ const Game = {
     m *= 1 + 0.05 * this.talentLvl('ganancia');            // talento
     m *= 1 + 0.03 * this.talentLvl('harmonia') * S.prestiges;
     m *= 1 + 0.06 * this.roomLvl('cofre');                 // sala
+    m *= 1 + this.synergyBonuses().gold;                   // sinergia de vizinhança na Base
     for (const u of UPGRADES) if (u.type === 'global' && S.upgrades[u.id]) m *= u.mult;
     m *= this.buffMult('prod');
     return m;
@@ -164,7 +165,7 @@ const Game = {
     const h = S.heroes[heroId];
     if (!h) return 1;
     let m = 1;
-    const power = 1 + 0.10 * this.roomLvl('oficina');
+    const power = 1 + 0.10 * this.roomLvl('oficina') + this.synergyBonuses().equip;
     for (const slot of GEAR_SLOTS) {
       const item = h.gear[slot.id];
       if (!item) continue;
@@ -225,6 +226,7 @@ const Game = {
     for (const id of this.fieldHeroes()) total += this.heroDps(id);
     total *= this.synergyMult;                 // sinergia de classe (Tank/DPS/Suporte)
     total *= 1 + 0.10 * this.roomLvl('quartel');
+    total *= 1 + this.synergyBonuses().dps;     // sinergia de vizinhança (ex.: Quartel + Oficina)
     total *= 1 + 0.10 * this.talentLvl('furia');
     total *= 1 + 0.01 * this.achCount();
     total *= 1 + this.gearBonus.team;          // afixo "Estandarte" (soma dos itens equipados)
@@ -282,6 +284,7 @@ const Game = {
   dropChance() {
     let ch = 0.35;
     ch += 0.05 * this.roomLvl('oficina');
+    ch += this.synergyBonuses().equip;          // sinergia de vizinhança (ex.: Oficina + Mina)
     ch += 0.04 * this.talentLvl('pilhagem');
     return Math.min(0.95, ch);
   },
@@ -657,7 +660,90 @@ const Game = {
     return 0.2 * this.roomLvl('lab')
       * (1 + 0.15 * this.roomLvl('biblioteca'))
       * (1 + 0.10 * this.talentLvl('sabedoria'))
-      * this.energyBoost();
+      * this.energyBoost()
+      * (1 + this.synergyBonuses().knowledge);
+  },
+
+  // ---------- Grade da Base (posicionamento + sinergias de vizinhança) ----------
+
+  // Garante que S.baseGrid seja um array válido com cada sala exatamente uma vez.
+  // Preserva posições existentes e acomoda salas novas/faltantes em células livres.
+  ensureBaseGrid() {
+    const size = BASE_GRID_COLS * BASE_GRID_ROWS;
+    const validIds = new Set(ROOMS.map(r => r.id));
+    let g = S.baseGrid;
+
+    const wellFormed = Array.isArray(g) && g.length === size &&
+      g.every(x => x === null || validIds.has(x));
+    if (wellFormed) {
+      const placed = g.filter(Boolean);
+      if (placed.length === new Set(placed).size && ROOMS.every(r => placed.includes(r.id))) {
+        return g;
+      }
+    }
+
+    // (re)construção tolerante: mantém colocações válidas, distribui o resto
+    const out = new Array(size).fill(null);
+    const used = new Set();
+    if (Array.isArray(g)) {
+      for (let i = 0; i < size; i++) {
+        const id = g[i];
+        if (id && validIds.has(id) && !used.has(id)) { out[i] = id; used.add(id); }
+      }
+    }
+    for (const r of ROOMS) {
+      if (used.has(r.id)) continue;
+      const free = out.indexOf(null);
+      if (free >= 0) { out[free] = r.id; used.add(r.id); }
+    }
+    S.baseGrid = out;
+    return out;
+  },
+
+  // vizinhos ortogonais à direita e abaixo (basta metade dos pares para não contar em dobro)
+  cellForwardNeighbors(i) {
+    const n = [];
+    const col = i % BASE_GRID_COLS;
+    const size = BASE_GRID_COLS * BASE_GRID_ROWS;
+    if (col < BASE_GRID_COLS - 1) n.push(i + 1);        // direita
+    if (i + BASE_GRID_COLS < size) n.push(i + BASE_GRID_COLS); // abaixo
+    return n;
+  },
+
+  // sinergias atualmente ativas: [{ def, value, i, j }] — value = per × min(nível das duas salas)
+  activeSynergies() {
+    const g = this.ensureBaseGrid();
+    const res = [];
+    for (let i = 0; i < g.length; i++) {
+      const a = g[i];
+      if (!a) continue;
+      for (const j of this.cellForwardNeighbors(i)) {
+        const b = g[j];
+        if (!b) continue;
+        const def = ROOM_SYNERGIES.find(d => (d.a === a && d.b === b) || (d.a === b && d.b === a));
+        if (!def) continue;
+        const lvl = Math.min(this.roomLvl(a), this.roomLvl(b));
+        if (lvl < 1) continue;
+        res.push({ def, value: def.per * lvl, i, j });
+      }
+    }
+    return res;
+  },
+
+  // bônus agregados por tipo, aplicados nas fórmulas do motor
+  synergyBonuses() {
+    const b = { gold: 0, dps: 0, knowledge: 0, material: 0, equip: 0 };
+    for (const s of this.activeSynergies()) b[s.def.type] += s.value;
+    return b;
+  },
+
+  // troca (ou move) o conteúdo de duas células da grade
+  swapCells(i, j) {
+    const g = this.ensureBaseGrid();
+    if (i < 0 || j < 0 || i >= g.length || j >= g.length || i === j) return false;
+    const t = g[i]; g[i] = g[j]; g[j] = t;
+    UI.dirty.base = true;
+    return true;
   },
 
   // ---------- Talentos ----------
@@ -917,10 +1003,11 @@ const Game = {
     if (know > 0) S.res.conhecimento += know;
     // salas produzem materiais offline
     const eb = this.energyBoost();
-    S.res.madeira += 2 * this.roomLvl('serraria') * eb * capped * offMult;
-    S.res.pedra += 1.5 * this.roomLvl('mina_r') * eb * capped * offMult;
-    S.res.ferro += 0.5 * this.roomLvl('mina_r') * eb * capped * offMult;
-    S.res.energia += 1 * this.roomLvl('gerador') * capped * offMult;
+    const mat = 1 + this.synergyBonuses().material;   // sinergia de vizinhança (ex.: Serraria + Mina)
+    S.res.madeira += 2 * this.roomLvl('serraria') * eb * mat * capped * offMult;
+    S.res.pedra += 1.5 * this.roomLvl('mina_r') * eb * mat * capped * offMult;
+    S.res.ferro += 0.5 * this.roomLvl('mina_r') * eb * mat * capped * offMult;
+    S.res.energia += 1 * this.roomLvl('gerador') * mat * capped * offMult;
     return { seconds: capped, gold, know };
   },
 
@@ -930,10 +1017,11 @@ const Game = {
     // produção
     this.gainGold(this.goldPerSec() * dt);
     const eb = this.energyBoost();
-    S.res.madeira += 2 * this.roomLvl('serraria') * eb * dt;
-    S.res.pedra += 1.5 * this.roomLvl('mina_r') * eb * dt;
-    S.res.ferro += 0.5 * this.roomLvl('mina_r') * eb * dt;
-    S.res.energia += 1 * this.roomLvl('gerador') * dt;
+    const mat = 1 + this.synergyBonuses().material;   // sinergia de vizinhança na Base
+    S.res.madeira += 2 * this.roomLvl('serraria') * eb * mat * dt;
+    S.res.pedra += 1.5 * this.roomLvl('mina_r') * eb * mat * dt;
+    S.res.ferro += 0.5 * this.roomLvl('mina_r') * eb * mat * dt;
+    S.res.energia += 1 * this.roomLvl('gerador') * mat * dt;
     S.res.conhecimento += this.knowledgePerSec() * dt;
     S.playTime += dt;
 

@@ -34,6 +34,7 @@ function defaultState() {
     },
 
     rooms: {},        // id -> nível
+    baseGrid: [],     // posição na grade da Base: array de células (roomId | null); ver Game.ensureBaseGrid
     talents: {},      // id -> nível
     ach: {},          // id -> true
     luckyNumberSeen: false, // true se algum gerador já cruzou 77 unidades (para a conquista s2)
@@ -49,6 +50,7 @@ function defaultState() {
 
     sound: true,
     flashFx: true,    // efeitos de tela cheia (flash de drop lendário)
+    hand: 'right',    // 'right' (destro: moeda à direita no mobile) | 'left' (canhoto: à esquerda)
     last: Date.now(),
     started: Date.now(),
   };

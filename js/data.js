@@ -128,6 +128,27 @@ const ROOMS = [
   { id: 'cofre',      name: 'Cofre-Forte', icon: '💰', desc: '+6% de produção de ouro por nível',          baseCost: { gold: 10e6, pedra: 400, ferro: 200 },  costMult: 1.85 },
 ];
 
+// ---- Grade da Base ----
+// Topologia FIXA (mesma em todas as telas) — as sinergias dependem de quem é vizinho de quem,
+// então a grade não pode mudar de forma conforme o tamanho do dispositivo.
+const BASE_GRID_COLS = 3;
+const BASE_GRID_ROWS = 4;           // 12 células para 8 salas + 4 vagas para arranjar
+
+// Sinergias de vizinhança: quando duas salas construídas (nível ≥ 1) ficam ortogonalmente
+// adjacentes na grade, elas ativam um bônus que escala com o MENOR nível entre as duas.
+// `type` define onde o bônus entra no motor (ver Game.synergyBonuses).
+const ROOM_SYNERGIES = [
+  { a: 'quartel',    b: 'oficina',    type: 'dps',       per: 0.04, icon: '⚔️', name: 'Arsenal',           short: '+DPS dos heróis' },
+  { a: 'gerador',    b: 'lab',        type: 'knowledge', per: 0.05, icon: '🔌', name: 'Rede Elétrica',      short: '+Conhecimento/s' },
+  { a: 'lab',        b: 'biblioteca', type: 'knowledge', per: 0.05, icon: '🎓', name: 'Academia',           short: '+Conhecimento/s' },
+  { a: 'serraria',   b: 'mina_r',     type: 'material',  per: 0.06, icon: '⛏️', name: 'Distrito Minerador', short: '+Coleta de recursos' },
+  { a: 'cofre',      b: 'gerador',    type: 'gold',      per: 0.05, icon: '💵', name: 'Tesouraria',         short: '+Produção de ouro' },
+  { a: 'oficina',    b: 'mina_r',     type: 'equip',     per: 0.05, icon: '🛠️', name: 'Metalurgia',         short: '+Poder de equipamento' },
+  { a: 'cofre',      b: 'quartel',    type: 'gold',      per: 0.04, icon: '🏴', name: 'Espólio de Guerra',  short: '+Produção de ouro' },
+  { a: 'biblioteca', b: 'oficina',    type: 'equip',     per: 0.04, icon: '📐', name: 'Engenharia',         short: '+Poder de equipamento' },
+];
+const SYNERGY_LABELS = { gold: 'ouro', dps: 'DPS', knowledge: 'conhecimento', material: 'recursos', equip: 'equipamento' };
+
 // ---- Talentos (3 árvores, custam Conhecimento) ----
 const TALENTS = [
   // Economia

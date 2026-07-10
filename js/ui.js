@@ -3,6 +3,8 @@
 const UI = {
   activeTab: 'prod',
   buyAmount: 1,           // 1 | 10 | 'max'
+  baseSel: null,          // célula da grade da Base selecionada para mover (índice) | null
+  baseDrag: null,         // índice da célula sendo arrastada (desktop) | null
   dirty: { tabs: true, prod: true, heroes: true, forge: true, base: true, talents: true, prestige: true, ach: true, config: true, left: true },
   R: {},                  // refs dinâmicos do tab ativo
   _seenIds: {},            // ids já renderizados por lista, pra animar só linhas novas
@@ -108,8 +110,15 @@ const UI = {
       if (owned === 0 && S.earned < g.baseCost * 0.4) continue;
 
       const row = this.el('div', 'gen-row' + (this.isNewRow('gens', g.id) ? ' row-enter' : ''));
+
+      const thumb = this.el('img', 'gen-thumb');
+      thumb.src = `img/gens/${g.id}.jpg`;
+      thumb.alt = '';
+      thumb.onerror = () => thumb.replaceWith(Object.assign(document.createElement('span'), { className: 'gen-icon', textContent: g.icon }));
+      row.appendChild(thumb);
+
       const info = this.el('div', 'gen-info');
-      info.appendChild(this.el('div', 'gen-name', `<span class="gen-icon">${g.icon}</span> ${g.name} <span class="gen-owned">×${owned}</span>`));
+      info.appendChild(this.el('div', 'gen-name', `${g.name} <span class="gen-owned">×${owned}</span>`));
       info.appendChild(this.el('div', 'gen-flavor', g.flavor));
       const prodEl = this.el('div', 'gen-prod', '');
       info.appendChild(prodEl);
@@ -618,22 +627,110 @@ const UI = {
   // ---------- Aba: Base ----------
 
   renderBase(c) {
-    c.appendChild(this.el('p', 'tab-intro', 'Sua organização precisa de uma sede. Cada sala tem uma função — construa e evolua.'));
-    const grid = this.el('div', 'room-grid');
+    const cells = Game.ensureBaseGrid();
+    c.appendChild(this.el('p', 'tab-intro',
+      'Sua sede é uma <b>grade</b>: arraste (ou toque para selecionar e toque em outra célula para trocar) as salas de lugar. ' +
+      'Salas <b>vizinhas</b> com afinidade formam <b>sinergias</b> que dão bônus — ex.: <b>Quartel</b> ao lado da <b>Oficina</b>.'));
+
+    // mapa célula → sinergias ativas em que ela participa (para destacar tiles e ligações)
+    const syns = Game.activeSynergies();
+    const cellSyn = {};
+    for (const s of syns) {
+      (cellSyn[s.i] = cellSyn[s.i] || []).push(s);
+      (cellSyn[s.j] = cellSyn[s.j] || []).push(s);
+    }
+
+    // ----- painel de sinergias ativas -----
+    const bonus = Game.synergyBonuses();
+    const anyBonus = Object.values(bonus).some(v => v > 0);
+    const sbar = this.el('div', 'syn-bar');
+    if (anyBonus) {
+      const tags = [];
+      for (const k in bonus) if (bonus[k] > 0) tags.push(`<span class="syn-tag syn-${k}">+${Math.round(bonus[k] * 100)}% ${SYNERGY_LABELS[k]}</span>`);
+      sbar.innerHTML = `<span class="syn-bar-title">⚡ Sinergias ativas</span> ${tags.join('')}`;
+    } else {
+      sbar.innerHTML = `<span class="syn-bar-title">⚡ Sinergias</span> <span class="syn-empty">Aproxime salas com afinidade para ativar bônus.</span>`;
+    }
+    c.appendChild(sbar);
+
+    // ----- a grade -----
+    const grid = this.el('div', 'base-grid');
+    grid.style.gridTemplateColumns = `repeat(${BASE_GRID_COLS}, 1fr)`;
     this.R.rooms = [];
-    for (const r of ROOMS) {
-      const lvl = Game.roomLvl(r.id);
-      const card = this.el('div', 'room-card' + (this.isNewRow('rooms', r.id) ? ' row-enter' : ''));
-      const head = this.el('div', 'room-head', `<span class="room-icon">${r.icon}</span> <b>${r.name}</b> <span class="room-lvl">Nv ${lvl}</span>`);
-      card.appendChild(head);
-      card.appendChild(this.el('div', 'room-desc', r.desc));
-      const btn = this.el('button', 'buy-btn room-btn');
-      btn.onclick = () => { if (Game.buildRoom(r.id)) this.updateDynamic(); };
-      card.appendChild(btn);
-      grid.appendChild(card);
-      this.R.rooms.push({ id: r.id, btn, lvlEl: head.querySelector('.room-lvl') });
+    for (let i = 0; i < cells.length; i++) {
+      const id = cells[i];
+      const tile = this.el('div', 'base-cell' + (id ? '' : ' empty') + (this.baseSel === i ? ' selected' : '') + (cellSyn[i] ? ' syn-active' : ''));
+      tile.dataset.index = i;
+
+      // drag & drop (desktop) — no mobile o toque cuida do movimento
+      tile.draggable = !!id;
+      tile.addEventListener('dragstart', (e) => { this.baseDrag = i; e.dataTransfer.effectAllowed = 'move'; tile.classList.add('dragging'); });
+      tile.addEventListener('dragend', () => { tile.classList.remove('dragging'); });
+      tile.addEventListener('dragover', (e) => { e.preventDefault(); tile.classList.add('drop-hint'); });
+      tile.addEventListener('dragleave', () => tile.classList.remove('drop-hint'));
+      tile.addEventListener('drop', (e) => {
+        e.preventDefault();
+        tile.classList.remove('drop-hint');
+        if (this.baseDrag !== null && this.baseDrag !== i) {
+          Game.swapCells(this.baseDrag, i);
+          this.baseSel = null; this.baseDrag = null;
+          Sound.play('build');
+          this.dirty.base = true; this.renderActive();
+        }
+      });
+      // toque/clique: selecionar para mover / trocar (universal, funciona no mobile)
+      tile.onclick = (e) => {
+        if (e.target.closest('.base-build')) return; // botão de construir tem ação própria
+        this.baseTileTap(i);
+      };
+
+      if (id) {
+        const r = ROOMS.find(x => x.id === id);
+        const lvl = Game.roomLvl(id);
+        const badge = cellSyn[i] ? `<span class="syn-badge" title="${cellSyn[i].map(s => s.def.name).join(', ')}">⚡${cellSyn[i].length}</span>` : '';
+        tile.innerHTML =
+          `${badge}<img class="base-art" src="img/rooms/${id}.jpg" alt="" draggable="false" ` +
+          `onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'base-icon',textContent:'${r.icon}'}))">` +
+          `<span class="base-name">${r.name}</span>` +
+          `<span class="room-lvl">Nv ${lvl}</span>`;
+        tile.title = r.desc;
+        const btn = this.el('button', 'buy-btn base-build');
+        tile.appendChild(btn);
+        this.R.rooms.push({ id, btn, lvlEl: tile.querySelector('.room-lvl') });
+      } else {
+        tile.innerHTML = `<span class="base-empty-mark">＋</span>`;
+      }
+      grid.appendChild(tile);
     }
     c.appendChild(grid);
+
+    // ----- legenda de sinergias possíveis -----
+    const legend = this.el('div', 'syn-legend');
+    legend.appendChild(this.el('div', 'syn-legend-title', 'Afinidades (salas vizinhas):'));
+    const activeKeys = new Set(syns.map(s => s.def.name));
+    for (const d of ROOM_SYNERGIES) {
+      const ra = ROOMS.find(x => x.id === d.a), rb = ROOMS.find(x => x.id === d.b);
+      const on = activeKeys.has(d.name);
+      const row = this.el('div', 'syn-legend-row' + (on ? ' on' : ''));
+      row.innerHTML = `<span class="syn-legend-pair">${ra.icon}${rb.icon}</span> <b>${d.icon} ${d.name}</b> <span class="syn-legend-eff">${d.short}</span>`;
+      legend.appendChild(row);
+    }
+    c.appendChild(legend);
+  },
+
+  // toque numa célula da grade: seleciona / troca / cancela
+  baseTileTap(index) {
+    const g = Game.ensureBaseGrid();
+    if (this.baseSel === null) {
+      if (g[index]) { this.baseSel = index; this.dirty.base = true; this.renderActive(); }
+    } else if (this.baseSel === index) {
+      this.baseSel = null; this.dirty.base = true; this.renderActive();
+    } else {
+      Game.swapCells(this.baseSel, index);
+      this.baseSel = null;
+      Sound.play('build');
+      this.dirty.base = true; this.renderActive();
+    }
   },
 
   roomCostHtml(roomId) {
@@ -745,6 +842,20 @@ const UI = {
     const flashBtn = this.el('button', 'cfg-btn', (S.flashFx ? '✨ Efeitos de tela cheia: Ligados' : '✨ Efeitos de tela cheia: Desligados'));
     flashBtn.onclick = () => { S.flashFx = !S.flashFx; flashBtn.innerHTML = S.flashFx ? '✨ Efeitos de tela cheia: Ligados' : '✨ Efeitos de tela cheia: Desligados'; };
     box.appendChild(flashBtn);
+
+    // Mão preferida (mobile): posição da moeda de clique na barra superior
+    const handWrap = this.el('div', 'cfg-hand');
+    handWrap.appendChild(this.el('div', 'cfg-hand-label', '🖐️ Mão preferida <small>(posição da moeda no celular)</small>'));
+    const seg = this.el('div', 'cfg-seg');
+    const mkHand = (val, label) => {
+      const b = this.el('button', 'cfg-seg-btn' + (S.hand === val ? ' active' : ''), label);
+      b.onclick = () => { S.hand = val; this.applyHand(); this.dirty.config = true; this.renderActive(); };
+      return b;
+    };
+    seg.appendChild(mkHand('left', '👈 Canhoto (esquerda)'));
+    seg.appendChild(mkHand('right', 'Destro (direita) 👉'));
+    handWrap.appendChild(seg);
+    box.appendChild(handWrap);
 
     const saveBtn = this.el('button', 'cfg-btn', '💾 Salvar agora');
     saveBtn.onclick = () => { saveGame(); this.toast('💾 Jogo salvo!', '#5fbf6b'); };
@@ -1234,8 +1345,14 @@ const UI = {
 
     document.getElementById('codex-btn').onclick = () => this.showCodex();
 
+    this.applyHand();
     this.renderTabs();
     this.renderLeft();
     this.renderActive();
+  },
+
+  // aplica a mão preferida (canhoto/destro) no <body>; o CSS reposiciona a moeda no mobile
+  applyHand() {
+    document.body.dataset.hand = (S.hand === 'left' ? 'left' : 'right');
   },
 };
