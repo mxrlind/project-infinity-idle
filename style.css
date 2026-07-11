@@ -1284,3 +1284,180 @@ body {
   .npc-friend { min-width: 70px; }
   .pet-grid, .research-grid { grid-template-columns: 1fr; }
 }
+
+/* ===================================================================== */
+/* Sinergia de Time — medidor 0–100% + faixas + Estado Perfeito (100%)   */
+/* ===================================================================== */
+.synergy-panel {
+  background: var(--panel2);
+  border: 1px solid var(--border-hi);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 4px 0 6px;
+  transition: box-shadow 0.3s, border-color 0.3s;
+}
+.syn-head { display: flex; align-items: baseline; justify-content: space-between; }
+.syn-title { font-family: var(--font-display); color: var(--gold); font-size: 16px; }
+.syn-pct { font-family: var(--font-num); font-weight: 700; font-size: 22px; color: var(--gold-hi); }
+.syn-track {
+  position: relative; height: 12px; margin: 8px 0 4px;
+  background: #0e0b16; border: 1px solid var(--border); border-radius: 20px; overflow: hidden;
+}
+.syn-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, var(--arcane), var(--gold) 70%, var(--gold-hi));
+  border-radius: 20px; transition: width 0.4s ease;
+}
+.syn-mark {
+  position: absolute; top: -2px; width: 2px; height: 16px;
+  background: rgba(255,255,255,0.18); transform: translateX(-1px);
+}
+.syn-classrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.syn-how { font-size: 12px; color: var(--text-dim); flex: 1; min-width: 180px; }
+.syn-tiers { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.syn-tier {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11.5px; font-family: var(--font-num);
+  border: 1px solid var(--border); border-radius: 20px;
+  padding: 3px 9px; color: var(--text-dim);
+  opacity: 0.55; transition: all 0.25s;
+}
+.syn-tier .st-at { font-weight: 700; color: var(--text-dim); }
+.syn-tier.on { opacity: 1; border-color: var(--gold); color: var(--text); background: rgba(232,163,61,0.08); }
+.syn-tier.on .st-at { color: var(--gold-hi); }
+.syn-tier-mega.on {
+  border-color: var(--gold-hi); color: var(--gold-hi);
+  background: rgba(232,163,61,0.16);
+  box-shadow: 0 0 12px rgba(232,163,61,0.4);
+  animation: megaPulse 1.4s ease-in-out infinite;
+}
+@keyframes megaPulse { 0%,100% { box-shadow: 0 0 8px rgba(232,163,61,0.35); } 50% { box-shadow: 0 0 18px rgba(232,163,61,0.7); } }
+.synergy-panel.mega-on {
+  border-color: var(--gold-hi);
+  box-shadow: 0 0 22px rgba(232,163,61,0.35), inset 0 0 18px rgba(232,163,61,0.08);
+}
+.synergy-panel.mega-on .syn-fill {
+  background: linear-gradient(90deg, var(--gold-hi), #fff6cf, var(--gold-hi));
+  background-size: 200% 100%; animation: megaFlow 2s linear infinite;
+}
+@keyframes megaFlow { to { background-position: 200% 0; } }
+.synergy-panel.mega-on .syn-pct { animation: megaGlow 1.4s ease-in-out infinite; }
+@keyframes megaGlow { 0%,100% { text-shadow: 0 0 6px rgba(232,163,61,0.6); } 50% { text-shadow: 0 0 16px rgba(255,215,0,0.9); } }
+
+/* aura da equipe em campo no Estado Perfeito */
+.field-grid.mega-aura .hero-mini {
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 12px rgba(232,163,61,0.35);
+  animation: teamAura 2s ease-in-out infinite;
+}
+@keyframes teamAura { 0%,100% { box-shadow: 0 0 8px rgba(232,163,61,0.25); } 50% { box-shadow: 0 0 18px rgba(232,163,61,0.55); } }
+
+/* ===================================================================== */
+/* Especialização de classe (Arquétipo + Arma ideal)                     */
+/* ===================================================================== */
+.hm-arch {
+  font-size: 10.5px; color: var(--text-dim); font-family: var(--font-num);
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap; line-height: 1.2;
+}
+.hm-ideal { opacity: 0.85; }
+.hm-spec-on {
+  color: #1a1408; background: linear-gradient(90deg, var(--gold), var(--gold-hi));
+  border-radius: 20px; padding: 0 6px; font-weight: 700; font-size: 9.5px;
+}
+.hero-mini.spec-on {
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(232,163,61,0.28);
+}
+.hero-mini.spec-on .hm-portrait {
+  box-shadow: 0 0 10px rgba(232,163,61,0.55);
+  border-color: var(--gold) !important;
+}
+.gear-chip.wt-match { border-color: var(--gold) !important; color: var(--gold-hi) !important; box-shadow: 0 0 6px rgba(232,163,61,0.3); }
+.gear-chip.wt-mismatch { opacity: 0.9; }
+.chip-ideal { color: var(--gold-hi); }
+.chip-aff { font-size: 11px; }
+
+/* ===================================================================== */
+/* Cena viva da Base                                                     */
+/* ===================================================================== */
+.base-scene {
+  position: relative; overflow: hidden;
+  height: 150px; border-radius: 14px; margin-bottom: 12px;
+  border: 1px solid var(--border-hi);
+  background: linear-gradient(180deg, #1a1530 0%, #2a2140 55%, #3a2f28 100%);
+}
+.base-scene[data-tier="0"] { background: linear-gradient(180deg, #14111f 0%, #1c1830 60%, #24201a 100%); }
+.base-scene[data-tier="3"] { background: linear-gradient(180deg, #241a3a 0%, #3a2b52 55%, #4a3a2a 100%); }
+.base-scene[data-tier="4"] { background: linear-gradient(180deg, #2e1f46 0%, #4a3566 50%, #5c4630 100%); }
+.bs-skyline {
+  position: absolute; left: 0; right: 0; bottom: 22px;
+  display: flex; align-items: flex-end; justify-content: center; gap: 5px;
+  height: 108px; padding: 0 12px;
+}
+.bs-empty { color: var(--text-dim); font-size: 13px; align-self: center; margin-bottom: 30px; }
+.bs-building {
+  width: 30px; min-height: 30px;
+  background: linear-gradient(180deg, rgba(143,111,216,0.32), rgba(20,16,32,0.6));
+  border: 1px solid var(--border-hi); border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  padding-top: 3px; position: relative;
+  animation: bldRise 0.5s ease;
+  transition: height 0.5s ease;
+}
+@keyframes bldRise { from { height: 0 !important; opacity: 0; } }
+.bsb-ico { font-size: 16px; line-height: 1; filter: drop-shadow(0 0 4px rgba(0,0,0,0.6)); }
+.bsb-lvl { font-family: var(--font-num); font-size: 9px; color: var(--gold-hi); font-weight: 700; margin-top: 1px; }
+.bs-ground {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 24px;
+  background: linear-gradient(180deg, #3a2f24, #241c14);
+  border-top: 1px solid #4a3a28;
+}
+.bs-npc {
+  position: absolute; bottom: 3px; left: -20px; font-size: 14px;
+  animation-name: npcWalk; animation-timing-function: linear; animation-iteration-count: infinite;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+}
+@keyframes npcWalk {
+  0% { transform: translateX(0) scaleX(1); }
+  49% { transform: translateX(320px) scaleX(1); }
+  50% { transform: translateX(320px) scaleX(-1); }
+  99% { transform: translateX(0) scaleX(-1); }
+  100% { transform: translateX(0) scaleX(1); }
+}
+.bs-fire { position: absolute; bottom: 4px; right: 20px; font-size: 16px; animation: fireFlick 0.4s ease-in-out infinite alternate; }
+@keyframes fireFlick { from { transform: scale(0.9) translateY(0); filter: brightness(1); } to { transform: scale(1.1) translateY(-1px); filter: brightness(1.3); } }
+.bs-banners { position: absolute; bottom: 20px; left: 12px; font-size: 18px; letter-spacing: -2px; animation: bannerWave 2.5s ease-in-out infinite; }
+@keyframes bannerWave { 0%,100% { transform: skewX(-4deg); } 50% { transform: skewX(4deg); } }
+.bs-particles { position: absolute; inset: 0; pointer-events: none; }
+.bs-mote {
+  position: absolute; bottom: 24px; width: 3px; height: 3px; border-radius: 50%;
+  background: rgba(232,163,61,0.7); box-shadow: 0 0 4px rgba(232,163,61,0.8);
+  animation-name: moteRise; animation-timing-function: linear; animation-iteration-count: infinite;
+}
+@keyframes moteRise { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 0.9; } 100% { transform: translateY(-120px); opacity: 0; } }
+.bs-stage {
+  position: absolute; top: 6px; left: 10px;
+  font-family: var(--font-num); font-size: 11px; color: var(--gold-hi);
+  background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 20px; padding: 2px 9px;
+}
+
+/* Decorações e crescimento por nível nos tiles */
+.room-decor { position: absolute; top: 3px; left: 5px; display: flex; gap: 1px; font-size: 11px; pointer-events: none; z-index: 2; }
+.rd-fire { animation: fireFlick 0.5s ease-in-out infinite alternate; }
+.rd-star { animation: megaGlow 1.6s ease-in-out infinite; }
+.base-cell.built.rt-2 { border-color: rgba(143,111,216,0.5); }
+.base-cell.built.rt-3 { border-color: rgba(232,163,61,0.5); box-shadow: 0 0 8px rgba(232,163,61,0.12); }
+.base-cell.built.rt-4 {
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(232,163,61,0.28);
+  background: linear-gradient(180deg, rgba(232,163,61,0.08), var(--panel2));
+}
+.base-cell.built.rt-4 .base-art { border-color: var(--gold); }
+
+@media (max-width: 600px) {
+  .base-scene { height: 120px; }
+  .bs-skyline { height: 84px; }
+  .bs-building { width: 24px; }
+  .syn-pct { font-size: 18px; }
+}

@@ -179,6 +179,7 @@ const UI = {
       const r = Game.clickAttack();
       Sound.play('click');
       if (r.crit) this.floatText(ev.clientX, ev.clientY, '★ CRIT! -' + fmt(r.dmg), '#ffd700');
+      else if (r.dbl) this.floatText(ev.clientX, ev.clientY, '⚔️×2 -' + fmt(r.dmg), '#ff9d5e');
       else this.floatText(ev.clientX, ev.clientY, '-' + fmt(r.dmg), '#ff6b5e');
       this.shakeEnemy();
     };
@@ -218,28 +219,92 @@ const UI = {
     this.renderBag(c);
   },
 
-  // barra de sinergia: contagem por classe em campo + bônus de DPS de time
+  // Painel de sinergia de time: medidor 0–100% + faixas de bônus + Estado Perfeito (100%).
   renderSynergyBar(c) {
     Game.ensureSynergy();
-    const s = Game._lastSynergy;
-    const bar = this.el('div', 'synergy-bar');
+    const bar = this.el('div', 'synergy-panel');
+
+    // cabeçalho: título + porcentagem grande
+    const head = this.el('div', 'syn-head');
+    head.innerHTML = `<span class="syn-title">⚡ Sinergia de Time</span><span class="syn-pct">0%</span>`;
+    bar.appendChild(head);
+
+    // barra de progresso com marcadores de faixa
+    const track = this.el('div', 'syn-track');
+    const fill = this.el('div', 'syn-fill');
+    track.appendChild(fill);
+    for (const t of SYNERGY_TIERS) {
+      const mk = this.el('div', 'syn-mark');
+      mk.style.left = t.at + '%';
+      track.appendChild(mk);
+    }
+    bar.appendChild(track);
+
+    // contagem por classe + dica de como subir
     const classes = this.el('div', 'synergy-classes');
+    const classRefs = {};
     for (const cls of ['tank', 'dps', 'support']) {
       const cd = HERO_CLASSES[cls];
       const item = this.el('div', 'synergy-class');
       item.style.color = cd.color;
-      item.innerHTML = `<span class="sc-icon">${cd.icon}</span><span class="sc-count">${s.counts[cls]}</span>`;
-      item.title = `${cd.name} em campo: ${s.counts[cls]} (proporção-alvo ${Math.round(SYNERGY_TARGET[cls] * 100)}%)`;
+      item.innerHTML = `<span class="sc-icon">${cd.icon}</span><span class="sc-count">0</span>`;
+      item.title = `${cd.name} em campo (proporção-alvo ${Math.round(SYNERGY_TARGET[cls] * 100)}%)`;
       classes.appendChild(item);
+      classRefs[cls] = item.querySelector('.sc-count');
     }
-    bar.appendChild(classes);
-    const pct = Math.round((Game.synergyMult - 1) * 100);
-    const bonus = this.el('div', 'synergy-bonus');
-    bonus.innerHTML = s.n === 0
-      ? `<span class="sb-none">⚠️ Nenhum herói em campo — 0 DPS de time!</span>`
-      : `Sinergia de time: <b>+${pct}%</b> DPS <span class="sb-hint">alvo 🛡️1 : ⚔️2 : ✨1</span>`;
-    bar.appendChild(bonus);
+    const hint = this.el('div', 'syn-how', '');
+    const clsWrap = this.el('div', 'syn-classrow');
+    clsWrap.appendChild(classes);
+    clsWrap.appendChild(hint);
+    bar.appendChild(clsWrap);
+
+    // escada de faixas
+    const ladder = this.el('div', 'syn-tiers');
+    const tierRefs = [];
+    for (const t of SYNERGY_TIERS) {
+      const row = this.el('div', 'syn-tier' + (t.key === 'mega' ? ' syn-tier-mega' : ''));
+      row.innerHTML = `<span class="st-at">${t.at}%</span><span class="st-ico">${t.icon}</span><span class="st-label">${t.label}</span>`;
+      ladder.appendChild(row);
+      tierRefs.push({ at: t.at, row });
+    }
+    bar.appendChild(ladder);
+
     c.appendChild(bar);
+    this.R.synergy = { bar, fill, pctEl: head.querySelector('.syn-pct'), classRefs, hint, tierRefs, lastPct: -1, lastMega: null };
+    this.updateSynergyPanel();
+  },
+
+  // atualização por tick do painel de sinergia (chamada em updateDynamic)
+  updateSynergyPanel() {
+    const R = this.R.synergy;
+    if (!R) return;
+    Game.ensureSynergy();
+    const s = Game._lastSynergy;
+    const pct = s.pct;
+    for (const cls in R.classRefs) R.classRefs[cls].textContent = s.counts[cls];
+
+    if (pct !== R.lastPct) {
+      R.lastPct = pct;
+      R.fill.style.width = pct + '%';
+      R.pctEl.textContent = pct + '%';
+      for (const tr of R.tierRefs) tr.row.classList.toggle('on', pct >= tr.at);
+      // dica: o gargalo mais barato de resolver primeiro
+      let how;
+      if (s.n === 0) how = '⚠️ Sem heróis em campo — arraste heróis para o Campo de Batalha!';
+      else if (s.fillScore < 1) how = `🪑 Preencha o campo (${s.n}/${s.slots} slots) para +sinergia.`;
+      else if (s.specScore < 1) how = `🗡️ Equipe a ARMA IDEAL de cada herói (${s.matched}/${s.n} certos).`;
+      else if (s.compScore < 1) how = '⚖️ Ajuste a composição para 🛡️1 : ⚔️2 : ✨1.';
+      else how = '🌟 Equipe perfeita! Estado Perfeito ativo.';
+      R.hint.innerHTML = how;
+    }
+    const mega = pct >= 100;
+    if (mega !== R.lastMega) {
+      R.lastMega = mega;
+      R.bar.classList.toggle('mega-on', mega);
+      const grid = this.R.fieldGrid;
+      if (grid) grid.classList.toggle('mega-aura', mega);
+      if (mega) this.toast('🌟 ESTADO PERFEITO! +50% em tudo!', '#e8a33d', true);
+    }
   },
 
   // grade de slots do campo (só heróis aqui lutam)
@@ -262,6 +327,7 @@ const UI = {
       this.attachSlotDrop(slot, i);
       grid.appendChild(slot);
     }
+    this.R.fieldGrid = grid;
     c.appendChild(grid);
   },
 
@@ -327,13 +393,21 @@ const UI = {
   heroMini(heroId) {
     const def = HEROES.find(x => x.id === heroId);
     const cd = HERO_CLASSES[def.class];
+    const arch = Game.heroArchetype(heroId);
+    const wt = arch ? WEAPON_TYPES.find(w => w.id === arch.weapon) : null;
+    const matched = Game.heroMatched(heroId);
     const cardSel = this._selected && this._selected.type === 'card';
     const delta = cardSel ? Game.itemDeltaForHero(this._selected.id, heroId) : 0;
-    const card = this.el('div', 'hero-mini' + (this.isNewRow('heroMini', heroId) ? ' row-enter-sm' : ''));
+    const card = this.el('div', 'hero-mini' + (matched ? ' spec-on' : '') + (this.isNewRow('heroMini', heroId) ? ' row-enter-sm' : ''));
     card.dataset.heroId = heroId;
     card.draggable = true;
     if (this._selected && this._selected.type === 'hero' && this._selected.id === heroId) card.classList.add('selected');
     if (cardSel) card.classList.add(delta > 0 ? 'eligible-up' : delta < 0 ? 'eligible-down' : 'eligible-eq');
+    const archTag = arch
+      ? `<div class="hm-arch${matched ? ' matched' : ''}" title="${this.specTip(heroId)}">${arch.icon} ${arch.name}`
+        + (matched ? ` <span class="hm-spec-on">✦ ESPECIALIZADO</span>` : ` <span class="hm-ideal">ideal: ${wt.icon}${wt.name}</span>`)
+        + `</div>`
+      : '';
     card.innerHTML = `
       <div class="hm-head">
         <div class="hero-portrait hm-portrait" style="background-image:url('img/heroes/${heroId}.jpg')"></div>
@@ -341,6 +415,7 @@ const UI = {
         ${cardSel ? `<span class="hm-delta">${this.fmtScore(delta)}</span>` : ''}
       </div>
       <div class="hm-name">${def.icon} <b>${def.name}</b></div>
+      ${archTag}
       <div class="hm-stats"></div>
       <div class="hero-gear hm-gear"></div>
       <button class="buy-btn hm-level"></button>`;
@@ -370,14 +445,21 @@ const UI = {
         chip.style.borderColor = r.color;
         chip.style.color = r.color;
         const affIcons = (item.affixes || []).map(a => FORGE_AFFIXES.find(x => x.type === a.type).icon).join('');
-        chip.innerHTML = `${item.icon} +${Math.round(item.mult * 100)}%${affIcons ? ' <span class="chip-aff">' + affIcons + '</span>' : ''}`;
+        // marca de arma ideal (✦) quando o tipo da arma casa com o arquétipo do herói
+        const arch = slot.id === 'arma' ? Game.heroArchetype(heroId) : null;
+        const ideal = arch && Game.weaponType(item) === arch.weapon;
+        if (slot.id === 'arma') chip.classList.add(ideal ? 'wt-match' : 'wt-mismatch');
+        chip.innerHTML = `${item.icon} +${Math.round(item.mult * 100)}%${ideal ? ' <span class="chip-ideal">✦</span>' : ''}${affIcons ? ' <span class="chip-aff">' + affIcons + '</span>' : ''}`;
         chip.title = `${slot.name} ${r.name}: +${Math.round(item.mult * 100)}% DPS`
+          + (slot.id === 'arma' ? `\nTipo: ${this.weaponTypeName(item)}${ideal ? ' ✦ (ideal — especialização ativa!)' : ` (ideal deste herói: ${(WEAPON_TYPES.find(w => w.id === arch.weapon) || {}).name})`}` : '')
           + ((item.affixes && item.affixes.length) ? '\n' + item.affixes.map(a => this.affixLabel(a)).join('\n') : '')
           + '\nClique para desequipar (→ Bolsa)';
       } else {
         chip.classList.add('gear-empty');
-        chip.innerHTML = `${slot.id === 'arma' ? '🗡️' : '📿'} —`;
-        chip.title = `${slot.name}: vazio`;
+        const arch = slot.id === 'arma' ? Game.heroArchetype(heroId) : null;
+        const wt = arch ? WEAPON_TYPES.find(w => w.id === arch.weapon) : null;
+        chip.innerHTML = `${slot.id === 'arma' ? (wt ? wt.icon : '🗡️') : '📿'} —`;
+        chip.title = arch ? `${slot.name}: vazio — arma ideal: ${wt.icon} ${wt.name}` : `${slot.name}: vazio`;
       }
       if (cardItem && cardItem.slot === slot.id) {
         const delta = Game.itemDeltaForHero(this._selected.id, heroId);
@@ -401,7 +483,7 @@ const UI = {
     card.innerHTML = `
       <div class="bc-icon" style="color:${r.color}">${item.icon}</div>
       <div class="bc-rar" style="color:${r.color}">${r.name}</div>
-      <div class="bc-slot">${slotName}</div>
+      <div class="bc-slot">${item.slot === 'arma' ? this.weaponTypeName(item) : slotName}</div>
       <div class="bc-mult">+${Math.round(item.mult * 100)}% DPS</div>
       <div class="bc-aff">${affIcons || '—'}</div>
       <button class="bc-scrap" title="Desmanchar por materiais">♻️</button>`;
@@ -542,6 +624,27 @@ const UI = {
     return `${def.icon} +${Math.round(a.val * 100)}% ${def.tip}`;
   },
 
+  // nome legível do tipo de arma de um item (ou '' se não for arma)
+  weaponTypeName(item) {
+    const wt = Game.weaponType(item);
+    const def = WEAPON_TYPES.find(w => w.id === wt);
+    return def ? `${def.icon} ${def.name}` : '';
+  },
+
+  // tooltip de especialização do herói (arquétipo, arma ideal, perks e status)
+  specTip(heroId) {
+    const arch = Game.heroArchetype(heroId);
+    if (!arch) return '';
+    const wt = WEAPON_TYPES.find(w => w.id === arch.weapon);
+    const matched = Game.heroMatched(heroId);
+    let t = `${arch.icon} ${arch.name} — arma ideal: ${wt.icon} ${wt.name}\n`;
+    t += arch.perks.map(p => '• ' + p).join('\n');
+    t += matched
+      ? `\n✦ ESPECIALIZAÇÃO ATIVA (força ×${Game.specScale(S.heroes[heroId].gear.arma).toFixed(1)} pela raridade da arma)`
+      : `\n⚠️ Equipe uma ${wt.name} para ativar estes bônus.`;
+    return t;
+  },
+
   // ---------- Forja de Armas ----------
 
   // Δ força de gear em pontos percentuais (itemScore está em unidades de multiplicador de DPS)
@@ -601,7 +704,7 @@ const UI = {
     this.R.forge.cardArea.innerHTML = `<div class="forge-card">
       <div class="bc-icon" style="color:${r.color};font-size:34px">${item.icon}</div>
       <div>
-        <div class="bc-rar" style="color:${r.color}">${r.name} · ${slotName}</div>
+        <div class="bc-rar" style="color:${r.color}">${r.name} · ${item.slot === 'arma' ? this.weaponTypeName(item) : slotName}</div>
         <div class="bc-mult">+${Math.round(item.mult * 100)}% DPS</div>
         <div class="bc-aff">${affHtml}</div>
       </div>
@@ -640,9 +743,13 @@ const UI = {
 
   renderBase(c) {
     const cells = Game.ensureBaseGrid();
+
+    // ----- cena viva da Base (cresce com os níveis das salas) -----
+    this.renderBaseScene(c);
+
     c.appendChild(this.el('p', 'tab-intro',
       'Sua sede é uma <b>grade</b>: arraste (ou toque para selecionar e toque em outra célula para trocar) as salas de lugar. ' +
-      'Salas <b>vizinhas</b> com afinidade formam <b>sinergias</b> que dão bônus — ex.: <b>Quartel</b> ao lado da <b>Oficina</b>.'));
+      'Salas <b>vizinhas</b> com afinidade formam <b>sinergias</b>. Cada <b>nível</b> faz o edifício crescer na cena acima.'));
 
     // mapa célula → sinergias ativas em que ela participa (para destacar tiles e ligações)
     const syns = Game.activeSynergies();
@@ -699,16 +806,24 @@ const UI = {
       if (id) {
         const r = ROOMS.find(x => x.id === id);
         const lvl = Game.roomLvl(id);
+        const tier = this.roomTier(lvl);
+        if (lvl > 0) tile.classList.add('built', 'rt-' + tier);
         const badge = cellSyn[i] ? `<span class="syn-badge" title="${cellSyn[i].map(s => s.def.name).join(', ')}">⚡${cellSyn[i].length}</span>` : '';
+        const decor = this.roomDecor(tier);
         tile.innerHTML =
           `${badge}<img class="base-art" src="img/rooms/${id}.jpg" alt="" draggable="false" ` +
           `onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'base-icon',textContent:'${r.icon}'}))">` +
+          decor +
           `<span class="base-name">${r.name}</span>` +
           `<span class="room-lvl">Nv ${lvl}</span>`;
         tile.title = r.desc;
         const btn = this.el('button', 'buy-btn base-build');
+        btn.onclick = (e) => {
+          e.stopPropagation();                 // não deixa o clique virar "selecionar célula"
+          if (Game.buildRoom(id)) { this.dirty.base = true; this.renderActive(); }
+        };
         tile.appendChild(btn);
-        this.R.rooms.push({ id, btn, lvlEl: tile.querySelector('.room-lvl') });
+        this.R.rooms.push({ id, btn, lvlEl: tile.querySelector('.room-lvl'), tile });
       } else {
         tile.innerHTML = `<span class="base-empty-mark">＋</span>`;
       }
@@ -728,6 +843,83 @@ const UI = {
       legend.appendChild(row);
     }
     c.appendChild(legend);
+  },
+
+  // faixa visual de um edifício pelo nível (1..4) — dirige tamanho/decorações
+  roomTier(lvl) { return lvl <= 0 ? 0 : lvl < 5 ? 1 : lvl < 10 ? 2 : lvl < 20 ? 3 : 4; },
+
+  // decorações que surgem sobre o tile conforme o nível cresce (bandeiras, tochas, brilho)
+  roomDecor(tier) {
+    if (tier <= 1) return '';
+    const bits = [];
+    if (tier >= 2) bits.push('<span class="rd rd-flag">🚩</span>');
+    if (tier >= 3) bits.push('<span class="rd rd-fire">🔥</span>');
+    if (tier >= 4) bits.push('<span class="rd rd-star">✨</span>');
+    return `<span class="room-decor">${bits.join('')}</span>`;
+  },
+
+  // ----- Cena viva da Base: horizonte que cresce, NPCs andando, fogueira, partículas -----
+  renderBaseScene(c) {
+    const totalLvl = ROOMS.reduce((s, r) => s + Game.roomLvl(r.id), 0);
+    const devTier = totalLvl <= 0 ? 0 : totalLvl < 8 ? 1 : totalLvl < 20 ? 2 : totalLvl < 40 ? 3 : 4;
+    const scene = this.el('div', 'base-scene');
+    scene.dataset.tier = devTier;
+
+    // horizonte: um "prédio" por sala construída, com altura pelo nível (sensação de crescimento)
+    const skyline = this.el('div', 'bs-skyline');
+    const built = ROOMS.filter(r => Game.roomLvl(r.id) > 0);
+    if (!built.length) {
+      skyline.appendChild(this.el('div', 'bs-empty', '🏕️ Terreno vazio — construa salas para erguer sua sede.'));
+    } else {
+      for (const r of built) {
+        const lvl = Game.roomLvl(r.id);
+        const h = Math.min(100, 30 + lvl * 7);
+        const b = this.el('div', 'bs-building');
+        b.style.height = h + '%';
+        b.title = `${r.name} — Nv ${lvl}`;
+        b.innerHTML = `<span class="bsb-ico">${r.icon}</span><span class="bsb-lvl">${lvl}</span>`;
+        skyline.appendChild(b);
+      }
+    }
+    scene.appendChild(skyline);
+
+    // chão + vida: NPCs caminhando (nº cresce com Quartel/Mercado), fogueira, bandeira do Castelo
+    const ground = this.el('div', 'bs-ground');
+    const npcCount = Math.min(9, 1 + Game.roomLvl('quartel') + Game.roomLvl('mercado') + Math.floor(totalLvl / 6));
+    const walkers = ['🚶', '🧙', '🧝', '👷', '🛡️', '🐕', '🐎', '🧑‍🌾', '💂'];
+    for (let i = 0; i < npcCount; i++) {
+      const npc = this.el('div', 'bs-npc');
+      npc.textContent = walkers[i % walkers.length];
+      npc.style.animationDuration = (7 + (i % 5) * 2.5) + 's';
+      npc.style.animationDelay = (-i * 1.7) + 's';
+      npc.style.bottom = (2 + (i % 3) * 6) + 'px';
+      ground.appendChild(npc);
+    }
+    if (Game.roomLvl('templo') > 0 || totalLvl > 5) ground.appendChild(this.el('div', 'bs-fire', '🔥'));
+    if (Game.roomLvl('castelo') > 0) {
+      const banners = this.el('div', 'bs-banners');
+      banners.innerHTML = '🚩🏯🚩';
+      ground.appendChild(banners);
+    }
+    scene.appendChild(ground);
+
+    // partículas ambientais (brasas/pólen subindo) — intensidade pela fase de desenvolvimento
+    const parts = this.el('div', 'bs-particles');
+    const pn = Math.min(14, 3 + devTier * 3);
+    for (let i = 0; i < pn; i++) {
+      const p = this.el('div', 'bs-mote');
+      p.style.left = (5 + (i * 97) % 90) + '%';
+      p.style.animationDuration = (5 + (i % 6)) + 's';
+      p.style.animationDelay = (-i * 0.9) + 's';
+      parts.appendChild(p);
+    }
+    scene.appendChild(parts);
+
+    // rótulo de crescimento
+    const stages = ['Terreno', 'Acampamento', 'Vilarejo', 'Fortaleza', 'Cidadela Real'];
+    scene.appendChild(this.el('div', 'bs-stage', `${['🏕️','🏕️','🏘️','🏰','🏯'][devTier]} ${stages[devTier]} · ${totalLvl} níveis`));
+
+    c.appendChild(scene);
   },
 
   // toque numa célula da grade: seleciona / troca / cancela
@@ -1111,6 +1303,8 @@ const UI = {
       rc.hpText.textContent = fmt(Math.max(0, cb.hp)) + ' / ' + fmt(cb.maxHp);
       rc.bossTimer.textContent = cb.boss ? '⏳ ' + fmtTime(cb.bossT) : '';
       rc.dpsEl.innerHTML = `DPS do time: <b>${fmt(Game.teamDps())}</b> · recompensa: <b>${fmt(Game.enemyGold(cb.wave, cb.boss))}</b> ouro`;
+
+      this.updateSynergyPanel();
 
       // mini-cards de heróis em campo/reserva: botão de nível + stats/DPS
       if (this.R.heroMinis) for (const ref of this.R.heroMinis) {

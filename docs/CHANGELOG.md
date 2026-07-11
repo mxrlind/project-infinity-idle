@@ -2,6 +2,16 @@
 
 ## Não lançado
 
+### Revisão de Heróis, Forja, Sinergia e Base
+Quatro pilares repensados para terem mecânica de verdade, não só números maiores:
+- **⚔️ Especialização por classe (Arquétipo + Arma ideal)**: cada herói ganhou um `archetype` (Duelista/Mago/Arqueiro/Paladino/Assassino/Necromante) com uma **arma ideal** (`WEAPON_TYPES`). Armas forjadas/dropadas agora têm `wtype`. Equipar a arma certa ativa um **pacote de especialização** que escala com a raridade (`Game.specScale`: Comum×1 … Lendário×3): DPS, aura de time, ouro, crítico, material e velocidade — além de mecânicas literais no combate: **ataque duplo** (Duelista no clique) e **execução** de inimigos com pouca vida (Assassino no tick). Arma incompatível → só os atributos-base, sem bônus. Itens antigos migram pelo ícone (`WEAPON_ICON_TO_TYPE`).
+- **⚡ Sinergia de Time como medidor 0–100%**: substitui o antigo score contínuo de +30%. A % é **transparente** — soma de composição (proporção 🛡️1:⚔️2:✨1), campo cheio e heróis com a arma ideal — e concede faixas progressivas: 20% +Ataque · 40% +Ouro · 60% +Produção · 80% +Sabedoria · **100% Estado Perfeito** (+50% em tudo, aura brilhante na equipe). Painel novo com barra, escada de faixas e dica do próximo gargalo. Liga as Partes 1 e 2: equipar a arma ideal sobe a sinergia.
+- **🏗️ Bug da Base corrigido**: o botão *Construir* era criado sem handler de clique — nenhuma sala podia ser comprada. Agora `renderBase` liga o botão a `Game.buildRoom` (o motor já estava correto).
+- **🏰 5 edifícios novos** com efeito real: **Mercado** (renda de ouro passiva que escala com a maior onda), **Templo** (+produção global), **Torre Arcana** (+DPS mágico), **Arena** (+ouro/tempo de chefe), **Castelo** (multiplicador GERAL de sinergias e edifícios — `Game.baseMult`). Grade expandida para 4×4; 7 novas sinergias de vizinhança.
+- **🌇 Base viva**: cena panorâmica animada que cresce com os níveis (horizonte de prédios, NPCs caminhando, fogueira, bandeiras do Castelo, partículas, rótulo de estágio Terreno→Cidadela Real) + decorações e brilho por nível em cada tile.
+  - Tocados: `js/data.js`, `js/game.js`, `js/ui.js`, `style.css`. Compatível com saves existentes (campos novos são aditivos; `synergyMult`/`SYNERGY_MAX_BONUS` mantidos como legado).
+
+
 ### Expansão: Mundo Vivo, Mascotes, Pesquisa, Mercado, Cidade, Lore, Segredos e Áudio 2.0
 Oito sistemas novos, integrados entre si (detalhes e números em [FEATURES.md](FEATURES.md) §18–25):
 - **🗓️ Mundo Vivo**: calendário permanente (1 dia = 20 min reais), dia/noite, 4 estações e 5 climas (chuva, tempestade, neve, lua cheia, eclipse) que alteram produção, DPS, conhecimento, materiais e drops. Widget no painel esquerdo + modal de calendário.

@@ -8,6 +8,16 @@ const Game = {
   talentLvl(id) { return S.talents[id] || 0; },
   roomLvl(id) { return S.rooms[id] || 0; },
 
+  // Multiplicador geral da Base (Castelo): amplifica sinergias de vizinhança e os edifícios avançados.
+  baseMult() { return 1 + 0.10 * this.roomLvl('castelo'); },
+
+  // Renda passiva do Mercado — escala com a maior onda (nunca fica obsoleta) e com a Base (Castelo/Templo).
+  mercadoGoldPerSec() {
+    const lvl = this.roomLvl('mercado');
+    if (lvl <= 0) return 0;
+    return lvl * this.enemyGold(S.combat.maxWave, false) * 0.4 * this.baseMult() * this.buffMult('prod');
+  },
+
   buffMult(kind) {
     let m = 1;
     const now = Date.now();
@@ -22,7 +32,9 @@ const Game = {
     m *= 1 + 0.05 * this.talentLvl('ganancia');            // talento
     m *= 1 + 0.03 * this.talentLvl('harmonia') * S.prestiges;
     m *= 1 + 0.06 * this.roomLvl('cofre');                 // sala
+    m *= 1 + 0.04 * this.roomLvl('templo') * this.baseMult(); // Templo: buff de produção global (×Castelo)
     m *= 1 + this.synergyBonuses().gold;                   // sinergia de vizinhança na Base
+    m *= 1 + this.teamSynergy().prod;                      // sinergia de time (faixa 60%)
     for (const u of UPGRADES) if (u.type === 'global' && S.upgrades[u.id]) m *= u.mult;
     m *= this.extGoldMult();                               // expansão: mundo + mascotes + pesquisa
     m *= this.buffMult('prod');
@@ -46,7 +58,7 @@ const Game = {
   goldPerSec() {
     let total = 0;
     for (const g of GENERATORS) total += this.genProd(g.id);
-    return total * this.globalProdMult();
+    return total * this.globalProdMult() + this.mercadoGoldPerSec();   // + renda passiva do Mercado
   },
 
   genCost(genId, count = 1) {
@@ -92,6 +104,46 @@ const Game = {
     if (this._gearDirty) { this.recomputeGearBonuses(); this._gearDirty = false; }
   },
 
+  // ----- Especialização de classe (Arquétipo + Arma ideal) -----
+  heroArchetype(heroId) {
+    const def = HEROES.find(x => x.id === heroId);
+    return def && def.archetype ? ARCHETYPES[def.archetype] : null;
+  },
+  // tipo da arma de um item (usa wtype; cai no ícone para itens antigos, sem perder especialização)
+  weaponType(item) {
+    if (!item) return null;
+    return item.wtype || WEAPON_ICON_TO_TYPE[item.icon] || null;
+  },
+  // true se a arma equipada do herói casa com a arma ideal do arquétipo
+  heroMatched(heroId) {
+    const arch = this.heroArchetype(heroId);
+    const h = S.heroes[heroId];
+    if (!arch || !h) return false;
+    const w = h.gear.arma;
+    return !!w && this.weaponType(w) === arch.weapon;
+  },
+  // força da especialização pela raridade da arma: Comum×1 … Lendário×3
+  specScale(item) { return 0.5 + 0.5 * ((item && item.rarity || 0) + 1); },
+  // pacote de especialização efetivo do herói (ou null se a arma for incompatível/ausente)
+  heroSpec(heroId) {
+    if (!this.heroMatched(heroId)) return null;
+    const arch = this.heroArchetype(heroId);
+    const s = arch.spec, k = this.specScale(S.heroes[heroId].gear.arma);
+    return {
+      dps: (s.dps || 0) * k, team: (s.team || 0) * k, gold: (s.gold || 0) * k,
+      crit: (s.crit || 0) * k, mat: (s.mat || 0) * k, speed: (s.speed || 0) * k, boss: (s.boss || 0) * k,
+      special: arch.special, arch, scale: k,
+    };
+  },
+  // primeira mecânica especial de um dado tipo presente ENTRE OS HERÓIS EM CAMPO (ou null)
+  fieldSpecial(kind) {
+    for (const id of this.fieldHeroes()) {
+      const sp = this.heroSpec(id);
+      if (sp && sp.special === kind) return sp;
+    }
+    return null;
+  },
+
   recomputeGearBonuses() {
     const b = { team: 0, gold: 0, crit: 0, mat: 0 };
     for (const id in S.heroes) {
@@ -106,6 +158,9 @@ const Game = {
           else if (a.type === 'mat')  b.mat  += a.val;
         }
       }
+      // especialização de classe: aura/ouro/crít/material entram no cache global (afetam o time)
+      const spec = this.heroSpec(id);
+      if (spec) { b.team += spec.team; b.gold += spec.gold; b.crit += spec.crit; b.mat += spec.mat; }
     }
     b.crit = Math.min(FORGE_CRIT_CAP, b.crit);
     this.gearBonus = b;
@@ -115,31 +170,51 @@ const Game = {
   // Recalculado só quando a composição do campo muda (contratar/escalar/desescalar/prestígio),
   // via flag _fieldDirty. teamDps() lê o cache em O(1) por tick.
   _fieldDirty: true,
-  synergyMult: 1,
-  _lastSynergy: { counts: { tank: 0, dps: 0, support: 0 }, score: 0, n: 0 },
+  synergyMult: 1,   // (legado) mantido em sincronia com a faixa de Ataque para compat
+  _lastSynergy: { counts: { tank: 0, dps: 0, support: 0 }, pct: 0, n: 0, matched: 0, slots: FIELD_SLOTS },
 
   ensureSynergy() {
     if (this._fieldDirty) { this.recomputeSynergy(); this._fieldDirty = false; }
   },
 
+  // A sinergia agora é um MEDIDOR 0–100%, somando três frentes claras que o jogador controla:
+  //   composição (proporção 🛡️1:⚔️2:✨1)  +  campo cheio  +  heróis com a ARMA IDEAL equipada.
   recomputeSynergy() {
     const counts = { tank: 0, dps: 0, support: 0 };
-    let n = 0;
-    for (const id of this.fieldHeroes()) {
+    const field = this.fieldHeroes();
+    let n = 0, matched = 0;
+    for (const id of field) {
       const def = HEROES.find(x => x.id === id);
       counts[def.class]++;
       n++;
+      if (this.heroMatched(id)) matched++;
     }
-    if (n === 0) {
-      this.synergyMult = 1;
-      this._lastSynergy = { counts, score: 0, n: 0 };
-      return;
+    const slots = this.fieldSlots();
+    let compScore = 0;
+    if (n > 0) {
+      let dev = 0;
+      for (const cls in SYNERGY_TARGET) dev += Math.abs(counts[cls] / n - SYNERGY_TARGET[cls]);
+      compScore = Math.max(0, 1 - dev / 2);
     }
-    let dev = 0;
-    for (const cls in SYNERGY_TARGET) dev += Math.abs(counts[cls] / n - SYNERGY_TARGET[cls]);
-    const score = Math.max(0, 1 - dev / 2);
-    this.synergyMult = 1 + score * SYNERGY_MAX_BONUS;
-    this._lastSynergy = { counts, score, n };
+    const fillScore = slots > 0 ? Math.min(1, n / slots) : 0;
+    const specScore = n > 0 ? matched / n : 0;
+    const pct = n === 0 ? 0 : Math.round(Math.min(100,
+      compScore * SYNERGY_WEIGHTS.comp + fillScore * SYNERGY_WEIGHTS.fill + specScore * SYNERGY_WEIGHTS.spec));
+    this._lastSynergy = { counts, n, matched, slots, pct, compScore, fillScore, specScore };
+    this.synergyMult = 1 + (pct >= 20 ? SYNERGY_TIER_VAL.atk : 0) + (pct >= 100 ? SYNERGY_MEGA.atk : 0);
+  },
+
+  // bônus agregados por faixa (usados nas fórmulas do motor). A faixa 100% ativa o Estado Perfeito (+50% tudo).
+  teamSynergy() {
+    this.ensureSynergy();
+    const pct = this._lastSynergy.pct;
+    const out = { pct, atk: 0, gold: 0, prod: 0, know: 0, mega: false };
+    if (pct >= 20)  out.atk  += SYNERGY_TIER_VAL.atk;
+    if (pct >= 40)  out.gold += SYNERGY_TIER_VAL.gold;
+    if (pct >= 60)  out.prod += SYNERGY_TIER_VAL.prod;
+    if (pct >= 80)  out.know += SYNERGY_TIER_VAL.know;
+    if (pct >= 100) { out.mega = true; out.atk += SYNERGY_MEGA.atk; out.gold += SYNERGY_MEGA.gold; out.prod += SYNERGY_MEGA.prod; out.know += SYNERGY_MEGA.know; }
+    return out;
   },
 
   // soma dos afixos de DPS (scope 'hero') de um item — aplicado só ao herói que o porta
@@ -173,6 +248,8 @@ const Game = {
       m *= 1 + item.mult * power;              // poder-base do item (escalado pela Oficina, como antes)
       m *= 1 + this.itemDpsAffix(item);        // afixos de DPS deste item (independentes da Oficina)
     }
+    const spec = this.heroSpec(heroId);        // especialização: DPS + velocidade + "área"
+    if (spec) m *= 1 + spec.dps + spec.speed + spec.boss;
     return m;
   },
 
@@ -230,8 +307,9 @@ const Game = {
     this.ensureSynergy();
     let total = 0;
     for (const id of this.fieldHeroes()) total += this.heroDps(id);
-    total *= this.synergyMult;                 // sinergia de classe (Tank/DPS/Suporte)
+    total *= 1 + this.teamSynergy().atk;        // sinergia de time (faixas 20% + Estado Perfeito 100%)
     total *= 1 + 0.10 * this.roomLvl('quartel');
+    total *= 1 + 0.08 * this.roomLvl('torre') * this.baseMult();  // Torre Arcana: DPS mágico (×Castelo)
     total *= 1 + this.synergyBonuses().dps;     // sinergia de vizinhança (ex.: Quartel + Oficina)
     total *= 1 + 0.10 * this.talentLvl('furia');
     total *= 1 + 0.01 * this.achCount();
@@ -274,12 +352,14 @@ const Game = {
     let g = 4 * Math.pow(1.42, wave - 1) * (boss ? 14 : 1);
     g *= 1 + 0.08 * this.talentLvl('cacador');
     g *= 1 + this.gearBonus.gold;              // afixo "Cobiça" (ouro por abate)
+    g *= 1 + this.teamSynergy().gold;          // sinergia de time (faixa 40%)
+    if (boss) g *= 1 + 0.12 * this.roomLvl('arena') * this.baseMult();  // Arena: ouro de chefes (×Castelo)
     g *= this.extKillGoldMult();               // expansão: Lua Cheia + pesquisa "Caçada Ritual"
     if (S.invasion > 0 && !boss) g *= 3;
     return g;
   },
 
-  bossTimeLimit() { return 30 + 3 * this.talentLvl('paciencia'); },
+  bossTimeLimit() { return 30 + 3 * this.talentLvl('paciencia') + 2 * this.roomLvl('arena'); },
 
   spawnEnemy() {
     const c = S.combat;
@@ -315,8 +395,21 @@ const Game = {
     for (let i = 0; i < weights.length; i++) { roll -= weights[i]; if (roll <= 0) { idx = i; break; } }
     const rar = RARITIES[idx];
     const mult = rar.power * (1 + S.combat.wave / 40) * (0.85 + Math.random() * 0.30);
-    const icon = slot.icons[Math.floor(Math.random() * slot.icons.length)];
-    return { heroId, slot: slot.id, rarity: idx, mult, icon };
+    const item = { heroId, slot: slot.id, rarity: idx, mult };
+    this.assignWeaponLook(item, slot);
+    return item;
+  },
+
+  // define ícone e (para armas) o tipo de arma (wtype). Armas favorecem levemente a arma ideal
+  // do herói dono/aleatório para que drops com especialização apareçam com frequência decente.
+  assignWeaponLook(item, slot, preferHeroId) {
+    if (slot.id !== 'arma') { item.icon = slot.icons[Math.floor(Math.random() * slot.icons.length)]; return; }
+    let wt = null;
+    const arch = preferHeroId ? this.heroArchetype(preferHeroId) : (item.heroId ? this.heroArchetype(item.heroId) : null);
+    if (arch && Math.random() < 0.5) wt = WEAPON_TYPES.find(w => w.id === arch.weapon);
+    if (!wt) wt = WEAPON_TYPES[Math.floor(Math.random() * WEAPON_TYPES.length)];
+    item.wtype = wt.id;
+    item.icon = wt.icon;
   },
 
   onEnemyKilled() {
@@ -369,7 +462,7 @@ const Game = {
     const current = h.gear[item.slot];
     if (!current || this.itemScore(item) > this.itemScore(current)) {  // compara por "força", não só mult
       h.gear[item.slot] = item;
-      this._gearDirty = true;
+      this._gearDirty = true; this._fieldDirty = true;
       const isRare = item.rarity >= 3; // Épico ou Lendário
       UI.log(`${item.icon} <b>${def.name}</b> equipou <span style="color:${rar.color}">${rar.name}</span> (+${Math.round(item.mult * 100)}% DPS)!`);
       UI.toast(`${item.icon} ${rar.name} para ${def.name}!`, rar.color, isRare);
@@ -446,19 +539,20 @@ const Game = {
     const rar = RARITIES[rarityIdx];
     const slot = GEAR_SLOTS[Math.floor(Math.random() * GEAR_SLOTS.length)];  // arma ou amuleto
     const mult = rar.power * (1 + S.combat.maxWave / 40) * (0.85 + Math.random() * 0.30);
-    const icon = slot.icons[Math.floor(Math.random() * slot.icons.length)];
     const affixes = this.rollAffixes(rarityIdx, tier);
 
     const uid = S.forge.nextUid++;
-    S.forge.inventory.push({ uid, slot: slot.id, rarity: rarityIdx, mult, icon, affixes, forged: true });
+    const item = { uid, slot: slot.id, rarity: rarityIdx, mult, affixes, forged: true };
+    this.assignWeaponLook(item, slot);         // forja: tipo de arma 100% aleatório (a "aposta")
+    S.forge.inventory.push(item);
     S.forge.forged++;
     this.missionEvent('forge', 1);              // missão diária da Ferreira
 
     const isRare = rarityIdx >= 3;
     Sound.play('drop');
     if (isRare) UI.legendaryFlash(rar.color);
-    UI.log(`${tier.icon} Forja (${tier.name}) revelou <span style="color:${rar.color}">${rar.name}</span> ${icon}! (na Bolsa)`);
-    UI.toast(`${icon} ${rar.name}!`, rar.color, isRare);
+    UI.log(`${tier.icon} Forja (${tier.name}) revelou <span style="color:${rar.color}">${rar.name}</span> ${item.icon}! (na Bolsa)`);
+    UI.toast(`${item.icon} ${rar.name}!`, rar.color, isRare);
     UI.showForgeReveal(S.forge.inventory[S.forge.inventory.length - 1]);
     UI.dirty.heroes = true;    // a bolsa vive na aba Heróis — atualiza quando o jogador for até lá
     return true;
@@ -488,7 +582,7 @@ const Game = {
     h.gear[item.slot] = item;
     S.forge.inventory.splice(idx, 1);
     if (old) S.forge.inventory.push(old);   // item antigo volta pra bolsa
-    this._gearDirty = true;
+    this._gearDirty = true; this._fieldDirty = true;
     const slotName = GEAR_SLOTS.find(s => s.id === item.slot).name;
     UI.log(`${item.icon} <b>${def.name}</b> equipou ${slotName} <span style="color:${rar.color}">${rar.name}</span>!`);
     UI.toast(`${item.icon} ${rar.name} → ${def.name}`, rar.color, item.rarity >= 3);
@@ -503,7 +597,7 @@ const Game = {
     if (S.forge.inventory.length >= FORGE_INVENTORY_CAP) return false;   // bolsa cheia — evita perder o item
     S.forge.inventory.push(h.gear[slotId]);
     h.gear[slotId] = null;
-    this._gearDirty = true;
+    this._gearDirty = true; this._fieldDirty = true;
     UI.dirty.heroes = true;
     return true;
   },
@@ -532,8 +626,12 @@ const Game = {
     const critCh = Math.min(FORGE_CRIT_CAP, this.gearBonus.crit + this.extCritBonus());  // afixo "Letal" + Lobo
     const crit = critCh > 0 && Math.random() < critCh;
     if (crit) dmg *= FORGE_CRIT_MULT;
+    // Duelista com Espada ideal em campo: chance de ATAQUE DUPLO (dano ×2 no clique)
+    const duel = this.fieldSpecial('double');
+    const dbl = !!duel && Math.random() < 0.30;
+    if (dbl) dmg *= 2;
     this.damageEnemy(dmg);
-    return { dmg, crit };
+    return { dmg, crit, dbl };
   },
 
   damageEnemy(dmg) {
@@ -677,6 +775,7 @@ const Game = {
       * (1 + 0.10 * this.talentLvl('sabedoria'))
       * this.energyBoost()
       * (1 + this.synergyBonuses().knowledge)
+      * (1 + this.teamSynergy().know)           // sinergia de time (faixa 80%)
       * this.extKnowMult();                     // expansão: noite/outono/eclipse + Coruja + poções
   },
 
@@ -749,7 +848,7 @@ const Game = {
   // bônus agregados por tipo, aplicados nas fórmulas do motor
   synergyBonuses() {
     const b = { gold: 0, dps: 0, knowledge: 0, material: 0, equip: 0 };
-    const mul = this.extSynergyMult();          // pesquisa "Urbanismo Arcano"
+    const mul = this.extSynergyMult() * this.baseMult();   // pesquisa "Urbanismo Arcano" × Castelo
     for (const s of this.activeSynergies()) b[s.def.type] += s.value * mul;
     return b;
   },
@@ -812,7 +911,7 @@ const Game = {
     S.invasion = 0;
     // a bolsa de cartas (S.forge.inventory) sobrevive ao prestígio, como talentos/conquistas.
     // Mascotes, pesquisas, mercado, NPCs, mundo e códex também são PERMANENTES.
-    this._gearDirty = true;                    // recalcula bônus de gear (agora zerados)
+    this._gearDirty = true; this._fieldDirty = true;                    // recalcula bônus de gear (agora zerados)
     this._fieldDirty = true;                   // heróis resetados → campo também
     this.onPrestigeExt(prevEarned);            // Fênix (ninho de ouro) + Memória Persistente
     this.spawnEnemy();
@@ -1053,6 +1152,12 @@ const Game = {
       if (S.combat.hp <= 0 && S.combat.maxHp === 0) this.spawnEnemy();
       const dps = this.teamDps();
       if (dps > 0) this.damageEnemy(dps * dt);
+      // Assassino com Adaga ideal em campo: EXECUTA inimigos comuns com pouca vida (não vale em chefes)
+      const asn = this.fieldSpecial('execute');
+      if (asn && !S.combat.boss && S.combat.hp > 0 && S.combat.maxHp > 0
+          && S.combat.hp / S.combat.maxHp < 0.08 * asn.scale) {
+        this.damageEnemy(S.combat.hp);
+      }
       if (S.combat.boss && S.combat.hp > 0) {
         S.combat.bossT -= dt;
         if (S.combat.bossT <= 0) this.bossFailed();

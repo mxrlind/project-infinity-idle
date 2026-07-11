@@ -69,34 +69,34 @@ const UPGRADES = [
 
 // ---- Heróis (NPCs com personalidade) ----
 const HEROES = [
-  { id: 'bran', name: 'Bran', title: 'Escudeiro Teimoso', icon: '🛡️', baseCost: 200, baseDps: 4, class: 'tank',
+  { id: 'bran', name: 'Bran', title: 'Escudeiro Teimoso', icon: '🛡️', baseCost: 200, baseDps: 4, class: 'tank', archetype: 'paladino',
     story: 'Ex-fazendeiro que decidiu que porcos não revidam, mas monstros sim.',
     lines: ['Meu escudo já foi uma porta de celeiro. Ainda range.', 'Se eu cair, me levantem. De novo.', 'Um dia serei cavaleiro. Hoje, aparo pancadas.'] },
-  { id: 'lyra', name: 'Lyra', title: 'Arqueira do Crepúsculo', icon: '🏹', baseCost: 4e3, baseDps: 22, class: 'dps',
+  { id: 'lyra', name: 'Lyra', title: 'Arqueira do Crepúsculo', icon: '🏹', baseCost: 4e3, baseDps: 22, class: 'dps', archetype: 'arqueiro',
     story: 'Nunca errou um alvo. Uma vez errou de propósito e ainda se arrepende.',
     lines: ['Vejo o ponto fraco daqui.', 'Uma flecha, uma história encerrada.', 'O vento me deve favores.'] },
-  { id: 'magnus', name: 'Magnus', title: 'Mago Distraído', icon: '🔮', baseCost: 90e3, baseDps: 160, class: 'support',
+  { id: 'magnus', name: 'Magnus', title: 'Mago Distraído', icon: '🔮', baseCost: 90e3, baseDps: 160, class: 'support', archetype: 'mago',
     story: 'Esqueceu mais feitiços do que a maioria dos magos aprendeu. Alguns explodem sozinhos.',
     lines: ['Hmm? Ah sim, a bola de fogo. Onde deixei mesmo...', 'A magia é 90% memória. Estou perdido.', 'Isso vai fazer BUM. Provavelmente.'] },
-  { id: 'thora', name: 'Thora', title: 'Berserker Sorridente', icon: '🪓', baseCost: 2.2e6, baseDps: 1.3e3, class: 'dps',
+  { id: 'thora', name: 'Thora', title: 'Berserker Sorridente', icon: '🪓', baseCost: 2.2e6, baseDps: 1.3e3, class: 'dps', archetype: 'duelista',
     story: 'Sorri durante a batalha. Os inimigos acham isso profundamente perturbador.',
     lines: ['HAHA! Mais! MAIS!', 'Meu machado tem nome: Segunda-feira.', 'Dor é só fraqueza fazendo cócegas.'] },
-  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 60e6, baseDps: 11e3, class: 'dps',
+  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 60e6, baseDps: 11e3, class: 'dps', archetype: 'assassino',
     story: 'Chega sempre três segundos antes do necessário. Ninguém sabe como.',
     lines: ['Você não me viu. Ninguém nunca vê.', 'Contratos são sagrados. Alvos, nem tanto.', '...', ], },
-  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 1.8e9, baseDps: 95e3, class: 'support',
+  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 1.8e9, baseDps: 95e3, class: 'support', archetype: 'paladino',
     story: 'Sua luz cega aliados desavisados. Ela pede desculpas. Sempre.',
     lines: ['A luz cobra caro, mas paga em dobro.', 'Perdão pela claridade. De novo.', 'Nenhuma sombra resiste para sempre.'] },
-  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank',
+  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank', archetype: 'necromante',
     story: 'Saiu da aposentadoria porque o plano de previdência do Além faliu.',
     lines: ['Os mortos trabalham de graça. Aprendam.', 'Aposentadoria era tediosa demais.', 'Todo fim é só um contrato renovável.'] },
-  { id: 'io', name: 'Io', title: 'Golem de Areia Antiga', icon: '🗿', baseCost: 3.2e12, baseDps: 1.4e7, reqPrestige: 2, class: 'tank',
+  { id: 'io', name: 'Io', title: 'Golem de Areia Antiga', icon: '🗿', baseCost: 3.2e12, baseDps: 1.4e7, reqPrestige: 2, class: 'tank', archetype: 'paladino',
     story: 'Construído para guardar um templo que ninguém mais lembra onde fica. Ainda guarda.',
     lines: ['Areia não esquece. Eu também não.', 'Mil anos de pé. Nem uma rachadura.', 'Templo? Que templo?'] },
-  { id: 'kael', name: 'Kael', title: 'Duelista Relâmpago', icon: '⚡', baseCost: 1.1e14, baseDps: 1.8e8, reqPrestige: 2, class: 'dps',
+  { id: 'kael', name: 'Kael', title: 'Duelista Relâmpago', icon: '⚡', baseCost: 1.1e14, baseDps: 1.8e8, reqPrestige: 2, class: 'dps', archetype: 'duelista',
     story: 'Vence duelos antes do oponente perceber que começaram.',
     lines: ['Já acabou. Você só não viu.', 'Rápido demais pra ter medo.', 'Relâmpago não erra duas vezes.'] },
-  { id: 'orin', name: 'Orin', title: 'Bardo do Fim dos Tempos', icon: '🕊️', baseCost: 3.8e15, baseDps: 2.3e9, reqPrestige: 3, class: 'support',
+  { id: 'orin', name: 'Orin', title: 'Bardo do Fim dos Tempos', icon: '🕊️', baseCost: 3.8e15, baseDps: 2.3e9, reqPrestige: 3, class: 'support', archetype: 'mago',
     story: 'Canta a mesma canção desde antes do primeiro prestígio. Ainda não chegou ao refrão.',
     lines: ['Essa música ainda não acabou. Nem vai.', 'Toda batalha precisa de trilha sonora.', 'Já vi isso terminar. E recomeçar.'] },
 ];
@@ -114,7 +114,62 @@ const HERO_CLASSES = {
 };
 const FIELD_SLOTS = 4;
 const SYNERGY_TARGET = { tank: 0.25, dps: 0.5, support: 0.25 };
-const SYNERGY_MAX_BONUS = 0.30; // +30% DPS de time com composição perfeita
+const SYNERGY_MAX_BONUS = 0.30; // (legado) compat com saves — a sinergia agora é um medidor 0–100%
+
+// ---- Especialização de classe (Arquétipo + Arma ideal) ----
+// Cada herói tem um ARQUÉTIPO com uma ARMA IDEAL. Ao equipar (no slot 'arma') um item cujo
+// wtype casa com a arma ideal, o herói ganha um PACOTE de especialização (multiplicadores que
+// escalam com a RARIDADE da arma). Arma incompatível → só os atributos-base do item, sem bônus.
+// Isso faz o jogador pensar em qual arma forjar para cada herói (não basta equipar qualquer coisa).
+const WEAPON_TYPES = [
+  { id: 'espada',   name: 'Espada',   icon: '⚔️' },
+  { id: 'cajado',   name: 'Cajado',   icon: '🪄' },
+  { id: 'arco',     name: 'Arco',     icon: '🏹' },
+  { id: 'martelo',  name: 'Martelo',  icon: '🔨' },
+  { id: 'adaga',    name: 'Adaga',    icon: '🗡️' },
+  { id: 'grimorio', name: 'Grimório', icon: '📖' },
+];
+// migração: itens antigos guardavam só o ícone — mapeia ícone → tipo para não perder especialização
+const WEAPON_ICON_TO_TYPE = { '🗡️': 'adaga', '⚔️': 'espada', '🪄': 'cajado', '🔨': 'martelo', '🏹': 'arco', '📖': 'grimorio' };
+
+// spec: frações-base (escaladas pela raridade da arma em Game.specScale: Comum×1 … Lendário×3)
+//   dps  → DPS só deste herói      team → aura de DPS p/ todo o time   gold → ouro por abate
+//   crit → chance de crítico       mat  → chance de material           speed → +DPS (ataques rápidos)
+//   boss → +DPS extra (dano em área, sabor)   special → mecânica literal no combate
+const ARCHETYPES = {
+  duelista:   { name: 'Duelista',   icon: '⚔️', weapon: 'espada',
+    spec: { dps: 0.60, team: 0.05, speed: 0.10 }, special: 'double',
+    perks: ['Grande aumento de Ataque', 'Chance de ataque duplo ao clicar', 'Pequeno bônus de velocidade'] },
+  mago:       { name: 'Mago',       icon: '🔮', weapon: 'cajado',
+    spec: { dps: 0.70, speed: 0.12, boss: 0.20 }, special: 'aoe',
+    perks: ['Muito mais Poder Mágico', 'Menor tempo entre ataques', 'Dano em área (bônus contra chefes)'] },
+  arqueiro:   { name: 'Arqueiro',   icon: '🏹', weapon: 'arco',
+    spec: { dps: 0.45, crit: 0.10, gold: 0.06 }, special: 'crit',
+    perks: ['Maior Chance Crítica', 'Maior Alcance (+ouro por abate)', 'Ataques mais rápidos'] },
+  paladino:   { name: 'Paladino',   icon: '🛡️', weapon: 'martelo',
+    spec: { dps: 0.30, team: 0.12, gold: 0.05 }, special: 'aura',
+    perks: ['Aura que reforça TODO o time', 'Defesa elevada (presença protetora)', 'Bênção de ouro'] },
+  assassino:  { name: 'Assassino',  icon: '🗡️', weapon: 'adaga',
+    spec: { dps: 0.55, crit: 0.12, speed: 0.10 }, special: 'execute',
+    perks: ['Muito crítico', 'Ataques extremamente rápidos', 'Executa inimigos com pouca vida'] },
+  necromante: { name: 'Necromante', icon: '💀', weapon: 'grimorio',
+    spec: { dps: 0.65, mat: 0.10, team: 0.05 }, special: 'summon',
+    perks: ['Invocações mais fortes (+DPS)', 'Mais dano mágico', 'Colhe os caídos (+materiais)'] },
+};
+
+// ---- Sinergia de time (medidor 0–100%) ----
+// A % é derivada de: composição de classes (40) + campo cheio (25) + heróis com arma ideal (35).
+// Cada faixa concede um bônus PROGRESSIVO em um sistema diferente; 100% ativa o Estado Perfeito.
+const SYNERGY_TIERS = [
+  { at: 20,  label: '+5% Ataque',        key: 'atk',  icon: '⚔️' },
+  { at: 40,  label: '+10% Ouro/abate',   key: 'gold', icon: '💰' },
+  { at: 60,  label: '+15% Produção',     key: 'prod', icon: '🏭' },
+  { at: 80,  label: '+20% Sabedoria',    key: 'know', icon: '📘' },
+  { at: 100, label: 'ESTADO PERFEITO',   key: 'mega', icon: '🌟' },
+];
+const SYNERGY_TIER_VAL = { atk: 0.05, gold: 0.10, prod: 0.15, know: 0.20 };
+const SYNERGY_MEGA = { atk: 0.50, gold: 0.50, prod: 0.50, know: 0.50 }; // buff de 100%: tudo +50%
+const SYNERGY_WEIGHTS = { comp: 40, fill: 25, spec: 35 };
 
 // ---- Salas da Base ----
 const ROOMS = [
@@ -126,13 +181,19 @@ const ROOMS = [
   { id: 'biblioteca', name: 'Biblioteca',  icon: '📚', desc: '+15% de conhecimento por nível',             baseCost: { gold: 2.5e6, madeira: 300, pedra: 200 }, costMult: 1.8 },
   { id: 'oficina',    name: 'Oficina',     icon: '🔧', desc: '+5% chance de drop e +10% poder de equipamentos por nível', baseCost: { gold: 5e6, ferro: 120 }, costMult: 1.8 },
   { id: 'cofre',      name: 'Cofre-Forte', icon: '💰', desc: '+6% de produção de ouro por nível',          baseCost: { gold: 10e6, pedra: 400, ferro: 200 },  costMult: 1.85 },
+  // ---- Edifícios avançados (Fase da Base viva) ----
+  { id: 'mercado',    name: 'Mercado',     icon: '🏪', desc: 'Renda de ouro PASSIVA por nível (escala com sua maior onda)', baseCost: { gold: 6e6, madeira: 250 },       costMult: 1.8 },
+  { id: 'templo',     name: 'Templo',      icon: '⛩️', desc: '+4% de produção GLOBAL por nível (buff da Base)',  baseCost: { gold: 25e6, pedra: 600, cristal: 3 },  costMult: 1.9 },
+  { id: 'torre',      name: 'Torre Arcana', icon: '🗼', desc: '+8% de DPS mágico do time por nível',            baseCost: { gold: 40e6, ferro: 400, cristal: 5 },  costMult: 1.9 },
+  { id: 'arena',      name: 'Arena',       icon: '🏟️', desc: '+12% de ouro de chefes e +2s no tempo de chefe por nível', baseCost: { gold: 60e6, pedra: 800, ferro: 300 }, costMult: 1.9 },
+  { id: 'castelo',    name: 'Castelo',     icon: '🏯', desc: 'Multiplicador GERAL: +10% em todas as sinergias e edifícios da Base por nível', baseCost: { gold: 120e6, madeira: 500, pedra: 500, ferro: 500 }, costMult: 2.0 },
 ];
 
 // ---- Grade da Base ----
 // Topologia FIXA (mesma em todas as telas) — as sinergias dependem de quem é vizinho de quem,
 // então a grade não pode mudar de forma conforme o tamanho do dispositivo.
-const BASE_GRID_COLS = 3;
-const BASE_GRID_ROWS = 4;           // 12 células para 8 salas + 4 vagas para arranjar
+const BASE_GRID_COLS = 4;
+const BASE_GRID_ROWS = 4;           // 16 células para 13 salas + 3 vagas para arranjar sinergias
 
 // Sinergias de vizinhança: quando duas salas construídas (nível ≥ 1) ficam ortogonalmente
 // adjacentes na grade, elas ativam um bônus que escala com o MENOR nível entre as duas.
@@ -146,6 +207,14 @@ const ROOM_SYNERGIES = [
   { a: 'oficina',    b: 'mina_r',     type: 'equip',     per: 0.05, icon: '🛠️', name: 'Metalurgia',         short: '+Poder de equipamento' },
   { a: 'cofre',      b: 'quartel',    type: 'gold',      per: 0.04, icon: '🏴', name: 'Espólio de Guerra',  short: '+Produção de ouro' },
   { a: 'biblioteca', b: 'oficina',    type: 'equip',     per: 0.04, icon: '📐', name: 'Engenharia',         short: '+Poder de equipamento' },
+  // ---- Sinergias dos edifícios avançados ----
+  { a: 'mercado',    b: 'cofre',      type: 'gold',      per: 0.06, icon: '🏦', name: 'Bolsa de Valores',   short: '+Produção de ouro' },
+  { a: 'templo',     b: 'biblioteca', type: 'knowledge', per: 0.05, icon: '📜', name: 'Escritório Sagrado', short: '+Conhecimento/s' },
+  { a: 'torre',      b: 'lab',        type: 'knowledge', per: 0.06, icon: '🔭', name: 'Observatório',        short: '+Conhecimento/s' },
+  { a: 'arena',      b: 'quartel',    type: 'dps',       per: 0.05, icon: '🎪', name: 'Coliseu',            short: '+DPS dos heróis' },
+  { a: 'torre',      b: 'templo',     type: 'dps',       per: 0.05, icon: '🔮', name: 'Convergência Arcana', short: '+DPS dos heróis' },
+  { a: 'castelo',    b: 'quartel',    type: 'dps',       per: 0.05, icon: '👑', name: 'Guarda Real',        short: '+DPS dos heróis' },
+  { a: 'castelo',    b: 'mercado',    type: 'gold',      per: 0.05, icon: '💎', name: 'Cofres Reais',       short: '+Produção de ouro' },
 ];
 const SYNERGY_LABELS = { gold: 'ouro', dps: 'DPS', knowledge: 'conhecimento', material: 'recursos', equip: 'equipamento' };
 
