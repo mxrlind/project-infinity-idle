@@ -1027,10 +1027,15 @@ const UI = {
       col.appendChild(this.el('h3', 'tree-title', `${tree.icon} ${tree.name}`));
       for (const t of TALENTS.filter(x => x.tree === treeId)) {
         const lvl = Game.talentLvl(t.id);
-        const card = this.el('button', 'talent-card' + (lvl >= t.max ? ' maxed' : ''));
-        card.innerHTML = `<div class="tal-head">${t.icon} <b>${t.name}</b> <span class="tal-lvl">${lvl}/${t.max}</span></div>
+        const blocker = Game.talentExclusionBlocker(t.id);
+        const card = this.el('button', 'talent-card' + (lvl >= t.max ? ' maxed' : '') + (blocker ? ' locked' : '') + (t.exclusiveWith ? ' rc-branch' : ''));
+        const blockedDef = blocker ? TALENTS.find(x => x.id === blocker) : null;
+        const costHtml = blocker ? `🔒 Bloqueado — você escolheu ${blockedDef.name}`
+          : (lvl >= t.max ? 'MÁXIMO' : fmt(Game.talentCost(t.id)) + ' 📘 conhecimento');
+        card.innerHTML = `${t.exclusiveWith ? '<div class="rc-branch-tag">⚔️ Ramo exclusivo — só um dos dois</div>' : ''}
+          <div class="tal-head">${t.icon} <b>${t.name}</b> <span class="tal-lvl">${lvl}/${t.max}</span></div>
           <div class="tal-desc">${t.desc}</div>
-          <div class="tal-cost">${lvl >= t.max ? 'MÁXIMO' : fmt(Game.talentCost(t.id)) + ' 📘 conhecimento'}</div>`;
+          <div class="tal-cost">${costHtml}</div>`;
         card.onclick = () => { if (Game.buyTalent(t.id)) this.updateDynamic(); };
         col.appendChild(card);
         this.R.talents.push({ id: t.id, btn: card, max: t.max, lvlEl: card.querySelector('.tal-lvl'), costEl: card.querySelector('.tal-cost') });
@@ -1470,12 +1475,17 @@ const UI = {
       if (this.R.talents) for (const ref of this.R.talents) {
         const lvl = Game.talentLvl(ref.id);
         const maxed = lvl >= ref.max;
-        const afford = !maxed && S.res.conhecimento >= Game.talentCost(ref.id);
+        const blocker = Game.talentExclusionBlocker(ref.id);
+        const afford = !maxed && !blocker && S.res.conhecimento >= Game.talentCost(ref.id);
         ref.btn.classList.toggle('afford', afford);
         ref.btn.classList.toggle('maxed', maxed);
+        ref.btn.classList.toggle('locked', !!blocker);
         ref.btn.disabled = !afford;
         if (ref.lvlEl) ref.lvlEl.textContent = `${lvl}/${ref.max}`;
-        if (ref.costEl) ref.costEl.textContent = maxed ? 'MÁXIMO' : fmt(Game.talentCost(ref.id)) + ' 📘 conhecimento';
+        if (ref.costEl) {
+          if (blocker) ref.costEl.textContent = `🔒 Bloqueado — você escolheu ${TALENTS.find(x => x.id === blocker).name}`;
+          else ref.costEl.textContent = maxed ? 'MÁXIMO' : fmt(Game.talentCost(ref.id)) + ' 📘 conhecimento';
+        }
       }
     }
 
@@ -1727,7 +1737,7 @@ const UI = {
       coin.classList.remove('pulse');
       void coin.offsetWidth;
       coin.classList.add('pulse');
-      if (S.clicks === 1) this.log(`${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"${ADVISOR_TIPS.firstGen}"</i>`);
+      if (S.clicks === 1) this.log(`${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"${ADVISOR_TIPS.firstClick}"</i>`);
     };
 
     // colapsar painel esquerdo em telas estreitas

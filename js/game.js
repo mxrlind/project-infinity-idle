@@ -65,9 +65,11 @@ const Game = {
     const g = GENERATORS.find(x => x.id === genId);
     const owned = S.gens[genId] || 0;
     const disc = Math.max(0.5, 1 - 0.015 * this.talentLvl('barganha'));
+    // trade-off de talento (AUDIT item 8): Expansão Agressiva barateia geradores, Tesouro Conservador encarece
+    const buildMult = 1 - 0.25 * this.talentLvl('expansao_agressiva') + 0.10 * this.talentLvl('tesouro_conservador');
     // soma geométrica fechada: base·r^owned·(r^count − 1)/(r − 1)
     const r = GEN_COST_MULT;
-    return g.baseCost * Math.pow(r, owned) * (Math.pow(r, count) - 1) / (r - 1) * disc * this.extGenCostMult();
+    return g.baseCost * Math.pow(r, owned) * (Math.pow(r, count) - 1) / (r - 1) * disc * buildMult * this.extGenCostMult();
   },
 
   genMaxBuy(genId) {
@@ -409,6 +411,8 @@ const Game = {
     total *= 1 + 0.08 * this.roomLvl('torre') * this.baseMult();  // Torre Arcana: DPS mágico (×Castelo)
     total *= 1 + this.synergyBonuses().dps;     // sinergia de vizinhança (ex.: Quartel + Oficina)
     total *= 1 + 0.10 * this.talentLvl('furia');
+    // trade-off de talento (AUDIT item 8): Assalto Total vs Guarda Calculada
+    total *= 1 + 0.20 * this.talentLvl('assalto_total') - 0.08 * this.talentLvl('guarda_calculada');
     total *= 1 + 0.01 * this.achCount();
     total *= 1 + this.gearBonus.team;          // afixo "Estandarte" (soma dos itens equipados)
     total *= this.extDpsMult();                // expansão: mundo + mascotes + pesquisa
@@ -425,9 +429,11 @@ const Game = {
     const def = HEROES.find(x => x.id === heroId);
     const h = S.heroes[heroId];
     const lvl = h ? h.lvl : 0;
+    // trade-off de talento (AUDIT item 8): Expansão Agressiva encarece heróis, Tesouro Conservador barateia
+    const buildMult = 1 + 0.15 * this.talentLvl('expansao_agressiva') - 0.15 * this.talentLvl('tesouro_conservador');
     // soma geométrica fechada: base·0.2·r^lvl·(r^count − 1)/(r − 1)
     const r = HERO_LVL_COST_MULT;
-    return def.baseCost * 0.2 * Math.pow(r, lvl) * (Math.pow(r, count) - 1) / (r - 1) * this.extHeroCostMult();
+    return def.baseCost * 0.2 * Math.pow(r, lvl) * (Math.pow(r, count) - 1) / (r - 1) * buildMult * this.extHeroCostMult();
   },
 
   heroMaxLevels(heroId) {
@@ -505,6 +511,8 @@ const Game = {
     ch += 0.05 * this.roomLvl('oficina');
     ch += this.synergyBonuses().equip;          // sinergia de vizinhança (ex.: Oficina + Mina)
     ch += 0.04 * this.talentLvl('pilhagem');
+    // trade-off de talento (AUDIT item 8): Assalto Total vs Guarda Calculada
+    ch += 0.15 * this.talentLvl('guarda_calculada') - 0.10 * this.talentLvl('assalto_total');
     ch += this.extDropBonus();                  // expansão: Dragão + Neve + pesquisa + poções
     return Math.min(0.95, ch);
   },
@@ -821,10 +829,14 @@ const Game = {
     if (count <= 0) return false;
     const cost = this.genCost(genId, count);
     if (S.gold < cost) return false;
+    const totalOwnedBefore = Object.values(S.gens).reduce((a, b) => a + b, 0);
     S.gold -= cost;
     const before = S.gens[genId] || 0;
     S.gens[genId] = before + count;
     if (before < 77 && before + count >= 77) S.luckyNumberSeen = true;
+    // primeiro gerador da run: o gancho narrativo real do "Aprendiz Coletor" (AUDIT item 4 — antes
+    // disparava no 1º CLIQUE, texto errado pro momento; ver ui.js pro flavor certo do 1º clique)
+    if (totalOwnedBefore === 0) UI.log(`${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"${ADVISOR_TIPS.firstGen}"</i>`);
     // marco de quantidade cruzado?
     if (Math.floor((before + count) / GEN_MILESTONE) > Math.floor(before / GEN_MILESTONE)) {
       UI.log(`${g.icon} <b>${g.name}</b> atingiu ${Math.floor((before + count) / GEN_MILESTONE) * GEN_MILESTONE} unidades — produção <b>×2</b>!`);
@@ -1021,10 +1033,20 @@ const Game = {
     return Math.ceil(t.baseCost * Math.pow(TALENT_COST_MULT, this.talentLvl(talId)));
   },
 
+  // trade-offs reais (AUDIT item 8): investir em um lado de um par `exclusiveWith` tranca o outro
+  // pra sempre nesta run — mesmo mecanismo do roadmap #5 (Pesquisa), aplicado aos Talentos.
+  // Retorna o id do talento já investido que bloqueia `talId`, ou null se ainda está livre.
+  talentExclusionBlocker(talId) {
+    const t = TALENTS.find(x => x.id === talId);
+    if (!t || !t.exclusiveWith) return null;
+    return t.exclusiveWith.find(id => this.talentLvl(id) > 0) || null;
+  },
+
   buyTalent(talId) {
     const t = TALENTS.find(x => x.id === talId);
     const lvl = this.talentLvl(talId);
     if (lvl >= t.max) return false;
+    if (this.talentExclusionBlocker(talId)) return false;
     const cost = this.talentCost(talId);
     if (S.res.conhecimento < cost) return false;
     S.res.conhecimento -= cost;
@@ -1085,6 +1107,15 @@ const Game = {
 
   updatePhases() {
     const u = S.unlocked;
+    // Fase 1: flavor do Aldric durante o clique puro, antes de Heróis desbloquear (AUDIT item 4)
+    if (!u.heroes) {
+      for (const f of PHASE1_FLAVOR) {
+        if (!S.advisorSeen[f.id] && S.earned >= f.earned) {
+          S.advisorSeen[f.id] = true;
+          UI.log(`${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"${f.line}"</i>`);
+        }
+      }
+    }
     const notify = (key, tip) => {
       if (!u[key]) {
         u[key] = true;

@@ -1,6 +1,28 @@
 // ===== Estado do jogo + persistência =====
 const SAVE_KEY = 'project-infinity-idle-save';
-const SAVE_VERSION = 2;
+const SAVE_VERSION = 3;   // v3: loadGame() passou a usar deepMerge() genérico (ver comentário lá)
+
+function isPlainObject(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
+
+// Mescla `data` (save) sobre `base` (sempre um defaultState() fresco) recursivamente: quando os
+// dois lados têm um objeto plano na mesma chave, desce um nível em vez de substituir a referência
+// inteira. Isso é o que garante que um campo novo adicionado ao default (ex.: S.npcs.request) entre
+// mesmo quando o save já tinha a chave-pai (S.npcs) só com os campos antigos — a versão anterior
+// fazia isso campo a campo (`S.npcs = Object.assign(base.npcs, data.npcs||{})`), mas um
+// `Object.assign(base, data)` raso no topo já sobrescrevia `base.npcs` com a referência SALVA antes
+// dessas linhas rodarem, então "mesclar com o default" virava mesclar um objeto com ele mesmo — bug
+// real, descoberto ao adicionar sub-campos a `npcs`/`codex` (roadmap #10/#11). Chaves de dicionário
+// dinâmico (heroId, roomId, ...) não têm "default" pra mesclar — como `out[k]` não existe nesses
+// casos, o valor do save vence por inteiro, igual ao comportamento de sempre. Arrays são atômicos:
+// o array do save substitui o do default por inteiro, nunca mescla item a item.
+function deepMerge(base, data) {
+  if (!isPlainObject(data)) return data === undefined ? base : data;
+  const out = isPlainObject(base) ? base : {};
+  for (const k in data) {
+    out[k] = (isPlainObject(data[k]) && isPlainObject(out[k])) ? deepMerge(out[k], data[k]) : data[k];
+  }
+  return out;
+}
 
 function defaultState() {
   return {
@@ -89,6 +111,7 @@ function defaultState() {
     },
     codex: { lore: {}, bossMechs: {}, gearSets: {}, events: {}, monsters: {} },   // roadmap #11: rastros pra completude por categoria
     secrets: {},           // flags de segredos: aldric, dot, highSell, scrapLegend, moonBoss
+    advisorSeen: {},        // id de PHASE1_FLAVOR -> true (flavor do Aldric mostrado uma única vez)
     audio: { vol: 0.7, music: false },
 
     relics: { owned: {}, equipped: [null, null, null] },  // relicId -> true (owned) | equipped: array de relicId|null (RELIC_SLOTS)
@@ -120,41 +143,24 @@ function loadGame() {
   if (!raw) return null;
   try {
     const data = JSON.parse(raw);
-    // merge sobre o default para tolerar saves de versões antigas
-    const base = defaultState();
-    S = Object.assign(base, data);
-    S.res = Object.assign(base.res, data.res || {});
-    S.combat = Object.assign(base.combat, data.combat || {});
-    S.unlocked = Object.assign(base.unlocked, data.unlocked || {});
-    // expansão: merge profundo tolerante (saves v1 não têm nada disso)
-    S.world = Object.assign(base.world, data.world || {});
-    S.world.seenSeasons = Object.assign({}, (data.world || {}).seenSeasons || {});
-    S.world.seenWeathers = Object.assign({}, (data.world || {}).seenWeathers || {});
-    S.pets = Object.assign(base.pets, data.pets || {});
+    // deepMerge genérico sobre um defaultState() fresco: cobre res/combat/unlocked/world/pets/
+    // research/market/npcs/codex/secrets/audio/relics/layers/worldTree recursivamente, sem precisar
+    // de uma linha por campo (e sem o bug de self-merge que essas linhas tinham antes — ver
+    // deepMerge acima). SAVE_VERSION fica como o ponto de entrada pra uma futura migração que
+    // deepMerge não resolva sozinho (renomear/remodelar um campo em vez de só adicionar um novo):
+    // `if ((data.v || 0) < N) { /* transformação pontual daquela versão */ }` antes do deepMerge.
+    S = deepMerge(defaultState(), data);
+
+    // normalizações que não são merge simples (tipo errado, array de tamanho fixo, id inválido)
     if (!Array.isArray(S.pets.active)) S.pets.active = [];
-    S.research = Object.assign(base.research, data.research || {});
     if (!Array.isArray(S.research.queue)) S.research.queue = [];
-    S.market = Object.assign(base.market, data.market || {});
-    S.market.stats = Object.assign({ trades: 0, sold: 0, bought: 0 }, (data.market || {}).stats || {});
-    // (*) usa defaultState() de novo em vez de base.npcs/base.codex: o Object.assign(base, data)
-    // acima já sobrescreveu base.npcs/base.codex com a referência SALVA quando o save já tinha
-    // essas chaves, e mesclar um objeto com ele mesmo não introduz os campos novos (request,
-    // bossMechs, gearSets, events, monsters) — precisa de um default realmente intocado.
-    S.npcs = Object.assign(defaultState().npcs, data.npcs || {});
-    S.codex = Object.assign(defaultState().codex, data.codex || {});
     if (typeof S.codex.lore !== 'object' || !S.codex.lore) S.codex.lore = {};
-    S.secrets = Object.assign({}, data.secrets || {});
-    S.audio = Object.assign(base.audio, data.audio || {});
-    S.relics = Object.assign({}, base.relics, data.relics || {});
-    S.relics.owned = Object.assign({}, (data.relics || {}).owned || {});
     if (!Array.isArray(S.relics.equipped) || S.relics.equipped.length !== RELIC_SLOTS) {
       const eq = Array.isArray((data.relics || {}).equipped) ? data.relics.equipped : [];
       S.relics.equipped = new Array(RELIC_SLOTS).fill(null).map((_, i) => eq[i] || null);
     }
     // saves antigos podem ter equipado uma relíquia que não existe mais nos dados (id removido/renomeado)
     S.relics.equipped = S.relics.equipped.map(id => (id && RELICS.some(r => r.id === id)) ? id : null);
-    S.layers = Object.assign({}, base.layers, data.layers || {});
-    S.worldTree = Object.assign({}, base.worldTree, data.worldTree || {});
     if (typeof S.worldTree.level !== 'number' || S.worldTree.level < 0) S.worldTree.level = 0;
     // migração: saves antigos tinham forge.pending (carta única) — descartado (perda aceitável de 1 carta não decidida)
     const rawForge = data.forge || {};
@@ -167,7 +173,7 @@ function loadGame() {
       const maxUid = S.forge.inventory.reduce((m, i) => Math.max(m, i.uid || 0), 0);
       S.forge.nextUid = Math.max(S.forge.nextUid, maxUid + 1);
     }
-    S.buffs = (data.buffs || []).filter(b => b && b.until > Date.now());
+    S.buffs = (S.buffs || []).filter(b => b && b.until > Date.now());
     S.lastClickAt = Date.now(); // reinicia o timer de inatividade a cada carregamento (conquista s4 conta só com o jogo aberto)
 
     // migração: saves antigos não têm fieldSlot nos heróis — aloca os mais fortes em campo

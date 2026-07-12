@@ -2,6 +2,68 @@
 
 ## Não lançado
 
+### Auditoria técnica: migração de save, testes automatizados, narrativa da Fase 1, trade-offs de Talentos
+Trata 4 itens do backlog de [AUDIT.md](AUDIT.md) (itens 6, 7, 4 e 8 da Parte 9), a pedido do usuário
+depois do roadmap de conteúdo fechado.
+
+- **🔧 Migração de save real (item 6)**: `js/state.js` ganhou `deepMerge(base, data)` genérico — mescla
+  `data` (save) sobre um `defaultState()` fresco recursivamente, descendo um nível sempre que os dois
+  lados têm um objeto plano na mesma chave. Substitui as ~15 linhas de merge campo-a-campo
+  (`S.res = Object.assign(base.res, data.res||{})`, uma por sistema) por uma chamada só —
+  **e corrige a classe inteira** do bug de self-merge encontrado na sessão anterior (não só
+  `S.npcs`/`S.codex`, que tinham sido corrigidos manualmente ali): o `S = Object.assign(base, data)`
+  raso no topo sobrescrevia a referência de QUALQUER objeto aninhado que o save já tivesse, antes das
+  linhas de merge específicas rodarem, fazendo "mesclar com o default" virar mesclar um objeto com ele
+  mesmo. `SAVE_VERSION` (bump pra 3) ganhou um comentário-âncora pro dia em que uma migração precisar de
+  transformação de verdade (renomear/remodelar campo), não só adição — coisa que `deepMerge` sozinho já
+  resolve hoje. Verificado com 3 cenários no preview: save real, save v1 sintético (só os campos mais
+  antigos) e save intermediário (com `npcs`/`codex` só parcialmente novos) — todos migram sem erro e
+  preservam os dados existentes.
+- **🧪 Testes automatizados (item 7)**: pasta `tests/` nova (sem npm/build, mesma filosofia do projeto)
+  — `tests/index.html` carrega só o "motor" (`format.js` → `worldtree.js`, nunca `ui.js`/`main.js`, já
+  que as fórmulas testadas não tocam DOM) + `tests/framework.js` (mini test runner, ~40 linhas,
+  `test()`/`assertEqual`/`assertClose`/`assertTrue`) + `tests/formulas.test.js` (19 casos cobrindo
+  `genCost`/`genMaxBuy`/`heroLvlCost`/`heroMaxLevels`/`essenceGain`/`enemyGold`/`enemyMaxHp`/`roomCost`/
+  `ascensionGain`/`worldTreeCost`, incluindo comparação fórmula-fechada vs força-bruta). Achou uma
+  imprecisão real (não um bug, um efeito colateral do `Math.floor`): os níveis 0 e 1 da Árvore do Mundo
+  empatam em 1 de custo de essência — documentado no teste em vez de alterado (rebalancear não foi
+  pedido). Abrir `tests/index.html` roda tudo e mostra pass/fail na página + console.
+- **📖 Narrativa da Fase 1 (item 4)**: Aldric agora comenta durante o clique puro, antes de Heróis
+  desbloquear em 2.500 ouro (antes, os únicos comentários eram no clique 1 — com o texto ERRADO, ver
+  abaixo — e no desbloqueio de Heróis). `PHASE1_FLAVOR` novo (`js/data.js`, 3 marcos por `S.earned`:
+  50/300/1200), disparado uma única vez cada em `Game.updatePhases()` (`js/game.js`) via
+  `S.advisorSeen{}` novo (permanente, nunca resetado — mesmo padrão de "avisa uma vez" de
+  `S.unlocked`). De quebra, corrigido um bug de conteúdo real: `ADVISOR_TIPS.firstGen` ("Um Aprendiz
+  Coletor! Agora o ouro flui sozinho...") disparava no **1º CLIQUE** (`ui.js`), não na compra do
+  1º gerador — texto sobre um gerador que ainda nem existia. Agora `firstClick` (texto novo, sobre o
+  próprio clique) dispara no clique 1, e `firstGen` dispara de verdade em `Game.buyGen()` quando é o
+  1º gerador de qualquer tipo comprado na run.
+- **⚖️ Trade-offs em Talentos (item 8)**: 2 pares `exclusiveWith` novos em `TALENTS` (`js/data.js`,
+  `max:1` cada, mesmo mecanismo do roadmap #5 na Pesquisa) — Economia: Expansão Agressiva (−25% custo
+  de gerador/+15% custo de herói) ou Tesouro Conservador (−15% custo de herói/+10% custo de gerador);
+  Guerra: Assalto Total (+20% DPS/−10% drop) ou Guarda Calculada (+15% drop/−8% DPS). Efeitos plugados
+  direto nas fórmulas existentes (`genCost`/`heroLvlCost`/`teamDps`/`dropChance` em `game.js`), mesmo
+  padrão de `this.talentLvl(id)` inline que os outros 12 talentos já usam — sem hook novo.
+  `Game.talentExclusionBlocker(talId)` novo bloqueia a compra do lado oposto (espelha
+  `researchExclusionBlocker`); UI (`js/ui.js`) mostra tag "⚔️ Ramo exclusivo" e nota "🔒 Bloqueado —
+  você escolheu X", reaproveitando as classes CSS `.rc-branch`/`.rc-branch-tag` já criadas pra
+  Pesquisa (mais `.talent-card.locked` novo, espelhando `.forge-tier.locked`/`.research-card.rc-locked`).
+- Verificado ponta a ponta no preview: exclusividade bloqueia/desbloqueia certo (comprar um lado
+  trava o outro e a tentativa de compra falha), efeitos de custo/DPS/drop batem exatamente com a
+  fórmula esperada, UI mostra tag/bloqueio corretos, `Game.updatePhases()` dispara os 3 flavors da
+  Fase 1 na ordem certa e uma única vez cada, suite de testes (19/19) permanece verde após todas as
+  mudanças.
+- **Nota de transparência**: durante a verificação manual desta sessão, uma sequência de chamadas de
+  console usando `hardReset()` na aba do jogo já aberta (em vez de isolar em `tests/`) deixou o `S`
+  em memória num estado resetado; o autosave de 15s do próprio jogo rodando persistiu esse estado
+  por cima do save real do preview antes que a restauração manual de `localStorage` (feita ao final
+  de cada teste) pudesse "grudar" — o save do preview (`localhost:4747`) acabou voltando a zero.
+  Muito provavelmente é só o save de testes acumulado em sessões anteriores (criado via
+  `Game.gainGold`/`Game.buyGen` no console, não jogado de verdade), mas registrando aqui porque foi
+  uma perda de estado não-intencional. Lição pra próximas sessões: testes que chamam `hardReset()`
+  ou mutam `S` devem rodar em `tests/index.html` (que não carrega `main.js`, logo não tem loop nem
+  autosave), nunca na aba do jogo real enquanto o loop estiver ativo.
+
 ### Música Dinâmica, polimento (Base/Mundo Vivo/Mercado/Códex) — roadmap #15, #4, #8, #10, #11
 Fecha os 6 itens restantes do roadmap (o único que sobra é #16, contínuo/organizacional). Ordem seguida: `#15 → #4 → #8 → #10 → #11`.
 

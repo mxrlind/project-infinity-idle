@@ -26,6 +26,8 @@ js/bosses-ui.js  — banner de intro de chefe + badge da mecânica ativa
 js/gearsets-ui.js — seção "Conjuntos" (na aba Heróis)
 js/main.js      — boot() : carrega save, calcula offline, inicia o loop de tick
 img/            — artes estáticas (retratos, inimigos, textura de fundo, favicon) — ver seção "Assets visuais"
+tests/          — testes automatizados das fórmulas puras (sem build/npm — abrir tests/index.html
+                  direto ou via preview; carrega só o "motor", nunca ui.js/main.js)
 ```
 
 Ordem de carregamento no `index.html` importa: `format.js` → `data.js` → `state.js` → `game.js` → `expansion.js` → `relics.js` → `bosses.js` → `gearsets.js` → `ui.js` → `ui-ext.js` → `relics-ui.js` → `bosses-ui.js` → `gearsets-ui.js` → `main.js`, pois cada um assume que os anteriores já definiram suas globais (`fmt`, `GENERATORS`, `S`, `Game`, `UI`).
@@ -35,7 +37,7 @@ A expansão se integra ao motor original por **hooks pontuais** (grep por "expan
 ## Modelo mental
 
 - **`data.js`** é puramente declarativo — arrays de objetos (`GENERATORS`, `HEROES`, `ROOMS`, `TALENTS`, `ACHIEVEMENTS`, `WORLD_EVENTS`, `UPGRADES`, `RARITIES`...). Nada ali tem lógica de jogo; é a "planilha de balanceamento".
-- **`state.js`** define o único objeto de estado mutável, `S`, e funções puras de I/O (`saveGame`, `loadGame`, `exportSave`, `importSave`, `hardReset`). `S` é recriado do zero via `defaultState()` e mesclado com o save salvo (tolerante a saves de versões antigas, graças ao merge sobre o default).
+- **`state.js`** define o único objeto de estado mutável, `S`, e funções puras de I/O (`saveGame`, `loadGame`, `exportSave`, `importSave`, `hardReset`). `S` é recriado do zero via `defaultState()` e mesclado com o save salvo via `deepMerge(defaultState(), data)` — recursivo, cobre qualquer subcampo novo em qualquer nível de aninhamento, tolerante a saves de qualquer versão antiga. `SAVE_VERSION` é o ponto de entrada pra uma futura migração que `deepMerge` não resolva sozinho (renomear/remodelar um campo, não só adicionar um novo).
 - **`game.js`** é o objeto `Game`: todas as fórmulas e mutações de estado (comprar gerador, contratar herói, construir sala, etc.) vivem como métodos aqui. Também expõe `Game.tick(dt)`, chamado a cada 100ms pelo loop principal, que aplica produção, combate, eventos e verificação de fases. `Sound` (mesmo arquivo) sintetiza efeitos sonoros via Web Audio, sem arquivos externos.
 - **`ui.js`** é o objeto `UI`: só lê de `S`/`Game`, nunca decide regras de jogo. Renderiza abas, atualiza textos/barras a cada tick, e mostra feedback (toasts, números flutuantes, modais).
 - **`main.js`** é o único lugar com `setInterval`. Ele:

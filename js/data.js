@@ -320,6 +320,17 @@ const TALENTS = [
   { id: 'transcend', tree: 'arc', name: 'Transcendência',  icon: '🌟', max: 10, baseCost: 12, desc: '+5% ganho de Essência por nível' },
   { id: 'fortuna',   tree: 'arc', name: 'Fortuna',         icon: '🍀', max: 10, baseCost: 8,  desc: 'Eventos e moedas douradas +10% mais frequentes por nível' },
   { id: 'harmonia',  tree: 'arc', name: 'Harmonia',        icon: '☯️', max: 10, baseCost: 15, desc: '+3% produção global por prestígio realizado, por nível' },
+  // ---- Trade-offs reais (AUDIT item 8): pares mutuamente exclusivos, 1 nível só — escolher um
+  // tranca o outro pra sempre nesta run, mesmo mecanismo `exclusiveWith` do roadmap #5 (Pesquisa),
+  // só que decidido bem mais cedo (Talentos custam Conhecimento, disponível desde a Fase 4).
+  { id: 'expansao_agressiva', tree: 'eco', name: 'Expansão Agressiva', icon: '📈', max: 1, baseCost: 40,
+    desc: '−25% custo de geradores · +15% custo de heróis', exclusiveWith: ['tesouro_conservador'] },
+  { id: 'tesouro_conservador', tree: 'eco', name: 'Tesouro Conservador', icon: '🪙', max: 1, baseCost: 40,
+    desc: '−15% custo de heróis · +10% custo de geradores', exclusiveWith: ['expansao_agressiva'] },
+  { id: 'assalto_total', tree: 'war', name: 'Assalto Total', icon: '🗡️', max: 1, baseCost: 50,
+    desc: '+20% DPS · −10% chance de drop', exclusiveWith: ['guarda_calculada'] },
+  { id: 'guarda_calculada', tree: 'war', name: 'Guarda Calculada', icon: '🛡️', max: 1, baseCost: 50,
+    desc: '+15% chance de drop · −8% DPS', exclusiveWith: ['assalto_total'] },
 ];
 const TALENT_TREES = { eco: { name: 'Economia', icon: '💰' }, war: { name: 'Guerra', icon: '⚔️' }, arc: { name: 'Arcano', icon: '🔮' } };
 const TALENT_COST_MULT = 1.9;
@@ -880,8 +891,9 @@ const LORE_ITEMS = [
 // ---- Diálogos do conselheiro (tutoriais em forma de NPC) ----
 const ADVISOR = { name: 'Mestre Aldric', icon: '🧙‍♂️' };
 const ADVISOR_TIPS = {
-  start:    'Bem-vindo! Clique na moeda para começar. Grandes impérios nascem de trocados.',
-  firstGen: 'Um Aprendiz Coletor! Agora o ouro flui sozinho. É assim que começa... todos os impérios.',
+  start:      'Bem-vindo! Clique na moeda para começar. Grandes impérios nascem de trocados.',
+  firstClick: 'Isso mesmo. Sinta o peso do ouro na palma da mão — cada moeda conta, mesmo essa primeira.',
+  firstGen:   'Um Aprendiz Coletor! Agora o ouro flui sozinho. É assim que começa... todos os impérios.',
   heroes:   'Ouço tambores... A aba de Heróis foi desbloqueada! Monte um time e deixe-os lutar por você.',
   fieldMigration: 'Reorganizei seu exército em um novo sistema de Campo de Batalha — seus heróis mais fortes já estão posicionados. Veja a aba Heróis!',
   base:     'Temos capital suficiente para uma Base! Cada sala tem uma função. Comece pela Serraria.',
@@ -890,6 +902,17 @@ const ADVISOR_TIPS = {
   events:   'O mundo desperta! Eventos acontecerão de tempos em tempos. Fique atento aos céus.',
   phase7:   'Há rumores de Guildas se formando ao norte... mas ainda não é hora. (Em breve.)',
 };
+
+// ---- Fase 1: flavor do Aldric durante o clique puro, antes de Heróis desbloquear em 2.500 ouro ----
+// (item 4 da AUDIT.md — os primeiros ~30s eram genéricos: só clicar e comprar "Aprendiz Coletor",
+// sem nenhum gancho narrativo até a Fase 2.) Cada linha dispara uma única vez (S.advisorSeen[id]),
+// verificado em Game.updatePhases() enquanto `!S.unlocked.heroes` — mesmo padrão de "avisa uma vez"
+// já usado pelos outros ADVISOR_TIPS (gate por S.unlocked/S.advisorSeen, nunca por prestígio).
+const PHASE1_FLAVOR = [
+  { id: 'p1_50',   earned: 50,   line: 'O tilintar já está bom. Tudo o que você juntar agora, o Aprendiz Coletor multiplica sozinho.' },
+  { id: 'p1_300',  earned: 300,  line: 'Vejo geradores girando por conta própria. Você mal precisa clicar... mas sei que vai clicar mesmo assim.' },
+  { id: 'p1_1200', earned: 1200, line: 'O ouro se acumula rápido agora. Já ouço tambores ao longe — não vai demorar pra precisarmos de espadas.' },
+];
 
 // ---- Lore/tutorial por fase, exibido em modal ao desbloquear (e revisitável no Códex) ----
 const PHASE_LORE = {

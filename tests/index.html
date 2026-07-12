@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Project Infinity Idle — Testes das fórmulas</title>
+<style>
+  body { font-family: 'JetBrains Mono', monospace; background: #0b0a10; color: #d8d2c4; padding: 24px; }
+  h1 { font-size: 18px; }
+  #summary { font-size: 16px; margin: 12px 0 20px; }
+  #summary.ok { color: #5fbf6b; }
+  #summary.fail { color: #ff6b5e; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { padding: 4px 8px; border-radius: 4px; margin-bottom: 2px; }
+  li.pass { color: #5fbf6b; }
+  li.fail { color: #ff6b5e; background: rgba(255,107,94,0.1); }
+  .detail { color: #8d8579; font-size: 12px; margin-left: 8px; }
+</style>
+</head>
+<body>
+<h1>🧪 Testes das fórmulas puras — Project Infinity Idle</h1>
+<div id="summary">Rodando...</div>
+<ul id="results"></ul>
+
+<!-- Só o "motor" (sem UI/main.js): as fórmulas testadas aqui não tocam DOM, então a página nunca
+     inicia o loop do jogo nem precisa de UI.* — carregar ui.js/main.js só adicionaria uma tela de
+     jogo real por trás dos testes, sem nenhum benefício. -->
+<script src="/js/format.js"></script>
+<script src="/js/data.js"></script>
+<script src="/js/state.js"></script>
+<script src="/js/game.js"></script>
+<script src="/js/expansion.js"></script>
+<script src="/js/relics.js"></script>
+<script src="/js/bosses.js"></script>
+<script src="/js/gearsets.js"></script>
+<script src="/js/layers.js"></script>
+<script src="/js/worldtree.js"></script>
+<script src="/tests/framework.js"></script>
+<script src="/tests/formulas.test.js"></script>
+</body>
+</html>

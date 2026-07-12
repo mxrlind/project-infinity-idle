@@ -2,7 +2,11 @@
 
 *Análise técnica, de design e de produto, realizada em 2026-07-05. Serve como backlog de referência para execução futura.*
 
-> **Status de execução (2026-07-05):** o plano de curto prazo (Parte 11) foi implementado — itens 🔴1, 🔴2, 🔴3, 🟠5 e 🟡11. Detalhes no [CHANGELOG.md](CHANGELOG.md). Os demais itens seguem pendentes.
+> **Status de execução:** plano de curto prazo (🔴1, 🔴2, 🔴3, 🟠5, 🟡11) implementado em 2026-07-05.
+> Itens 🟠4, 🟠6, 🟠7 e 🟡8 (médio prazo) implementados em 2026-07-12. 🟡9 já estava resolvido (sessão
+> anterior não registrada aqui). Detalhes no [CHANGELOG.md](CHANGELOG.md). Restam: 🟡10 (meta
+> diária), 🟢12-15 (polimento) e as decisões de longo prazo da Parte 11 (identidade visual completa,
+> backend/live-ops, segundo loop estratégico).
 
 ---
 
@@ -157,14 +161,14 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 3. ✅ **Resolver `genMaxBuy`/`heroMaxLevels` analiticamente (fórmula fechada via log), removendo o teto de 200/500.** Causa: gambiarra vira mentira pro jogador em late-game. Dificuldade: média (matemática de soma geométrica, mas conhecida). Benefício: "Máx" volta a significar máximo de verdade.
 
 ### 🟠 Importante
-4. **Repensar a Fase 1 para injetar personalidade/narrativa desde o segundo 1**, não só a partir de 2.500 ouro. Ex: Mestre Aldric já comentar durante clique puro, ou um pré-herói cameo. Impacto: retenção nos primeiros 30s, o ponto de maior abandono do gênero.
+4. ✅ **Repensar a Fase 1 para injetar personalidade/narrativa desde o segundo 1**, não só a partir de 2.500 ouro. Ex: Mestre Aldric já comentar durante clique puro, ou um pré-herói cameo. Impacto: retenção nos primeiros 30s, o ponto de maior abandono do gênero.
 5. ✅ **Adicionar `prefers-reduced-motion` e opção separada de "efeitos de tela cheia"** para `legendaryFlash`. Impacto: acessibilidade e conformidade Steam.
-6. **Migração de save de verdade usando `SAVE_VERSION`**, com merge profundo (não raso) em `heroes`/`gens`/`talents`/`rooms`. Impacto: evita quebra silenciosa quando o schema mudar.
-7. **Testes automatizados nas fórmulas puras de `game.js`.** São 100% testáveis sem DOM. Impacto: segurança para refatorar sem medo.
+6. ✅ **Migração de save de verdade usando `SAVE_VERSION`**, com merge profundo (não raso) em `heroes`/`gens`/`talents`/`rooms`. Impacto: evita quebra silenciosa quando o schema mudar.
+7. ✅ **Testes automatizados nas fórmulas puras de `game.js`.** São 100% testáveis sem DOM. Impacto: segurança para refatorar sem medo.
 
 ### 🟡 Melhorias
-8. Dar às árvores de talento trade-offs reais (custo mutuamente exclusivo ou sinergias fortes o bastante pra criar dilema), não só "tudo é bom, junte tudo".
-9. Variância/crítico no dano de clique manual, pra dar textura tátil ao clique (hoje é puramente determinístico).
+8. ✅ Dar às árvores de talento trade-offs reais (custo mutuamente exclusivo ou sinergias fortes o bastante pra criar dilema), não só "tudo é bom, junte tudo".
+9. ✅ Variância/crítico no dano de clique manual, pra dar textura tátil ao clique (hoje é puramente determinístico). *(resolvido em sessão anterior ao registro deste doc — `clickAttack` já tem crítico + ataque duplo do Duelista; item não estava marcado aqui.)*
 10. Sistema de meta diária/desafio rotativo simples (nem precisa backend — pode ser seed determinística por data).
 11. ✅ Corrigir o texto de `renderPrestige` ("raiz do ouro") pra bater com o expoente real (0.45) ou ajustar o expoente pra 0.5 e simplificar a comunicação.
 12. Cachear `getElementById` em `UI.init()` ao invés de buscar todo tick.
