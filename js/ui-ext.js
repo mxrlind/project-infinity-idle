@@ -219,6 +219,7 @@ Object.assign(UI, {
       'Usar ofertas e cumprir missões aumenta a <b>amizade</b> — e amizade destrava vantagens permanentes.'));
 
     this.R.city = [];
+    this.R.cityReq = [];
     for (const def of NPCS) {
       const lvl = Game.npcLevel(def.id);
       const xp = S.npcs.rep[def.id] || 0;
@@ -241,6 +242,7 @@ Object.assign(UI, {
         </div>
         <div class="npc-perk">⭐ ${def.perk}</div>
         <div class="npc-mission"></div>
+        <div class="npc-request"></div>
         <div class="npc-offers"></div>`;
 
       // missão do dia
@@ -259,6 +261,26 @@ Object.assign(UI, {
         }
       }
 
+      // Roadmap #10: pedido de recurso do dia (entrega manual, recompensa maior)
+      const req = S.npcs.request[def.id];
+      const rBox = card.querySelector('.npc-request');
+      if (req) {
+        const g = MARKET_GOODS.find(x => x.id === req.res);
+        const have = S.res[req.res] || 0;
+        const rt = `Quero <b>${fmt(req.need)}</b> ${g ? g.icon + ' ' + g.name : req.res}`;
+        if (req.claimed) rBox.innerHTML = `🗒️ <s>${rt}</s> <span class="mkt-up">✓ entregue</span>`;
+        else {
+          rBox.innerHTML = `🗒️ ${rt} <span class="npc-prog">(${fmt(Math.min(have, req.need))}/${fmt(req.need)})</span> — `;
+          const deliver = this.el('button', 'buy-btn npc-claim', 'Entregar');
+          const afford = have >= req.need;
+          deliver.classList.toggle('afford', afford);
+          deliver.disabled = !afford;
+          deliver.onclick = () => { if (Game.claimRequest(def.id)) { this.dirty.city = true; this.renderActive(); } };
+          rBox.appendChild(deliver);
+          this.R.cityReq.push({ npcId: def.id, btn: deliver, progEl: rBox.querySelector('.npc-prog') });
+        }
+      }
+
       // ofertas do dia
       const oBox = card.querySelector('.npc-offers');
       const offers = S.npcs.offers[def.id] || [];
@@ -269,7 +291,7 @@ Object.assign(UI, {
         const row = this.el('div', 'npc-offer' + (used ? ' used' : ''));
         const costHtml = Object.keys(info.cost).map(k => {
           const have = k === 'gold' ? S.gold : (S.res[k] || 0);
-          const names = { gold: 'ouro', madeira: '🪵', pedra: '🪨', ferro: '⛓️', cristal: '💠' };
+          const names = { gold: 'ouro', madeira: '🪵', pedra: '🪨', ferro: '⛓️', cristal: '💠', conhecimento: '📘' };
           return `<span class="${have >= info.cost[k] ? '' : 'cost-missing'}">${fmt(info.cost[k])} ${names[k] || k}</span>`;
         }).join(' · ');
         row.innerHTML = `<div class="npc-offer-label">${info.label}</div>`;
@@ -395,6 +417,15 @@ Object.assign(UI, {
         const ok = Game.canAffordOffer(info.cost);
         ref.btn.disabled = !ok;
         ref.btn.classList.toggle('afford', ok);
+      }
+      if (this.R.cityReq) for (const ref of this.R.cityReq) {
+        const req = S.npcs.request[ref.npcId];
+        if (!req || req.claimed) continue;
+        const have = S.res[req.res] || 0;
+        const ok = have >= req.need;
+        ref.btn.disabled = !ok;
+        ref.btn.classList.toggle('afford', ok);
+        if (ref.progEl) ref.progEl.textContent = `(${fmt(Math.min(have, req.need))}/${fmt(req.need)})`;
       }
     }
   },

@@ -458,6 +458,12 @@ Object.assign(Game, {
           const n = Math.ceil((res === 'cristal' ? 2 : 60) * (0.7 + rng()));
           offers.push({ kind: 'bundle', res, n, disc: 0.25 });
         }
+        // NPCs como Progressão (#9): amizade máxima com o Mercador abre o Mercado Negro
+        // (desconto muito maior, sempre em cristal — o recurso mais raro do jogo).
+        if (this.npcLevel('mercador') >= 5) {
+          const n = Math.ceil(3 * (0.7 + rng()));
+          offers.push({ kind: 'bundle', res: 'cristal', n, disc: 0.45, blackmarket: true });
+        }
         break;
       }
       case 'ferreiro':
@@ -473,6 +479,9 @@ Object.assign(Game, {
         const a = Math.floor(rng() * spells.length);
         offers.push(Object.assign({ kind: 'buff', dur: 600 }, spells[a]));
         offers.push(Object.assign({ kind: 'buff', dur: 600 }, spells[(a + 1) % spells.length]));
+        // NPCs como Progressão (#9): amizade máxima com o Mago abre Encantamentos —
+        // reforja os afixos do item mais raro da Bolsa com rolagem sempre no topo do intervalo.
+        if (this.npcLevel('mago') >= 5) offers.push({ kind: 'enchant' });
         break;
       }
       case 'alquimista': {
@@ -484,6 +493,12 @@ Object.assign(Game, {
         const a = Math.floor(rng() * potions.length);
         offers.push(Object.assign({ kind: 'potion' }, potions[a]));
         offers.push(Object.assign({ kind: 'potion' }, potions[(a + 1) % potions.length]));
+        // NPCs como Progressão (#9): amizade máxima com a Alquimista abre o Elixir Supremo,
+        // que combina os 3 efeitos das poções normais (produção + drop + XP de mascote) de uma vez.
+        if (this.npcLevel('alquimista') >= 5) {
+          offers.push({ pid: 'elixir', name: 'Elixir Supremo', icon: '🌟', kind: 'potion',
+            buff: 'prod', mult: 2, drop: 0.15, petxp: 1.5, dur: 900, mats: { madeira: 150, ferro: 100, cristal: 2 } });
+        }
         break;
       }
       case 'colecionador':
@@ -506,6 +521,13 @@ Object.assign(Game, {
       const rng = this._seededRng(day * 104729 + npc.id.charCodeAt(0));
       const need = Math.ceil(m.n[0] + rng() * (m.n[1] - m.n[0]));
       S.npcs.mission[npc.id] = { type: m.type, need, prog: 0, done: false, claimed: false };
+      // Roadmap #10: pedido de recurso do dia (entrega manual, recompensa maior que a missão)
+      const r = NPC_REQUESTS[npc.id];
+      if (r) {
+        const rrng = this._seededRng(day * 613 + npc.id.charCodeAt(0) * 7 + 3);
+        const rneed = Math.ceil(r.n[0] + rrng() * (r.n[1] - r.n[0]));
+        S.npcs.request[npc.id] = { res: r.res, need: rneed, claimed: false };
+      }
     }
     if (this.npcsUnlocked()) UI.log(`🏘️ A Cidade acordou: estoques e missões dos NPCs foram renovados.`);
     UI.dirty.city = true;
@@ -521,19 +543,26 @@ Object.assign(Game, {
         const g = MARKET_GOODS.find(x => x.id === o.res);
         this.ensureMarket();
         const gold = Math.ceil(this.marketUnitVal(o.res) * o.n * (1 - o.disc));
-        return { o, label: `${g.icon} ${fmt(o.n)} ${g.name} <span class="npc-disc">(−${Math.round(o.disc * 100)}%)</span>`, cost: { gold } };
+        const tag = o.blackmarket ? '🏴 <b>Mercado Negro</b> — ' : '';
+        return { o, label: `${tag}${g.icon} ${fmt(o.n)} ${g.name} <span class="npc-disc">(−${Math.round(o.disc * 100)}%)</span>`, cost: { gold } };
       }
       case 'temper':
         return { o, label: `🔥 <b>Temperar</b>: +10% no poder-base de um item equipado aleatório`, cost: { gold: Math.ceil(eg * 25), ferro: 40 } };
       case 'reroll':
         return { o, label: `🎲 <b>Reforjar</b>: re-rola os afixos de uma carta aleatória da Bolsa`, cost: { gold: Math.ceil(eg * 15), cristal: 1 } };
+      case 'enchant':
+        return { o, label: `🪄 <b>Encantamento Arcano</b>: reforja os afixos do item mais raro da Bolsa com rolagem <b>perfeita</b> (sempre no topo do intervalo)`, cost: { gold: Math.ceil(eg * 40), cristal: 3, conhecimento: 40 } };
       case 'buff':
         return { o, label: `${o.icon} <b>${o.name}</b>: ${o.buff === 'prod' ? 'produção' : o.buff === 'dps' ? 'DPS' : 'clique'} ×${o.mult} por ${fmtTime(o.dur)}`, cost: { gold: Math.ceil(eg * 30 * magoDisc) } };
       case 'potion': {
         const dur = o.dur * this.researchFactor('potion');
         const power = 1 + 0.05 * this.npcLevel('alquimista');
-        const eff = o.buff ? `conhecimento ×${(o.mult * power).toFixed(1)}` : o.drop ? `drop +${Math.round(o.drop * power * 100)}%` : `XP de mascote ×${(o.petxp * power).toFixed(1)}`;
-        return { o, label: `${o.icon} <b>${o.name}</b>: ${eff} por ${fmtTime(dur)}`, cost: Object.assign({}, o.mats) };
+        const buffNames = { know: 'conhecimento', prod: 'produção', dps: 'DPS', click: 'clique' };
+        const effs = [];
+        if (o.buff) effs.push(`${buffNames[o.buff] || o.buff} ×${(o.mult * power).toFixed(1)}`);
+        if (o.drop) effs.push(`drop +${Math.round(o.drop * power * 100)}%`);
+        if (o.petxp) effs.push(`XP de mascote ×${(o.petxp * power).toFixed(1)}`);
+        return { o, label: `${o.icon} <b>${o.name}</b>: ${effs.join(' · ')} por ${fmtTime(dur)}`, cost: Object.assign({}, o.mats) };
       }
       case 'relic': {
         const cost = 3 + S.npcs.relics * 2;
@@ -565,6 +594,7 @@ Object.assign(Game, {
       o._target = equipped[Math.floor(Math.random() * equipped.length)];
     }
     if (o.kind === 'reroll' && !S.forge.inventory.length) { UI.toast('Bolsa vazia!', '#ff6b5e'); return false; }
+    if (o.kind === 'enchant' && !S.forge.inventory.length) { UI.toast('Bolsa vazia!', '#ff6b5e'); return false; }
 
     for (const k in info.cost) {
       if (k === 'gold') S.gold -= info.cost[k];
@@ -575,7 +605,9 @@ Object.assign(Game, {
     switch (o.kind) {
       case 'bundle':
         S.res[o.res] = (S.res[o.res] || 0) + o.n;
-        UI.log(`${def.icon} ${def.name} entregou <b>${fmt(o.n)}</b> ${MARKET_GOODS.find(g => g.id === o.res).name}.`);
+        UI.log(o.blackmarket
+          ? `🏴 O Mercado Negro de ${def.name} entregou <b>${fmt(o.n)}</b> ${MARKET_GOODS.find(g => g.id === o.res).name} — sem perguntas.`
+          : `${def.icon} ${def.name} entregou <b>${fmt(o.n)}</b> ${MARKET_GOODS.find(g => g.id === o.res).name}.`);
         break;
       case 'temper': {
         const t = o._target;
@@ -592,6 +624,14 @@ Object.assign(Game, {
         const tier = FORGE_TIERS[1];   // reforja com as regras da Fornalha
         item.affixes = this.rollAffixes(item.rarity, tier);
         UI.log(`${def.icon} ${def.name} reforjou ${item.icon}: ${item.affixes.map(a => UI.affixLabel(a)).join(' · ') || 'sem afixos'}.`);
+        UI.dirty.heroes = true;
+        break;
+      }
+      case 'enchant': {
+        let best = S.forge.inventory[0];
+        for (const it of S.forge.inventory) if (it.rarity > best.rarity) best = it;
+        best.affixes = this.rollAffixes(best.rarity, FORGE_TIERS[2], best.element, true);   // rolagem perfeita (Encantamento, #9)
+        UI.log(`${def.icon} ${def.name} encantou ${best.icon}: ${best.affixes.map(a => UI.affixLabel(a)).join(' · ') || 'sem afixos'} <i>(rolagem perfeita)</i>.`);
         UI.dirty.heroes = true;
         break;
       }
@@ -663,6 +703,25 @@ Object.assign(Game, {
     return true;
   },
 
+  // Roadmap #10: entrega manual do pedido de recurso do dia — recompensa maior que a missão normal.
+  claimRequest(npcId) {
+    const req = S.npcs.request[npcId];
+    if (!req || req.claimed) return false;
+    if ((S.res[req.res] || 0) < req.need) return false;
+    S.res[req.res] -= req.need;
+    req.claimed = true;
+    const reward = Math.ceil(this.enemyGold(S.combat.maxWave, false) * NPC_REQUESTS[npcId].rewardMult);
+    this.gainGold(reward);
+    this.addRep(npcId, 10);
+    S.npcs.requestsDone = (S.npcs.requestsDone || 0) + 1;
+    const def = NPCS.find(x => x.id === npcId);
+    const g = MARKET_GOODS.find(x => x.id === req.res);
+    UI.log(`${def.icon} <b>${def.name}</b> recebeu <b>${fmt(req.need)}</b> ${g ? g.name : req.res} e pagou <b>+${fmt(reward)}</b> ouro (+10 amizade)!`);
+    Sound.play('golden');
+    UI.dirty.city = true;
+    return true;
+  },
+
   // ---------- Lore (Codex → Descobertas) ----------
 
   checkLore() {
@@ -678,6 +737,32 @@ Object.assign(Game, {
         Sound.play('lore');
       }
     }
+  },
+
+  // Roadmap #11: completude do Códex por categoria (Heróis/Chefes/Equipamentos/Relíquias/
+  // Eventos/NPCs/Lore/Mascotes/Monstros). Cada categoria reaproveita contadores já existentes no
+  // estado — só Chefes/Equipamentos/Eventos/Monstros precisaram de rastros novos (S.codex.*),
+  // marcados no momento em que o conteúdo aparece pela 1ª vez (rollBossMechanic, activeSetBonuses,
+  // fireWorldEvent, spawnEnemy).
+  codexCompletion() {
+    const npcMaxed = NPCS.filter(n => this.npcLevel(n.id) >= 5).length;
+    // filtra pelas definições atuais (não Object.keys cru) — mesmo padrão do found=LORE_ITEMS.filter
+    // em UI.showCodex, imune a chaves obsoletas que sobrem de versões antigas do save.
+    const countDefs = (dict, defs) => defs.filter(d => dict[d.id]).length;
+    const cats = {
+      herois:       { name: 'Heróis',       icon: '🦸', have: Object.keys(S.heroes).length,                    total: HEROES.length },
+      chefes:       { name: 'Chefes',       icon: '💀', have: countDefs(S.codex.bossMechs, BOSS_MECHANICS),    total: BOSS_MECHANICS.length },
+      equip:        { name: 'Equipamentos', icon: '🛡️', have: countDefs(S.codex.gearSets, GEAR_SETS),         total: GEAR_SETS.length },
+      reliquias:    { name: 'Relíquias',    icon: '🏺', have: countDefs(S.relics.owned, RELICS),               total: RELICS.length },
+      eventos:      { name: 'Eventos',      icon: '🎪', have: countDefs(S.codex.events, WORLD_EVENTS),         total: WORLD_EVENTS.length },
+      npcs:         { name: 'NPCs',         icon: '🏘️', have: npcMaxed,                                       total: NPCS.length },
+      lore:         { name: 'Lore',         icon: '📖', have: countDefs(S.codex.lore, LORE_ITEMS),             total: LORE_ITEMS.length },
+      mascotes:     { name: 'Mascotes',     icon: '🐾', have: Object.keys(S.pets.owned).length,                total: PETS.length },
+      monstros:     { name: 'Monstros',     icon: '👹', have: countDefs(S.codex.monsters, MONSTER_CODEX),     total: MONSTER_CODEX.length },
+    };
+    let have = 0, total = 0;
+    for (const k in cats) { have += cats[k].have; total += cats[k].total; }
+    return { cats, have, total, pct: total > 0 ? have / total : 0 };
   },
 
   // ---------- Agregadores usados pelo motor original ----------
@@ -775,7 +860,16 @@ Object.assign(Game, {
 
   _autoBuyT: 0,
 
+  // Roadmap #15: contexto da música ambiente por prioridade boss > prestige > city > combat.
+  musicContext() {
+    if (S.combat.boss) return 'boss';
+    if (UI.activeTab === 'prestige' || UI.activeTab === 'worldtree') return 'prestige';
+    if (UI.activeTab === 'city') return 'city';
+    return 'combat';
+  },
+
   tickExt(dt) {
+    Sound.setMusicContext(this.musicContext());
     this.tickWorld(dt);
     this.advanceResearch(dt);
     this.tickMarket();
@@ -873,6 +967,15 @@ Object.assign(Game, {
     },
 
     // ---- Música ambiente gerativa (pentatônica, sem arquivos) ----
+    // Roadmap #15: contexto (combat/boss/city/prestige) troca escala/timbre/tempo em tempo real,
+    // via auto-agendamento (setTimeout recursivo) — o intervalo de cada nota lê o contexto atual,
+    // então a transição acontece na próxima nota sem precisar parar/reiniciar a música.
+    _musicCtx: 'combat',
+
+    setMusicContext(ctx) {
+      this._musicCtx = MUSIC_CONTEXTS[ctx] ? ctx : 'combat';
+    },
+
     startMusic() {
       this.ensure();
       if (!this.ctx || this._musicTimer) return;
@@ -881,34 +984,39 @@ Object.assign(Game, {
         this.musicGain.gain.setValueAtTime(0.001, this.ctx.currentTime);
         this.musicGain.gain.exponentialRampToValueAtTime(0.5, this.ctx.currentTime + 2);  // fade-in
       }
-      const scale = [220, 261.6, 293.7, 329.6, 392, 440, 523.3, 587.3];
       let step = 0;
-      this._musicTimer = setInterval(() => {
-        if (!S.audio.music || !S.sound || document.hidden) return;
-        const t = this.ctx.currentTime;
-        const note = scale[Math.floor(Math.random() * scale.length)];
-        const osc = this.ctx.createOscillator();
-        const g = this.ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = note * (Math.random() < 0.2 ? 0.5 : 1);
-        g.gain.setValueAtTime(0.055, t);
-        g.gain.exponentialRampToValueAtTime(0.001, t + 1.8);
-        osc.connect(g).connect(this.musicGain);
-        osc.start(t);
-        osc.stop(t + 1.9);
-        if (step % 4 === 0) {   // pad grave ocasional
-          const pad = this.ctx.createOscillator();
-          const pg = this.ctx.createGain();
-          pad.type = 'triangle';
-          pad.frequency.value = 110;
-          pg.gain.setValueAtTime(0.03, t);
-          pg.gain.exponentialRampToValueAtTime(0.001, t + 3.6);
-          pad.connect(pg).connect(this.musicGain);
-          pad.start(t);
-          pad.stop(t + 3.7);
-        }
-        step++;
-      }, 1900);
+      const scheduleNext = () => {
+        const cfg = MUSIC_CONTEXTS[this._musicCtx] || MUSIC_CONTEXTS.combat;
+        this._musicTimer = setTimeout(() => {
+          if (S.audio.music && S.sound && !document.hidden) {
+            const t = this.ctx.currentTime;
+            const note = cfg.scale[Math.floor(Math.random() * cfg.scale.length)];
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = cfg.wave;
+            osc.frequency.value = note * (Math.random() < 0.2 ? 0.5 : 1);
+            g.gain.setValueAtTime(cfg.vol, t);
+            g.gain.exponentialRampToValueAtTime(0.001, t + cfg.decay);
+            osc.connect(g).connect(this.musicGain);
+            osc.start(t);
+            osc.stop(t + cfg.decay + 0.1);
+            if (step % cfg.padEvery === 0) {   // pad grave ocasional
+              const pad = this.ctx.createOscillator();
+              const pg = this.ctx.createGain();
+              pad.type = cfg.padWave;
+              pad.frequency.value = cfg.padFreq;
+              pg.gain.setValueAtTime(cfg.padVol, t);
+              pg.gain.exponentialRampToValueAtTime(0.001, t + cfg.padDecay);
+              pad.connect(pg).connect(this.musicGain);
+              pad.start(t);
+              pad.stop(t + cfg.padDecay + 0.1);
+            }
+            step++;
+          }
+          scheduleNext();
+        }, cfg.interval);
+      };
+      scheduleNext();
     },
 
     stopMusic() {
@@ -917,7 +1025,7 @@ Object.assign(Game, {
         this.musicGain.gain.setValueAtTime(this.musicGain.gain.value || 0.001, this.ctx.currentTime);
         this.musicGain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 1.5);  // fade-out
       }
-      if (this._musicTimer) { clearTimeout(this._musicTimer); clearInterval(this._musicTimer); this._musicTimer = null; }
+      if (this._musicTimer) { clearTimeout(this._musicTimer); this._musicTimer = null; }
     },
   });
 

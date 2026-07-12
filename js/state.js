@@ -82,10 +82,12 @@ function defaultState() {
       offers: {},     // npcId -> [ofertas geradas do dia]
       used: {},       // npcId -> { idx: true } ofertas já usadas hoje
       mission: {},    // npcId -> { type, need, prog, done, claimed }
+      request: {},    // npcId -> { res, need, claimed } — roadmap #10, pedido de recurso do dia
       relics: 0,
       missionsDone: 0,
+      requestsDone: 0,
     },
-    codex: { lore: {} },   // loreId -> true (descobertas)
+    codex: { lore: {}, bossMechs: {}, gearSets: {}, events: {}, monsters: {} },   // roadmap #11: rastros pra completude por categoria
     secrets: {},           // flags de segredos: aldric, dot, highSell, scrapLegend, moonBoss
     audio: { vol: 0.7, music: false },
 
@@ -134,8 +136,12 @@ function loadGame() {
     if (!Array.isArray(S.research.queue)) S.research.queue = [];
     S.market = Object.assign(base.market, data.market || {});
     S.market.stats = Object.assign({ trades: 0, sold: 0, bought: 0 }, (data.market || {}).stats || {});
-    S.npcs = Object.assign(base.npcs, data.npcs || {});
-    S.codex = Object.assign(base.codex, data.codex || {});
+    // (*) usa defaultState() de novo em vez de base.npcs/base.codex: o Object.assign(base, data)
+    // acima já sobrescreveu base.npcs/base.codex com a referência SALVA quando o save já tinha
+    // essas chaves, e mesclar um objeto com ele mesmo não introduz os campos novos (request,
+    // bossMechs, gearSets, events, monsters) — precisa de um default realmente intocado.
+    S.npcs = Object.assign(defaultState().npcs, data.npcs || {});
+    S.codex = Object.assign(defaultState().codex, data.codex || {});
     if (typeof S.codex.lore !== 'object' || !S.codex.lore) S.codex.lore = {};
     S.secrets = Object.assign({}, data.secrets || {});
     S.audio = Object.assign(base.audio, data.audio || {});

@@ -15,7 +15,9 @@ Object.assign(Game, {
   rollBossMechanic(wave) {
     const pool = BOSS_MECHANICS.filter(m => wave >= m.minWave);
     if (!pool.length || Math.random() < 0.35) return null;   // 35% de chance de ser um chefe "comum"
-    return pool[Math.floor(Math.random() * pool.length)].id;
+    const id = pool[Math.floor(Math.random() * pool.length)].id;
+    if (S.codex) S.codex.bossMechs[id] = true;   // Roadmap #11: Códex de Chefes
+    return id;
   },
 
   // multiplicadores de armadura aplicados ao DPS físico/mágico do time contra o chefe ATUAL.

@@ -6,10 +6,12 @@ foi implementado** (ver [CHANGELOG.md](CHANGELOG.md) → *Papéis de Combate*). 
 **15 restantes**, cada um mapeado para a arquitetura real: `js/data.js` (dados), `js/game.js` /
 `js/expansion.js` (motor), `js/ui.js` / `js/ui-ext.js` (UI), `js/state.js` (estado), `style.css`.
 
-> **#6 Relíquias, #7 Chefes Inteligentes, #3 Equipamentos 2.0, #13 Progressão em Camadas
-> (Ascensão), #12 Árvore do Mundo, #2 Sinergia de Composição, #5 Pesquisa 2.0 (ramos exclusivos)
-> e #14 Feedback Visual já foram implementados** (ver [CHANGELOG.md](CHANGELOG.md)). Restam **7**
-> sistemas. Próximos na ordem recomendada: **#15 → #4/#8/#9/#10/#11/#16**.
+> **Todos os 15 sistemas de conteúdo já foram implementados** (ver [CHANGELOG.md](CHANGELOG.md)):
+> #6 Relíquias, #7 Chefes Inteligentes, #3 Equipamentos 2.0, #13 Progressão em Camadas (Ascensão),
+> #12 Árvore do Mundo, #2 Sinergia de Composição, #5 Pesquisa 2.0, #14 Feedback Visual,
+> #9 NPCs como Progressão, #15 Música Dinâmica, #4 Base Estratégica, #8 Mundo Vivo, #10 Mercado
+> (Pedidos de NPC) e #11 Coleções/Códex. **Só resta #16** (Arquitetura Técnica/Modularização),
+> que é contínuo por natureza — não um item de conteúdo a "terminar".
 
 > **Convenções do projeto** (respeitar em toda implementação):
 > - Tudo data-driven: conteúdo novo entra como const em `data.js`, nunca hard-coded no motor.
@@ -257,15 +259,21 @@ const TEAM_SYNERGIES = [
 
 ---
 
-## #15 · Música Dinâmica 🟨 APROFUNDAR
+## #15 · Música Dinâmica ✅ IMPLEMENTADO
 
 **Existe hoje:** música ambiente gerativa com fade + volume-mestre (Áudio 2.0, `Sound`/`Music`). **Falta:** trilha muda por contexto: chefe / prestígio / cidade / combate.
 
 **Motor:** `Music.setContext(ctx)` trocando a progressão/escala gerativa conforme estado (boss ativo, aba aberta, camada de prestígio). Hookar em `spawnEnemy` (boss), troca de aba, `doReset`. **Esforço: M.** Depende de: infra de áudio já existe.
 
+> **Implementado:** `MUSIC_CONTEXTS` (`js/data.js`) com 4 contextos (combat/boss/city/prestige),
+> cada um com escala/timbre/tempo próprios. `Sound.setMusicContext(ctx)` + `Game.musicContext()`
+> (prioridade boss > prestige > city > combat), chamado a cada `tickExt`. `Sound.startMusic()`
+> virou auto-agendamento recursivo (em vez de `setInterval` fixo) pra trocar de tempo em tempo
+> real sem parar a música. Ver [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
-## #4 · Base Estratégica 🟩 POLIR
+## #4 · Base Estratégica ✅ IMPLEMENTADO (polimento)
 
 **Existe hoje:** grade 4×4, arrastar salas (tap-to-swap + drag&drop), 15 `ROOM_SYNERGIES` de vizinhança ortogonal escalando com `min(nível)`. **Isso já É o "puzzle" do doc.** Falta pouco:
 - Mais pares de sinergia temáticos do doc (Laboratório+Biblioteca=+pesquisa já existe como Academia; Banco+Mercado=+ouro existe como Bolsa de Valores).
@@ -273,27 +281,49 @@ const TEAM_SYNERGIES = [
 
 **Esforço: P.** Depende de: nada. Basicamente conteúdo novo em `ROOM_SYNERGIES`.
 
+> **Implementado (escopo ajustado):** 6 pares temáticos novos em `ROOM_SYNERGIES` (Carpintaria de
+> Guerra, Veio de Cristal, Amplificador Arcano, Ferraria de Arena, Coroação Sagrada, Comércio de
+> Saber) — conteúdo puro em dados, motor genérico já suportava. **Não** implementado o efeito de
+> "área" (4 vizinhas de uma vez) — era um "talvez" do próprio doc, e o motor de pares já entrega o
+> puzzle pretendido. Ver [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
-## #8 · Mundo Vivo 🟩 POLIR
+## #8 · Mundo Vivo ✅ IMPLEMENTADO (polimento)
 
 **Existe hoje:** calendário permanente, dia/noite, 4 estações, 5 climas alterando produção/DPS/materiais/drops. **Já cobre o doc.** Faltam só os "sabores" listados:
 - Primavera→poções, Verão→−água, Inverno→**monstros exclusivos**, Eclipse→**boss secreto** (casa com #7), Lua Cheia→**lobisomens** (inimigos temáticos).
 
 **Motor:** hook em `spawnEnemy` pra trocar o *tipo* de inimigo por estação/clima (não só multiplicadores). **Esforço: P-M.** Depende de: sinergia com #7.
 
+> **Implementado (sem arte nova, por design):** `SPECIAL_ENEMIES` (Urso de Gelo no Inverno,
+> Lobisomem na Lua Cheia) — reflavor (nome+ícone+leve HP bônus) sobre o sprite já existente, já que
+> o projeto não tem sprite sheet extra pra monstros exclusivos ainda. Eclipse ganhou chance de
+> **chefe secreto** fora do múltiplo de 10 (`ECLIPSE_SECRET_BOSS_CHANCE`), com banner próprio. Ver
+> [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
-## #9 · NPCs como Progressão 🟩 POLIR
+## #9 · NPCs como Progressão ✅ IMPLEMENTADO
 
-**Existe hoje:** 5 NPCs (Dorian, Bruna, Zephyr, Mira, Silas) com amizade (0–5), perks permanentes, estoque diário, missões diárias. **Já é progressão.** Faltam os desbloqueios "grandes" do doc:
+**Existia:** 5 NPCs (Dorian, Bruna, Zephyr, Mira, Silas) com amizade (0–5), perks permanentes, estoque diário, missões diárias. **Já era progressão.** Faltavam os desbloqueios "grandes" do doc:
 - Ferreiro→**Forja Lendária** (tier 4 da Forja), Mercador→**Mercado Negro**, Mago→**Encantamentos** (reroll de afixos), Colecionador→**Relíquias** (liga com #6), Alquimista→**Poções** melhores.
 
 **Motor:** `npcLevel(id) >= X` desbloqueia mecânica (padrão já usado nos perks). **Esforço: M.** Depende de: #6 (Colecionador↔Relíquias), #3 (Ferreiro↔sets).
 
+> **Implementado:** todos os 5 desbloqueios na amizade nível 5 (máxima). **Forja Lendária**: 4º
+> tier em `FORGE_TIERS` (`unlockAt:{npc:'ferreiro',lvl:5}`), único com `affixMax:3` (Lendário ganha
+> 3 afixos, só ali). **Mercado Negro**: 3ª oferta diária do Mercador, pacote de Cristal a −45%
+> (contra −25% normal). **Encantamento Arcano**: 3ª oferta do Mago, reforja o item mais raro da
+> Bolsa com rolagem *perfeita* (`rollAffixes(..., perfect=true)` usa o topo do intervalo do afixo)
+> — distinto do "Reforjar" aleatório da Ferreira. **Elixir Supremo**: 3ª oferta da Alquimista,
+> combina os 3 efeitos das poções normais (produção + drop + XP de mascote) num único buff.
+> **Colecionador↔Relíquias**: já estava ligado desde #6 (troca com Silas chama `grantRelic()`), só
+> confirmado. Ver [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
-## #10 · Mercado (Oferta/Demanda + Pedidos de NPC) 🟩 POLIR
+## #10 · Mercado (Oferta/Demanda + Pedidos de NPC) ✅ IMPLEMENTADO (polimento)
 
 **Existe hoje:** preços vivos por hora do mundo (demanda sazonal/climática + ruído), sparklines 48h, escassez/promoção, taxas. **Já é economia dinâmica.** Faltam:
 - **Pedidos de NPC** ("Quero 500 Ferro → grande recompensa") — parcialmente existe via missões diárias; ampliar pra pedidos com recompensa escalada.
@@ -301,13 +331,26 @@ const TEAM_SYNERGIES = [
 
 **Esforço: P-M.** Depende de: #9.
 
+> **Implementado:** `NPC_REQUESTS` (`js/data.js`) — cada NPC pede um recurso/quantidade do dia;
+> `Game.claimRequest(npcId)` entrega manualmente (distinto da missão de atividade rastreada) por
+> uma recompensa maior (`rewardMult` 70–90× vs 40× da missão), escalada por `enemyGold(maxWave)`.
+> UI própria na aba Cidade. Eventos afetando preço de forma explícita já existia via `weather` —
+> sem mudança adicional. Ver [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
-## #11 · Coleções / Códex 🟩 POLIR
+## #11 · Coleções / Códex ✅ IMPLEMENTADO (polimento)
 
 **Existe hoje:** Códex com lore por fase + 14 Descobertas ocultas. **Falta:** o Códex de **completude** do doc — categorias Heróis / Chefes / Equipamentos / Relíquias / Eventos / NPCs / Lore / Mascotes / Monstros, com % de completude e **conquista especial a 100%**.
 
 **Dados:** derivar completude do estado existente (heróis contratados, chefes vistos, sets completados, relíquias, etc.). **Motor:** `codexCompletion()` agregando por categoria. **UI:** grade de cards descoberto/oculto por categoria com barra de %. **Esforço: M.** Depende de: #6 (relíquias), #3 (equip), #7 (chefes) pra ter o que catalogar.
+
+> **Implementado:** `Game.codexCompletion()` agrega as 9 categorias do doc, reaproveitando
+> contadores já existentes onde possível (Heróis/Relíquias/Lore/Mascotes/NPCs) e rastros novos e
+> mínimos onde não havia (`S.codex.bossMechs/gearSets/events/monsters`, marcados no momento em que
+> o conteúdo aparece pela 1ª vez). Conquista nova `cx1` a 100%. UI: barras por categoria no modal do
+> Códex (não uma grade de cards separada — reaproveita a estrutura de modal já existente). Ver
+> [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -337,16 +380,18 @@ carregado no `index.html`, seguindo o padrão do `expansion.js`. Modularização
 | 2 | Sinergia de composição | ✅ feito | M | ★★☆ | #1 (feito) |
 | 5 | Pesquisa 2.0 (árvore) | ✅ feito (parcial) | M-G | ★☆☆ | — |
 | 14 | Feedback visual | ✅ feito | M | ★★☆ | #7 (feito) |
-| 15 | Música dinâmica | 🟨 | M | ★☆☆ | — |
-| 4 | Base estratégica | 🟩 | P | ★☆☆ | — |
-| 8 | Mundo vivo | 🟩 | P-M | ★☆☆ | #7 |
-| 9 | NPCs progressão | 🟩 | M | ★★☆ | #6, #3 |
-| 10 | Mercado (pedidos) | 🟩 | P-M | ★☆☆ | #9 |
-| 11 | Coleções/Códex | 🟩 | M | ★☆☆ | #6, #3, #7 |
+| 15 | Música dinâmica | ✅ feito | M | ★☆☆ | — |
+| 4 | Base estratégica | ✅ feito | P | ★☆☆ | — |
+| 8 | Mundo vivo | ✅ feito | P-M | ★☆☆ | #7 (feito) |
+| 9 | NPCs progressão | ✅ feito | M | ★★☆ | #6, #3 (feitos) |
+| 10 | Mercado (pedidos) | ✅ feito | P-M | ★☆☆ | #9 (feito) |
+| 11 | Coleções/Códex | ✅ feito | M | ★☆☆ | #6, #3, #7 (feitos) |
 | 16 | Modularização | 🟨 | contínuo | ★☆☆ | — |
 
 **Caminho crítico do "ciclo interdependente" do doc:** #6 Relíquias → #7 Chefes → #3 Sets →
 #13 Camadas → #12 Árvore do Mundo. **Esses cinco já estão implementados** (ver
 [CHANGELOG.md](CHANGELOG.md)) e fecham o fluxograma (drops → build → chefes → recursos → recomeço)
-que é o coração da proposta. **#2 Sinergia de Composição, #5 Pesquisa 2.0 e #14 Feedback Visual também
-já estão implementados.** Restam: #15 Música dinâmica → #4/#8/#9/#10/#11 (polimento) → #16 (contínuo).
+que é o coração da proposta. **Todos os 15 sistemas de conteúdo do doc de design estão
+implementados** (#1 a #15). **Só resta #16** (modularização), que é uma prática contínua de
+organização de código, não um sistema com um "pronto" definitivo — seguir aplicando conforme
+sistemas novos forem grandes o bastante pra merecer arquivo próprio.

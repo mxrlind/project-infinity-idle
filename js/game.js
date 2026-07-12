@@ -469,16 +469,35 @@ const Game = {
   spawnEnemy() {
     const c = S.combat;
     c.boss = c.wave % 10 === 0 && c.bossCooldown === 0;
+    // Mundo Vivo (#8): Eclipse pode surpreender com um chefe fora do múltiplo de 10
+    c.secretBoss = false;
+    if (!c.boss && c.bossCooldown === 0 && this.worldInfo && this.worldInfo().weather && this.worldInfo().weather.id === 'eclipse'
+        && Math.random() < ECLIPSE_SECRET_BOSS_CHANCE) {
+      c.boss = true;
+      c.secretBoss = true;
+    }
     // Chefes Inteligentes (#7): sorteia (ou não) uma mecânica pra este chefe
     c.bossMech = c.boss ? this.rollBossMechanic(c.wave) : null;
     c.bossShiftPhys = false;
     const mech = this.bossMechDef();
     c.bossShiftT = (mech && mech.shifting) ? mech.shiftEvery : 0;
-    if (mech) UI.showBossBanner(mech);
-    c.maxHp = this.enemyMaxHp(c.wave, c.boss);
+    if (mech || c.secretBoss) UI.showBossBanner(mech, c.secretBoss);
+    // Mundo Vivo (#8): monstro temático por estação/clima (reflavor + leve HP bônus)
+    const w = this.worldInfo ? this.worldInfo() : null;
+    const specialKey = w && ((w.weather && SPECIAL_ENEMIES[w.weather.id] && w.weather.id) || (SPECIAL_ENEMIES[w.season.id] && w.season.id));
+    c.special = (!c.boss && specialKey) ? specialKey : null;
+    c.maxHp = this.enemyMaxHp(c.wave, c.boss) * (c.special ? SPECIAL_ENEMIES[c.special].hpMult : 1);
     c.hp = c.maxHp;
     c.bossT = c.boss ? this.bossTimeLimit() : 0;
     c.fightT = 0;   // reseta a fúria do Berserker a cada novo inimigo
+
+    // Roadmap #11: Códex de Monstros — registra o tipo do inimigo que acabou de aparecer
+    if (S.codex) {
+      if (c.secretBoss) S.codex.monsters.eclipse_secreto = true;
+      else if (c.boss) S.codex.monsters.chefe = true;
+      else if (c.special) S.codex.monsters[SPECIAL_ENEMIES[c.special].id] = true;
+      else S.codex.monsters.grunt = true;
+    }
   },
 
   dropChance() {
@@ -616,8 +635,14 @@ const Game = {
     return { gold, ferro: t.ferro, cristal: t.cristal };
   },
 
+  forgeTierUnlocked(tier) {
+    return !tier.unlockAt || this.npcLevel(tier.unlockAt.npc) >= tier.unlockAt.lvl;
+  },
+
   canForge(tierId) {
     if (S.forge.inventory.length >= FORGE_INVENTORY_CAP) return false;   // bolsa cheia
+    const t = FORGE_TIERS.find(x => x.id === tierId);
+    if (!this.forgeTierUnlocked(t)) return false;
     const c = this.forgeCost(tierId);
     return S.gold >= c.gold && S.res.ferro >= c.ferro && S.res.cristal >= c.cristal;
   },
@@ -630,9 +655,9 @@ const Game = {
     return 0;
   },
 
-  rollAffixes(rarityIdx, tier, elementId) {
-    // quantidade: Raro+ ganham 2 (se o tier permitir), senão 1
-    const want = Math.min(tier.affixMax, rarityIdx >= 2 ? 2 : 1);
+  rollAffixes(rarityIdx, tier, elementId, perfect) {
+    // quantidade: Raro+ ganham 2, Lendário ganha 3 (só a Forja Lendária tem affixMax pra isso), senão 1
+    const want = Math.min(tier.affixMax, rarityIdx >= 4 ? 3 : (rarityIdx >= 2 ? 2 : 1));
     let pool = FORGE_AFFIXES.slice();
     // Equipamentos 2.0 (#3): se o item saiu com elemento, o afixo de DPS vira a versão elemental
     // (mesmo teto de afixos — só muda a cor/flavor, sem inflar o poder)
@@ -644,7 +669,7 @@ const Game = {
     const rarMult = 1 + rarityIdx * 0.55;              // afixo melhor em raridades altas
     for (let i = 0; i < want && pool.length; i++) {
       const pick = pool.splice(Math.floor(Math.random() * pool.length), 1)[0]; // sem tipo repetido
-      const base = pick.min + Math.random() * (pick.max - pick.min);
+      const base = perfect ? pick.max : pick.min + Math.random() * (pick.max - pick.min);   // Encantamento (#9): rolagem sempre no topo
       let val = base * rarMult;
       if (pick.type === 'crit') val = Math.min(FORGE_CRIT_CAP, val);
       out.push({ type: pick.type, val: Math.round(val * 1000) / 1000, element: pick.element || null });
@@ -1030,7 +1055,8 @@ const Game = {
     S.upgrades = {};
     S.heroes = {};
     S.combat = { wave: 1, maxWave: 1, hp: 0, maxHp: 0, boss: false, bossT: 0, bossCooldown: 0, fightT: 0,
-      bossMech: null, bossShiftPhys: false, bossShiftT: 0, kills: S.combat.kills, bossKills: S.combat.bossKills };
+      bossMech: null, bossShiftPhys: false, bossShiftT: 0, special: null, secretBoss: false,
+      kills: S.combat.kills, bossKills: S.combat.bossKills };
     S.rooms = {};
     S.res = { madeira: 0, pedra: 0, ferro: 0, energia: 0, cristal: 0, conhecimento: S.res.conhecimento };
     S.buffs = [];
@@ -1178,6 +1204,7 @@ const Game = {
   fireWorldEvent() {
     const ev = WORLD_EVENTS[Math.floor(Math.random() * WORLD_EVENTS.length)];
     S.eventsSeen++;
+    if (S.codex) S.codex.events[ev.id] = true;   // Roadmap #11: Códex de Eventos
     Sound.play('event');
     switch (ev.type) {
       case 'instant': { // meteorito

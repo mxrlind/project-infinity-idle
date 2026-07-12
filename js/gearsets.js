@@ -46,7 +46,7 @@ Object.assign(Game, {
     for (const setDef of GEAR_SETS) {
       const n = counts[setDef.id] || 0;
       if (n >= 2) apply(setDef.bonus2);
-      if (n >= 4) apply(setDef.bonus4);
+      if (n >= 4) { apply(setDef.bonus4); if (S.codex) S.codex.gearSets[setDef.id] = true; }   // Roadmap #11: Códex de Equipamentos (set completo)
     }
     return out;
   },

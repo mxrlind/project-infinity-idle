@@ -293,6 +293,13 @@ const ROOM_SYNERGIES = [
   { a: 'torre',      b: 'templo',     type: 'dps',       per: 0.05, icon: '🔮', name: 'Convergência Arcana', short: '+DPS dos heróis' },
   { a: 'castelo',    b: 'quartel',    type: 'dps',       per: 0.05, icon: '👑', name: 'Guarda Real',        short: '+DPS dos heróis' },
   { a: 'castelo',    b: 'mercado',    type: 'gold',      per: 0.05, icon: '💎', name: 'Cofres Reais',       short: '+Produção de ouro' },
+  // ---- Roadmap #4: pares temáticos adicionais ----
+  { a: 'serraria',   b: 'oficina',    type: 'equip',     per: 0.04, icon: '🪚', name: 'Carpintaria de Guerra', short: '+Poder de equipamento' },
+  { a: 'mina_r',     b: 'torre',      type: 'dps',       per: 0.04, icon: '💠', name: 'Veio de Cristal',    short: '+DPS dos heróis' },
+  { a: 'gerador',    b: 'torre',      type: 'dps',       per: 0.05, icon: '🌀', name: 'Amplificador Arcano', short: '+DPS dos heróis' },
+  { a: 'arena',      b: 'oficina',    type: 'equip',     per: 0.05, icon: '🏹', name: 'Ferraria de Arena',  short: '+Poder de equipamento' },
+  { a: 'templo',     b: 'castelo',    type: 'material',  per: 0.05, icon: '⛲', name: 'Coroação Sagrada',   short: '+Coleta de recursos' },
+  { a: 'mercado',    b: 'biblioteca', type: 'gold',      per: 0.04, icon: '📊', name: 'Comércio de Saber',  short: '+Produção de ouro' },
 ];
 const SYNERGY_LABELS = { gold: 'ouro', dps: 'DPS', knowledge: 'conhecimento', material: 'recursos', equip: 'equipamento' };
 
@@ -338,9 +345,12 @@ const GEAR_SLOTS = [
 //   ferro/cristal → custo fixo em materiais (materiais também escalam com a onda ao dropar)
 //   affixMax  → teto de afixos que a carta pode receber (raridade decide quantos, até esse teto)
 const FORGE_TIERS = [
-  { id: 'bancada',  name: 'Bancada',        icon: '🔨', goldMult: 8,   ferro: 6,  cristal: 0, weights: [58, 32, 9, 1, 0],   affixMax: 1 },
-  { id: 'fornalha', name: 'Fornalha',       icon: '⚒️', goldMult: 32,  ferro: 20, cristal: 1, weights: [10, 34, 38, 15, 3], affixMax: 2 },
-  { id: 'cadinho',  name: 'Cadinho Arcano', icon: '🌋', goldMult: 120, ferro: 55, cristal: 6, weights: [0, 8, 32, 42, 18],  affixMax: 2 },
+  { id: 'bancada',  name: 'Bancada',        icon: '🔨', goldMult: 8,   ferro: 6,  cristal: 0,  weights: [58, 32, 9, 1, 0],   affixMax: 1 },
+  { id: 'fornalha', name: 'Fornalha',       icon: '⚒️', goldMult: 32,  ferro: 20, cristal: 1,  weights: [10, 34, 38, 15, 3], affixMax: 2 },
+  { id: 'cadinho',  name: 'Cadinho Arcano', icon: '🌋', goldMult: 120, ferro: 55, cristal: 6,  weights: [0, 8, 32, 42, 18],  affixMax: 2 },
+  // NPCs como Progressão (#9): desbloqueada na amizade máxima (nv 5) com a Ferreira (Bruna) —
+  // único tier com affixMax 3, e só ele chega lá (rollAffixes só concede a 3ª peça em raridade Lendária).
+  { id: 'lendaria', name: 'Forja Lendária', icon: '🏆', goldMult: 400, ferro: 150, cristal: 25, weights: [0, 0, 5, 35, 60],  affixMax: 3, unlockAt: { npc: 'ferreiro', lvl: 5 } },
 ];
 
 // Afixos = a camada de "build". Valores são frações (0.10 = +10%). O roll final escala com a raridade.
@@ -582,6 +592,7 @@ const ACHIEVEMENTS = [
   { id: 'wd2', cat: 'Exploração', name: 'Sob a Sombra',       icon: '🌑', desc: 'Testemunhe um eclipse',                 check: (S) => !!(S.world.seenWeathers && S.world.seenWeathers.eclipse), progress: (S) => [S.world.seenWeathers && S.world.seenWeathers.eclipse ? 1 : 0, 1] },
   { id: 'lo1', cat: 'Exploração', name: 'Arqueólogo',         icon: '🏺', desc: 'Descubra 5 fragmentos de lore',         check: (S) => Object.keys(S.codex.lore).length >= 5, progress: (S) => [Object.keys(S.codex.lore).length, 5] },
   { id: 'lo2', cat: 'Exploração', name: 'A História Completa', icon: '📚', desc: 'Descubra todos os fragmentos de lore', check: (S) => Object.keys(S.codex.lore).length >= LORE_ITEMS.length, progress: (S) => [Object.keys(S.codex.lore).length, LORE_ITEMS.length] },
+  { id: 'cx1', cat: 'Exploração', name: 'Colecionador Completo', icon: '🗂️', desc: 'Complete 100% do Códex (Heróis, Chefes, Equipamentos, Relíquias, Eventos, NPCs, Lore, Mascotes, Monstros)', check: (S) => Game.codexCompletion().pct >= 1, progress: (S) => { const c = Game.codexCompletion(); return [c.have, c.total]; } },
   // Novos segredos (nunca dizemos como — desc genérica até desbloquear)
   { id: 's5',  cat: 'Segredos',  name: 'Palavra Mágica',      icon: '🔤', desc: 'Digite o nome de quem sempre esteve com você', secret: true, check: (S) => !!(S.secrets && S.secrets.aldric), progress: (S) => [S.secrets && S.secrets.aldric ? 1 : 0, 1] },
   { id: 's6',  cat: 'Segredos',  name: 'Poeira nos Cantos',   icon: '🕸️', desc: 'Encontre o ponto que ninguém vê',       secret: true, check: (S) => !!(S.secrets && S.secrets.dot), progress: (S) => [S.secrets && S.secrets.dot ? 1 : 0, 1] },
@@ -618,6 +629,44 @@ const WEATHERS = [
   { id: 'luacheia',   name: 'Lua Cheia',  icon: '🌕', weight: 14, hours: [3, 6], desc: '+25% DPS e monstros valem +20% ouro',     mults: { dps: 1.25 }, killGold: 1.2, night: true },
   { id: 'eclipse',    name: 'Eclipse',    icon: '🌑', weight: 3,  hours: [1, 2], desc: 'Conhecimento ×2 e XP de mascote +50%',    mults: { knowledge: 2 }, petXp: 1.5 },
 ];
+
+// ---- Roadmap #8: inimigos temáticos por estação/clima (reflavor + leve mecânica, sem arte nova) ----
+// `hpMult` empilha sobre enemyMaxHp; usa o mesmo sprite (e1-e8/boss.png) — a exclusividade é
+// nome+ícone+HP, não arte nova (o projeto não tem sprite sheet extra pra isso ainda).
+const SPECIAL_ENEMIES = {
+  inverno:  { id: 'urso_gelo',  name: 'Urso de Gelo', icon: '🐻‍❄️', hpMult: 1.15, desc: 'Pelagem grossa do Inverno: +15% HP' },
+  luacheia: { id: 'lobisomem',  name: 'Lobisomem',    icon: '🐺',    hpMult: 1.10, desc: 'Ataca em alcateia sob a Lua Cheia: +10% HP' },
+};
+// Eclipse (clima raríssimo, weight 3): chance por onda de um chefe SURPRESA fora do múltiplo de 10.
+const ECLIPSE_SECRET_BOSS_CHANCE = 0.12;
+
+// ---- Roadmap #11: catálogo de "Monstros" pro Códex (categoria de completude) ----
+const MONSTER_CODEX = [
+  { id: 'grunt',           name: 'Inimigo Comum',            icon: '👹' },
+  { id: 'chefe',           name: 'Chefe de Onda',            icon: '💀' },
+  { id: 'urso_gelo',       name: 'Urso de Gelo',             icon: '🐻‍❄️' },
+  { id: 'lobisomem',       name: 'Lobisomem',                icon: '🐺' },
+  { id: 'eclipse_secreto', name: 'Chefe Secreto do Eclipse', icon: '🌑' },
+];
+
+// ---- Música Dinâmica (roadmap #15) ----
+// Cada contexto troca a escala/timbre/tempo da música ambiente gerativa (Sound.startMusic).
+// `scale` em Hz (pentatônica-like), `interval` = ms entre notas, `decay`/`padDecay` = duração do
+// envelope (s). Prioridade quando mais de um se aplica: boss > prestige > city > combat (padrão).
+const MUSIC_CONTEXTS = {
+  combat:   { scale: [220, 261.6, 293.7, 329.6, 392, 440, 523.3, 587.3], interval: 1900,
+              wave: 'sine', vol: 0.055, decay: 1.8,
+              padWave: 'triangle', padFreq: 110, padVol: 0.03, padDecay: 3.6, padEvery: 4 },
+  boss:     { scale: [196, 233.1, 277.2, 311.1, 349.2, 415.3, 466.2], interval: 1100,
+              wave: 'sawtooth', vol: 0.05, decay: 1.0,
+              padWave: 'sawtooth', padFreq: 98, padVol: 0.045, padDecay: 2.2, padEvery: 2 },
+  city:     { scale: [261.6, 329.6, 392, 440, 523.3, 587.3, 659.3], interval: 2600,
+              wave: 'triangle', vol: 0.05, decay: 2.6,
+              padWave: 'sine', padFreq: 130.8, padVol: 0.025, padDecay: 4.5, padEvery: 3 },
+  prestige: { scale: [220, 277.2, 329.6, 415.3, 440, 554.4], interval: 3400,
+              wave: 'sine', vol: 0.045, decay: 3.8,
+              padWave: 'sine', padFreq: 110, padVol: 0.02, padDecay: 6, padEvery: 2 },
+};
 
 // ---- Mascotes ----
 // bonus: valor POR NÍVEL (multiplicado pelo nível e pelo estágio de evolução).
@@ -737,19 +786,19 @@ const NPCS = [
   { id: 'mercador',     name: 'Dorian', title: 'Mercador',     icon: '🧑‍💼',
     story: 'Vende de tudo, inclusive o que ainda não tem. Cobra adiantado.',
     lines: ['Preço de amigo! Quase.', 'Hoje tem oferta. Amanhã, quem sabe.', 'Confie em mim. Eu confiaria.'],
-    perk: 'Cada nível de amizade: −3% nas taxas do Mercado' },
+    perk: 'Cada nível de amizade: −3% nas taxas do Mercado · nível 5: abre o 🏴 Mercado Negro' },
   { id: 'ferreiro',     name: 'Bruna',  title: 'Ferreira',     icon: '🧑‍🏭',
     story: 'Diz que todo metal tem uma forma escondida. Ela encontra na marreta.',
     lines: ['Isso aqui aguenta mais uma têmpera.', 'Aço bom não reclama.', 'Volta amanhã que eu melhoro.'],
-    perk: 'Cada nível de amizade: +10% de ferro ao desmanchar cartas' },
+    perk: 'Cada nível de amizade: +10% de ferro ao desmanchar cartas · nível 5: abre a 🏆 Forja Lendária' },
   { id: 'mago',         name: 'Zephyr', title: 'Mago',         icon: '🧙',
     story: 'Especialista em encantamentos de curto prazo e desculpas de longo prazo.',
     lines: ['A magia expira. A fatura, não.', 'Um feitiço por dia mantém o tédio à distância.', 'Isso pode ou não explodir.'],
-    perk: 'Cada nível de amizade: feitiços 10% mais baratos' },
+    perk: 'Cada nível de amizade: feitiços 10% mais baratos · nível 5: abre o 🪄 Encantamento Arcano' },
   { id: 'alquimista',   name: 'Mira',   title: 'Alquimista',   icon: '⚗️',
     story: 'Transforma sobras de mineração em milagres engarrafados. Às vezes vinagre.',
     lines: ['Agite antes de usar. Sempre.', 'Isso é chá... provavelmente.', 'Efeitos colaterais? Só os bons.'],
-    perk: 'Cada nível de amizade: poções 5% mais fortes' },
+    perk: 'Cada nível de amizade: poções 5% mais fortes · nível 5: abre o 🌟 Elixir Supremo' },
   { id: 'colecionador', name: 'Silas',  title: 'Colecionador', icon: '🧐',
     story: 'Compra relíquias que ninguém entende e paga com histórias que ninguém confere.',
     lines: ['Isso pertence a um museu. O meu.', 'Toda relíquia tem dono. Eu, geralmente.', 'O passado está em promoção.'],
@@ -762,6 +811,16 @@ const NPC_MISSIONS = {
   mago:         { type: 'research', text: 'Conclua {n} pesquisa(s)',         n: [1, 1] },
   alquimista:   { type: 'feed',     text: 'Alimente mascotes {n} vezes',     n: [3, 6] },
   colecionador: { type: 'boss',     text: 'Derrote {n} chefes',              n: [3, 8] },
+};
+// Roadmap #10: Pedidos de recurso — distinto da missão de atividade acima. O NPC pede uma entrega
+// pontual (não rastreada ao longo do dia); o jogador entrega manualmente quando tiver o estoque,
+// por uma recompensa MAIOR (rewardMult vs os ×40 da missão normal), escalada por enemyGold(maxWave).
+const NPC_REQUESTS = {
+  mercador:     { res: 'madeira', n: [200, 500],  rewardMult: 70 },
+  ferreiro:     { res: 'ferro',   n: [150, 400],  rewardMult: 75 },
+  mago:         { res: 'cristal', n: [5, 12],     rewardMult: 85 },
+  alquimista:   { res: 'pedra',   n: [200, 450],  rewardMult: 70 },
+  colecionador: { res: 'cristal', n: [8, 16],     rewardMult: 90 },
 };
 const NPC_RELICS_FOR_DRAGON = 3;
 

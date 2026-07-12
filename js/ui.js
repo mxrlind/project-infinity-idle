@@ -733,9 +733,11 @@ const UI = {
 
     const tiers = this.el('div', 'forge-tiers');
     for (const t of FORGE_TIERS) {
-      const btn = this.el('button', 'forge-tier');
+      const unlocked = Game.forgeTierUnlocked(t);
+      const btn = this.el('button', 'forge-tier' + (unlocked ? '' : ' locked'));
+      const npcName = t.unlockAt ? NPCS.find(n => n.id === t.unlockAt.npc).name : '';
       btn.innerHTML = `<div class="ft-head">${t.icon} ${t.name}</div>
-        <div class="ft-odds">${this.forgeOddsHtml(t)}</div>
+        <div class="ft-odds">${unlocked ? this.forgeOddsHtml(t) : `🔒 amizade nv ${t.unlockAt.lvl} com ${npcName}`}</div>
         <div class="ft-cost"></div>`;
       btn.onclick = () => { if (Game.forgeItem(t.id)) this.updateDynamic(); };
       tiers.appendChild(btn);
@@ -776,6 +778,8 @@ const UI = {
     if (!this.R.forge) return;
     const full = S.forge.inventory.length >= FORGE_INVENTORY_CAP;
     for (const ref of this.R.forge.tiers) {
+      const t = FORGE_TIERS.find(x => x.id === ref.id);
+      if (!Game.forgeTierUnlocked(t)) { ref.btn.disabled = true; continue; }
       const cost = Game.forgeCost(ref.id);
       const parts = [
         this.forgeCostPart('ouro', S.gold, cost.gold),
@@ -1381,7 +1385,8 @@ const UI = {
     if (this.activeTab === 'heroes' && this.R.combat) {
       const cb = S.combat;
       const rc = this.R.combat;
-      rc.waveEl.innerHTML = `Onda <b>${cb.wave}</b>${cb.boss ? ' — <span class="boss-tag">CHEFE</span>' : ''}${cb.bossCooldown > 0 ? ` <span class="cd-tag">(reagrupando: ${cb.bossCooldown})</span>` : ''}`;
+      const special = cb.special ? SPECIAL_ENEMIES[cb.special] : null;
+      rc.waveEl.innerHTML = `Onda <b>${cb.wave}</b>${special ? ` <span class="special-tag" title="${this.esc(special.desc)}">${special.icon} ${this.esc(special.name)}</span>` : ''}${cb.boss ? ` — <span class="boss-tag">${cb.secretBoss ? 'CHEFE SECRETO' : 'CHEFE'}</span>` : ''}${cb.bossCooldown > 0 ? ` <span class="cd-tag">(reagrupando: ${cb.bossCooldown})</span>` : ''}`;
       const enemyFile = cb.boss ? 'boss' : ['e1', 'e2', 'e3', 'e4', 'e5', 'e6', 'e7', 'e8'][cb.wave % 8];
       const enemyImg = rc.enemy.querySelector('.enemy-img');
       if (enemyImg.dataset.file !== enemyFile) {
@@ -1659,9 +1664,23 @@ const UI = {
       `<button class="cfg-btn codex-entry lore-found" data-lore="${l.id}">${l.icon} <b>${l.title}</b> <span class="codex-kind">${l.kind}</span></button>`).join('');
     const missing = LORE_ITEMS.length - found.length;
 
+    // Roadmap #11: completude por categoria
+    const comp = Game.codexCompletion();
+    const compRows = Object.values(comp.cats).map(c => {
+      const pct = c.total > 0 ? Math.round((c.have / c.total) * 100) : 100;
+      return `<div class="codex-cat-row">
+        <span class="codex-cat-icon">${c.icon}</span>
+        <span class="codex-cat-name">${c.name}</span>
+        <div class="codex-cat-bar"><div class="codex-cat-fill" style="width:${pct}%"></div></div>
+        <span class="codex-cat-n">${c.have}/${c.total}</span>
+      </div>`;
+    }).join('');
+
     const box = this.showModal(`<h3>📖 Códex de ${ADVISOR.name}</h3>
       <div class="modal-text">Releia as histórias já vividas nesta jornada.</div>
       <div class="codex-list">${rows}</div>
+      <h3 class="codex-sec">🗂️ Completude <span class="bag-count">${Math.round(comp.pct * 100)}%</span></h3>
+      <div class="codex-cats">${compRows}</div>
       <h3 class="codex-sec">🏺 Descobertas <span class="bag-count">${found.length}/${LORE_ITEMS.length}</span></h3>
       <div class="codex-list">${loreRows || '<div class="modal-text"><i>Nada descoberto ainda. O mundo guarda segredos para quem explora...</i></div>'}</div>
       ${missing > 0 && found.length > 0 ? `<div class="modal-text codex-missing"><i>${missing} fragmento(s) ainda perdidos por aí.</i></div>` : ''}`, true);

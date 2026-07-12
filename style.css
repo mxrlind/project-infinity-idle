@@ -404,6 +404,7 @@ body {
 .combat-wave { font-family: var(--font-display); font-size: 20px; margin-bottom: 8px; }
 .boss-tag { color: var(--ember); animation: bossPulse 0.8s ease-in-out infinite; }
 .cd-tag { color: var(--text-dim); font-size: 14px; }
+.special-tag { color: var(--arcane); font-size: 14px; }
 @keyframes bossPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .enemy-box {
   width: 64px; height: 64px;
@@ -1217,6 +1218,8 @@ body {
 .forge-tier.afford { opacity: 1; cursor: pointer; border-color: var(--gold); box-shadow: 0 0 12px rgba(232,163,61,0.12); }
 .forge-tier.afford:hover { transform: translateY(-2px); border-color: var(--gold-hi); }
 .forge-tier:disabled { cursor: not-allowed; }
+.forge-tier.locked { opacity: 0.55; border-style: dashed; }
+.forge-tier.locked .ft-odds { color: var(--text-dim); }
 .ft-head { font-size: 15px; color: var(--text); font-weight: 700; }
 .forge-tier.afford .ft-head { color: var(--gold-hi); }
 .ft-odds { font-family: var(--font-num); font-size: 11px; margin: 5px 0; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -1319,6 +1322,13 @@ body {
 .codex-sec { margin: 14px 0 4px; font-family: var(--font-display); color: var(--gold); font-size: 17px; }
 .codex-kind { color: var(--text-dim); font-size: 11px; margin-left: auto; }
 .codex-missing { opacity: .7; margin-top: 6px; }
+.codex-cats { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.codex-cat-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.codex-cat-icon { width: 18px; text-align: center; }
+.codex-cat-name { width: 92px; flex-shrink: 0; color: var(--text-dim); }
+.codex-cat-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+.codex-cat-fill { height: 100%; background: var(--arcane); border-radius: 4px; transition: width .3s ease; }
+.codex-cat-n { font-family: var(--font-num); color: var(--text-dim); font-size: 11px; width: 44px; text-align: right; flex-shrink: 0; }
 .lore-found { display: flex; align-items: center; gap: 6px; }
 
 /* ---- Mascotes ---- */
@@ -1414,7 +1424,7 @@ body {
 .npc-friend-bar { height: 5px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; margin-top: 3px; }
 .npc-friend-fill { height: 100%; background: var(--gold); border-radius: 3px; }
 .npc-perk { font-size: 11.5px; color: var(--gold); opacity: .85; }
-.npc-mission { font-size: 12.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.npc-mission, .npc-request { font-size: 12.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .npc-prog { font-family: var(--font-num); color: var(--text-dim); font-size: 11px; }
 .npc-claim { padding: 4px 10px; }
 .npc-offers { display: flex; flex-direction: column; gap: 6px; }
