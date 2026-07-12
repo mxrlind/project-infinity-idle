@@ -69,34 +69,34 @@ const UPGRADES = [
 
 // ---- Heróis (NPCs com personalidade) ----
 const HEROES = [
-  { id: 'bran', name: 'Bran', title: 'Escudeiro Teimoso', icon: '🛡️', baseCost: 200, baseDps: 4, class: 'tank', archetype: 'paladino',
+  { id: 'bran', name: 'Bran', title: 'Escudeiro Teimoso', icon: '🛡️', baseCost: 200, baseDps: 4, class: 'tank', archetype: 'paladino', role: 'tank',
     story: 'Ex-fazendeiro que decidiu que porcos não revidam, mas monstros sim.',
     lines: ['Meu escudo já foi uma porta de celeiro. Ainda range.', 'Se eu cair, me levantem. De novo.', 'Um dia serei cavaleiro. Hoje, aparo pancadas.'] },
-  { id: 'lyra', name: 'Lyra', title: 'Arqueira do Crepúsculo', icon: '🏹', baseCost: 4e3, baseDps: 22, class: 'dps', archetype: 'arqueiro',
+  { id: 'lyra', name: 'Lyra', title: 'Arqueira do Crepúsculo', icon: '🏹', baseCost: 4e3, baseDps: 22, class: 'dps', archetype: 'arqueiro', role: 'duelista',
     story: 'Nunca errou um alvo. Uma vez errou de propósito e ainda se arrepende.',
     lines: ['Vejo o ponto fraco daqui.', 'Uma flecha, uma história encerrada.', 'O vento me deve favores.'] },
-  { id: 'magnus', name: 'Magnus', title: 'Mago Distraído', icon: '🔮', baseCost: 90e3, baseDps: 160, class: 'support', archetype: 'mago',
+  { id: 'magnus', name: 'Magnus', title: 'Mago Distraído', icon: '🔮', baseCost: 90e3, baseDps: 160, class: 'support', archetype: 'mago', role: 'mago',
     story: 'Esqueceu mais feitiços do que a maioria dos magos aprendeu. Alguns explodem sozinhos.',
     lines: ['Hmm? Ah sim, a bola de fogo. Onde deixei mesmo...', 'A magia é 90% memória. Estou perdido.', 'Isso vai fazer BUM. Provavelmente.'] },
-  { id: 'thora', name: 'Thora', title: 'Berserker Sorridente', icon: '🪓', baseCost: 2.2e6, baseDps: 1.3e3, class: 'dps', archetype: 'duelista',
+  { id: 'thora', name: 'Thora', title: 'Berserker Sorridente', icon: '🪓', baseCost: 2.2e6, baseDps: 1.3e3, class: 'dps', archetype: 'duelista', role: 'berserker',
     story: 'Sorri durante a batalha. Os inimigos acham isso profundamente perturbador.',
     lines: ['HAHA! Mais! MAIS!', 'Meu machado tem nome: Segunda-feira.', 'Dor é só fraqueza fazendo cócegas.'] },
-  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 60e6, baseDps: 11e3, class: 'dps', archetype: 'assassino',
+  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 60e6, baseDps: 11e3, class: 'dps', archetype: 'assassino', role: 'assassino',
     story: 'Chega sempre três segundos antes do necessário. Ninguém sabe como.',
     lines: ['Você não me viu. Ninguém nunca vê.', 'Contratos são sagrados. Alvos, nem tanto.', '...', ], },
-  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 1.8e9, baseDps: 95e3, class: 'support', archetype: 'paladino',
+  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 1.8e9, baseDps: 95e3, class: 'support', archetype: 'paladino', role: 'bardo',
     story: 'Sua luz cega aliados desavisados. Ela pede desculpas. Sempre.',
     lines: ['A luz cobra caro, mas paga em dobro.', 'Perdão pela claridade. De novo.', 'Nenhuma sombra resiste para sempre.'] },
-  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank', archetype: 'necromante',
+  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank', archetype: 'necromante', role: 'necromante',
     story: 'Saiu da aposentadoria porque o plano de previdência do Além faliu.',
     lines: ['Os mortos trabalham de graça. Aprendam.', 'Aposentadoria era tediosa demais.', 'Todo fim é só um contrato renovável.'] },
-  { id: 'io', name: 'Io', title: 'Golem de Areia Antiga', icon: '🗿', baseCost: 3.2e12, baseDps: 1.4e7, reqPrestige: 2, class: 'tank', archetype: 'paladino',
+  { id: 'io', name: 'Io', title: 'Golem de Areia Antiga', icon: '🗿', baseCost: 3.2e12, baseDps: 1.4e7, reqPrestige: 2, class: 'tank', archetype: 'paladino', role: 'tank',
     story: 'Construído para guardar um templo que ninguém mais lembra onde fica. Ainda guarda.',
     lines: ['Areia não esquece. Eu também não.', 'Mil anos de pé. Nem uma rachadura.', 'Templo? Que templo?'] },
-  { id: 'kael', name: 'Kael', title: 'Duelista Relâmpago', icon: '⚡', baseCost: 1.1e14, baseDps: 1.8e8, reqPrestige: 2, class: 'dps', archetype: 'duelista',
+  { id: 'kael', name: 'Kael', title: 'Duelista Relâmpago', icon: '⚡', baseCost: 1.1e14, baseDps: 1.8e8, reqPrestige: 2, class: 'dps', archetype: 'duelista', role: 'duelista',
     story: 'Vence duelos antes do oponente perceber que começaram.',
     lines: ['Já acabou. Você só não viu.', 'Rápido demais pra ter medo.', 'Relâmpago não erra duas vezes.'] },
-  { id: 'orin', name: 'Orin', title: 'Bardo do Fim dos Tempos', icon: '🕊️', baseCost: 3.8e15, baseDps: 2.3e9, reqPrestige: 3, class: 'support', archetype: 'mago',
+  { id: 'orin', name: 'Orin', title: 'Bardo do Fim dos Tempos', icon: '🕊️', baseCost: 3.8e15, baseDps: 2.3e9, reqPrestige: 3, class: 'support', archetype: 'mago', role: 'bardo',
     story: 'Canta a mesma canção desde antes do primeiro prestígio. Ainda não chegou ao refrão.',
     lines: ['Essa música ainda não acabou. Nem vai.', 'Toda batalha precisa de trilha sonora.', 'Já vi isso terminar. E recomeçar.'] },
 ];
@@ -155,6 +155,51 @@ const ARCHETYPES = {
   necromante: { name: 'Necromante', icon: '💀', weapon: 'grimorio',
     spec: { dps: 0.65, mat: 0.10, team: 0.05 }, special: 'summon',
     perks: ['Invocações mais fortes (+DPS)', 'Mais dano mágico', 'Colhe os caídos (+materiais)'] },
+};
+
+// ---- Papéis de combate (ROLE) ----
+// Camada ORTOGONAL à classe/arquétipo: define a FUNÇÃO real de cada herói no combate.
+// A classe (tank/dps/support) ainda alimenta o medidor de Sinergia; o arquétipo ainda decide a
+// arma ideal. O role decide COMO o herói contribui no motor (ver Game.roleDpsMult / teamRoleEffects).
+//   combat.selfDps → modificador do DPS PRÓPRIO do herói (pode ser negativo: tanques/bardos batem pouco)
+//   combat.teamDps → aura: +% de DPS de TODO o time (somado entre heróis em campo)
+//   combat.crit    → +chance de crítico do time (compartilha o teto FORGE_CRIT_CAP; vale no clique E no DPS idle)
+//   combat.gold    → +ouro por abate      combat.research → +velocidade de pesquisa
+//   combat.bossTime→ +segundos no tempo-limite de chefes (por herói)
+//   combat.execute → executa inimigos comuns abaixo desta fração de vida
+//   combat.aoe     → +DPS próprio em ondas comuns (dano em área; some contra chefe)
+//   combat.armorPen→ o DPS deste herói ignora a armadura de chefes (semente para Chefes Inteligentes)
+//   combat.summon  → invoca mortos: DPS EXTRA separado = DPS próprio × summon × (exército cresce c/ abates)
+//   combat.rage    → +DPS próprio por segundo de luta (reseta ao abater); combat.rageMax = teto em segundos
+const HERO_ROLES = {
+  tank:       { name: 'Tanque',     icon: '🛡️', color: '#4fa8d8',
+    tagline: 'Muralha: segura os chefes e concentra o fogo do time.',
+    combat: { selfDps: -0.35, teamDps: 0.08, bossTime: 6 },
+    perks: ['Provocação: +8% de DPS de todo o time', 'Segura os chefes: +6s no tempo-limite', 'Dano próprio baixo — é um protetor, não um atacante'] },
+  duelista:   { name: 'Duelista',   icon: '⚔️', color: '#ff6b5e',
+    tagline: 'Alvo único: dano cirúrgico, crítico e velocidade.',
+    combat: { selfDps: 0.60, crit: 0.06 },
+    perks: ['+60% de DPS próprio', '+6% de chance de crítico para o time', 'Domina o duelo de alvo único'] },
+  mago:       { name: 'Mago',       icon: '🔮', color: '#b06fd8',
+    tagline: 'Dano mágico: ignora armadura e atinge em área.',
+    combat: { selfDps: 0.45, aoe: 0.30, armorPen: true },
+    perks: ['+45% de DPS mágico próprio', '+30% de dano em ondas comuns (área)', 'Ignora a armadura de chefes blindados'] },
+  assassino:  { name: 'Assassino',  icon: '🗡️', color: '#c7c7d6',
+    tagline: 'Frágil e explosivo: crítico altíssimo e execução.',
+    combat: { selfDps: 0.35, crit: 0.12, execute: 0.12 },
+    perks: ['+35% de DPS próprio', '+12% de chance de crítico para o time', 'Executa inimigos comuns abaixo de 12% de vida'] },
+  necromante: { name: 'Necromante', icon: '💀', color: '#5fbf6b',
+    tagline: 'Invoca mortos: um exército que dá DPS separado.',
+    combat: { selfDps: 0.20, summon: 0.50 },
+    perks: ['+20% de DPS próprio', 'Invoca mortos: DPS EXTRA separado do time', 'O exército fica mais forte a cada abate'] },
+  bardo:      { name: 'Bardo',      icon: '🎵', color: '#e8a33d',
+    tagline: 'Maestro: pouco dano, mas fortalece todo o grupo.',
+    combat: { selfDps: -0.50, teamDps: 0.14, gold: 0.10, research: 0.15 },
+    perks: ['+14% de DPS de TODO o time', '+10% de ouro por abate', '+15% de velocidade de pesquisa'] },
+  berserker:  { name: 'Berserker',  icon: '🪓', color: '#d84f4f',
+    tagline: 'Fúria crescente: quanto mais longa a luta, mais forte.',
+    combat: { selfDps: 0.20, rage: 0.05, rageMax: 24 },
+    perks: ['Acumula fúria a cada segundo de luta (+5%/s)', 'No auge: +120% de DPS próprio', 'Devastador contra chefes (lutas longas)'] },
 };
 
 // ---- Sinergia de time (medidor 0–100%) ----
@@ -279,6 +324,146 @@ const FORGE_CRIT_MULT = 3;      // dano do clique crítico
 const FORGE_CRIT_CAP = 0.75;    // teto de chance de crítico (anti power-creep)
 const FORGE_SCRAP_FERRO = 0.4;  // fração do ferro devolvida ao desmanchar
 const FORGE_INVENTORY_CAP = 24; // teto de cartas na Bolsa (evita acúmulo infinito)
+
+// ---- Conjuntos de Equipamento + Elementos (Equipamentos 2.0) ----
+// Um item pode pertencer a um SET (2 peças equipadas entre os heróis do time = bônus, 4 peças = especial)
+// e/ou carregar um ELEMENTO (afixo elemental, roda junto com os afixos normais em FORGE_AFFIXES).
+// Chefes com mecânica (BOSS_MECHANICS) dropam preferencialmente peças do seu set temático.
+const GEAR_SETS = [
+  { id: 'dragao',  name: 'Conjunto Dragão',  icon: '🐉', bonus2: { dps: 0.20 },  bonus4: { special: 'burn',      dps: 0.15 }, desc4: 'Ataques causam queimadura (dano contínuo extra)' },
+  { id: 'sombrio', name: 'Conjunto Sombrio', icon: '🌑', bonus2: { crit: 0.08 }, bonus4: { special: 'lifesteal', crit: 0.06 }, desc4: 'Roubo de vida: abates curam levemente o combate' },
+  { id: 'golem',   name: 'Conjunto Golem',   icon: '🗿', bonus2: { team: 0.10 }, bonus4: { special: 'armorpen',  team: 0.08 }, desc4: 'DPS do time ignora armadura de chefes blindados' },
+];
+const ELEMENTS = [
+  { id: 'fogo',    name: 'Fogo',    icon: '🔥', color: '#ff6b5e' },
+  { id: 'gelo',    name: 'Gelo',    icon: '❄️', color: '#4fa8d8' },
+  { id: 'raio',    name: 'Raio',    icon: '⚡', color: '#e8d83d' },
+  { id: 'sagrado', name: 'Sagrado', icon: '✨', color: '#ffd700' },
+  { id: 'sombra',  name: 'Sombra',  icon: '🌑', color: '#8f6fd8' },
+];
+// afixos elementais: mesma forma dos FORGE_AFFIXES (scope 'hero'), mas guardam `element` pra colorir o chip
+const FORGE_ELEMENT_AFFIXES = [
+  { type: 'dps', element: 'fogo',    name: 'Flamejante', icon: '🔥', scope: 'hero', min: 0.05, max: 0.12, tip: 'DPS deste herói (Fogo)' },
+  { type: 'dps', element: 'gelo',    name: 'Glacial',    icon: '❄️', scope: 'hero', min: 0.05, max: 0.12, tip: 'DPS deste herói (Gelo)' },
+  { type: 'dps', element: 'raio',    name: 'Fulminante', icon: '⚡', scope: 'hero', min: 0.05, max: 0.12, tip: 'DPS deste herói (Raio)' },
+  { type: 'dps', element: 'sagrado', name: 'Radiante',   icon: '✨', scope: 'hero', min: 0.05, max: 0.12, tip: 'DPS deste herói (Sagrado)' },
+  { type: 'dps', element: 'sombra',  name: 'Umbrio',     icon: '🌑', scope: 'hero', min: 0.05, max: 0.12, tip: 'DPS deste herói (Sombra)' },
+];
+const GEAR_SET_DROP_CHANCE = 0.35; // ao dropar/forjar um item, chance de vir de um set (senão item "solto")
+const GEAR_ELEMENT_CHANCE = 0.30;  // chance independente de o item também receber um afixo elemental
+
+// ---- Mecânicas de Chefe (Chefes Inteligentes) ----
+// Cada chefe (a cada onda múltipla de 10) sorteia uma mecânica dentre as elegíveis pra faixa da onda.
+// `req.role` → penaliza o DPS do time se nenhum herói com esse papel estiver em campo.
+// `armor` → reduz o DPS FÍSICO (heróis sem armorPen) contra este chefe; heróis com armorPen (Mago) ignoram.
+// `shifting` → alterna resistência física/mágica a cada N segundos (rei_demonio).
+const BOSS_MECHANICS = [
+  { id: 'dragao',      name: 'Dragão Alado',   icon: '🐉', minWave: 10,
+    desc: 'Voa alto — só Duelistas (alvo único ágil) o alcançam bem.',
+    req: { role: 'duelista' }, penalty: 0.15, dropSet: 'dragao' },
+  { id: 'golem',       name: 'Golem de Pedra', icon: '🗿', minWave: 20,
+    desc: 'Blindado: só dano MÁGICO fere de verdade.',
+    armor: 0.85, dropSet: 'golem' },
+  { id: 'necro',       name: 'Necromante',     icon: '💀', minWave: 40,
+    desc: 'Invoca esqueletos que roubam o tempo de chefe (drena 50% mais rápido).',
+    summonEnemies: true, drainMult: 1.5 },
+  { id: 'rei_demonio', name: 'Rei Demônio',    icon: '😈', minWave: 60,
+    desc: 'Troca de resistência (física ↔ mágica) a cada 8s.',
+    shifting: true, shiftEvery: 8, dropSet: 'sombrio' },
+];
+const BOSS_MECH_SHIFT_ARMOR = 0.6; // armadura aplicada durante a fase "física" do Rei Demônio
+
+// ---- Relíquias (itens rarísssimos, no máx. RELIC_SLOTS equipadas, mudam a gameplay com trade-offs) ----
+// effects: chaves consumidas por Game.relicEffect(key) — produto entre as relíquias equipadas (default 1).
+//   gold/dps/killGold/essence/material → multiplicadores nos hooks ext*Mult já existentes
+//   heroCost/genCost/roomCost/research  → idem (custos e velocidade de pesquisa)
+//   drop  → bônus ADITIVO de chance de drop (mesma unidade de dropChance(), soma a extDropBonus)
+//   bossHp → multiplicador de HP de chefe (hook novo extBossHpMult, único fora do padrão ext* existente)
+//   eventFreq → multiplicador da frequência de eventos mundiais/moedas douradas (>1 = mais raro, é um DIVISOR de frequência)
+const RELIC_SLOTS = 3;
+const RELICS = [
+  { id: 'ampulheta',    name: 'Ampulheta Rachada',  icon: '⏳', rarity: 4,
+    desc: '+40% velocidade de pesquisa · eventos 30% mais raros',
+    effects: { research: 1.40, eventFreq: 0.70 } },
+  { id: 'olho_dragao',  name: 'Olho do Dragão',     icon: '🐲', rarity: 5,
+    desc: 'Chefes têm +400% HP, mas a chance de drop dobra',
+    effects: { bossHp: 5.0, drop: 0.35 } },
+  { id: 'coroa_quebrada', name: 'Coroa Quebrada',   icon: '👑', rarity: 5,
+    desc: '+80% produção de ouro · heróis custam +100% para contratar/subir nível',
+    effects: { gold: 1.80, heroCost: 2.0 } },
+  { id: 'martelo_titan', name: 'Martelo do Titã',   icon: '🔨', rarity: 4,
+    desc: '+60% DPS do time · geradores custam +50%',
+    effects: { dps: 1.60, genCost: 1.50 } },
+  { id: 'anel_avareza', name: 'Anel da Avareza',    icon: '💍', rarity: 3,
+    desc: '+35% chance de drop de equipamento · ouro por abate −20%',
+    effects: { drop: 0.35, killGold: 0.80 } },
+  { id: 'lente_colecionador', name: 'Lente do Colecionador', icon: '🔍', rarity: 3,
+    desc: '+30% coleta de materiais · produção de ouro −15%',
+    effects: { material: 1.30, gold: 0.85 } },
+  { id: 'grimorio_proibido', name: 'Grimório Proibido', icon: '📕', rarity: 4,
+    desc: '+50% ganho de Essência · produção de ouro −25%',
+    effects: { essence: 1.50, gold: 0.75 } },
+  { id: 'bussola_perdida', name: 'Bússola Perdida', icon: '🧭', rarity: 3,
+    desc: 'Salas da Base custam −20% · DPS do time −15%',
+    effects: { roomCost: 0.80, dps: 0.85 } },
+  { id: 'colar_vazio', name: 'Colar do Vazio',      icon: '🖤', rarity: 5,
+    desc: '+150% ouro por abate · chefes têm +200% HP',
+    effects: { killGold: 2.50, bossHp: 3.0 } },
+  { id: 'pena_anjo', name: 'Pena de Anjo',          icon: '🪶', rarity: 4,
+    desc: 'Eventos mundiais e moedas douradas o dobro da frequência · produção de ouro −10%',
+    effects: { eventFreq: 2.0, gold: 0.90 } },
+  { id: 'corrente_partida', name: 'Corrente Partida', icon: '⛓️', rarity: 3,
+    desc: 'Heróis custam −30% para contratar/subir nível · DPS do time −10%',
+    effects: { heroCost: 0.70, dps: 0.90 } },
+  { id: 'cinzas_fenix', name: 'Cinzas de Fênix',    icon: '🔥', rarity: 5,
+    desc: '+60% ganho de Essência · geradores custam +80%',
+    effects: { essence: 1.60, genCost: 1.80 } },
+  { id: 'selo_rachado', name: 'Selo Rachado',       icon: '🩸', rarity: 4,
+    desc: '+45% DPS do time · pesquisa 25% mais lenta',
+    effects: { dps: 1.45, research: 0.75 } },
+  { id: 'moeda_destino', name: 'Moeda do Destino',  icon: '🪙', rarity: 3,
+    desc: '+35% produção de ouro e ouro por abate · chance de drop −20%',
+    effects: { gold: 1.35, killGold: 1.35, drop: -0.15 } },
+];
+
+// ---- Progressão em Camadas (roadmap #13) — Ascensão acima do Prestígio ----
+// Run → Prestígio (existente) → Ascensão (aqui). Cada camada superior reseta a de baixo em troca
+// de uma moeda mais rara e permanente. Config centralizada aqui; motor em js/layers.js.
+const ASCENSION_ESSENCE_REQ = 50;    // essência mínima acumulada pra ganhar >=1 ponto de ascensão
+const ASCENSION_PRESTIGE_REQ = 10;   // prestígios necessários (na camada atual) pra liberar o botão
+const ASCENSION_BONUS_PER_POINT = 0.05; // +5% produção/DPS/essência por ⬟, permanente — nunca reseta
+const LAYERS = [
+  { id: 'prestige', name: 'Prestígio', icon: '🌅', currency: 'essence', currencyIcon: '✦' },
+  { id: 'ascension', name: 'Ascensão', icon: '🌌', currency: 'ascPoints', currencyIcon: '⬟',
+    unlockAt: { prestiges: ASCENSION_PRESTIGE_REQ } },
+];
+
+// ---- Árvore do Mundo (roadmap #12) — sumidouro de longuíssimo prazo ----
+// Consome essência (#13) + conhecimento — ambos persistem entre prestígios/ascensões — e madeira/cristal
+// da run atual. Nível é permanente (nunca reseta, nem no prestígio nem na ascensão) e dá um bônus pequeno
+// e permanente por nível; cruzar um estágio concede Pontos de Ascensão de presente, fechando o ciclo com
+// #13 (drops → build → chefes → recursos → recomeço). Custos são uma aproximação inicial, ajustável por
+// playtesting — mesmo espírito de "implementação parcial, por design" do #13. Motor em js/worldtree.js.
+const WORLD_TREE = {
+  maxLevel: 1000,
+  bonusPerLevel: 0.01,   // +1% produção/DPS/essência por nível, cumulativo
+  costAt(lvl) {
+    return {
+      essence:      Math.floor(1   * Math.pow(1.15, lvl)),
+      conhecimento: Math.floor(20  * Math.pow(1.20, lvl)),
+      madeira:      Math.floor(300 * Math.pow(1.28, lvl)),
+      cristal:      Math.floor(25  * Math.pow(1.32, lvl)),
+    };
+  },
+  stages: [
+    { at: 0,    name: 'Broto',            icon: '🌱' },
+    { at: 10,   name: 'Muda',             icon: '🌿' },
+    { at: 50,   name: 'Árvore Jovem',     icon: '🌳' },
+    { at: 150,  name: 'Árvore Ancestral', icon: '🌲' },
+    { at: 400,  name: 'Árvore Gigante',   icon: '🌴' },
+    { at: 1000, name: 'Árvore Cósmica',   icon: '🌌' },
+  ],
+};
 
 // ---- Eventos mundiais (Fase 6) ----
 const WORLD_EVENTS = [

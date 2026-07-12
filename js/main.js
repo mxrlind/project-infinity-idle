@@ -47,6 +47,7 @@
       slowTimer = 0;
       // abas com números que mudam com o tempo precisam de re-render ocasional
       if (UI.activeTab === 'prestige') { UI.dirty.prestige = true; UI.renderActive(); }
+      if (UI.activeTab === 'worldtree') { UI.dirty.worldtree = true; UI.renderActive(); }
       if (UI.activeTab === 'ach' && UI.dirty.ach) { UI.renderActive(); }
     }
 

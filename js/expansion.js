@@ -265,7 +265,7 @@ Object.assign(Game, {
     return true;
   },
 
-  researchSpeed() { return 1 + this.petBonus('research'); },
+  researchSpeed() { return (1 + this.petBonus('research') + this.teamRoleEffects().research) * this.relicEffect('research'); },   // Bardo em campo + Relíquia (Ampulheta/Selo)
 
   completeResearch(id) {
     const def = this.researchDef(id);
@@ -277,6 +277,8 @@ Object.assign(Game, {
     if (def.unlock === 'coruja') this.grantPet('coruja');
     if (def.unlock === 'market' || def.unlock === 'npcs') UI.dirty.tabs = true;
     if (def.unlock === 'slot5') UI.dirty.heroes = true;
+    // Relíquias (#6): concluir a árvore de pesquisa até o fim (Portais Estelares) rende uma relíquia
+    if (id === 'portais') this.grantRelic();
     UI.dirty.research = true;
   },
 
@@ -608,6 +610,7 @@ Object.assign(Game, {
         this.addRep(npcId, 15);
         UI.log(`${def.icon} Relíquia trocada! <b>+${fmt(know)}</b> 📘 conhecimento. ${def.name}: <i>"${def.lines[Math.floor(Math.random() * def.lines.length)]}"</i>`);
         if (S.npcs.relics >= NPC_RELICS_FOR_DRAGON) this.checkPetGrants();
+        this.grantRelic();   // Relíquias (#6): o Colecionador também entrega uma relíquia de verdade
         break;
       }
     }
@@ -669,24 +672,26 @@ Object.assign(Game, {
 
   // ---------- Agregadores usados pelo motor original ----------
 
-  extGoldMult()     { return this.worldMults().gold * (1 + this.petBonus('gold')) * this.researchMult('gold'); },
-  extDpsMult()      { return this.worldMults().dps * (1 + this.petBonus('dps')) * this.researchMult('dps'); },
+  extGoldMult()     { return this.worldMults().gold * (1 + this.petBonus('gold')) * this.researchMult('gold') * this.relicEffect('gold') * this.ascMult() * this.worldTreeMult(); },
+  extDpsMult()      { return this.worldMults().dps * (1 + this.petBonus('dps')) * this.researchMult('dps') * this.relicEffect('dps') * this.ascMult() * this.worldTreeMult(); },
   extKnowMult()     { return this.worldMults().knowledge * (1 + this.petBonus('knowledge')) * this.buffMult('know'); },
-  extMaterialMult() { return this.worldMults().material; },
+  extMaterialMult() { return this.worldMults().material * this.relicEffect('material'); },
   extCritBonus()    { return this.petBonus('crit'); },
-  extEssenceMult()  { return this.researchFactor('essence') * (1 + this.petBonus('essence')); },
-  extGenCostMult()  { return this.researchFactor('genCost'); },
-  extHeroCostMult() { return this.researchFactor('heroCost'); },
-  extRoomCostMult() { return this.researchFactor('roomCost'); },
+  extEssenceMult()  { return this.researchFactor('essence') * (1 + this.petBonus('essence')) * this.relicEffect('essence') * this.ascMult() * this.worldTreeMult(); },
+  extGenCostMult()  { return this.researchFactor('genCost') * this.relicEffect('genCost'); },
+  extHeroCostMult() { return this.researchFactor('heroCost') * this.relicEffect('heroCost'); },
+  extRoomCostMult() { return this.researchFactor('roomCost') * this.relicEffect('roomCost'); },
   extSynergyMult()  { return this.researchFactor('synergy'); },
+  extBossHpMult()   { return this.relicEffect('bossHp'); },       // Relíquias (#6): chefes com HP inflado
+  extEventFreqMult(){ return this.relicEffect('eventFreq'); },    // Relíquias (#6): eventos mais/menos raros
   extKillGoldMult() {
-    let m = this.researchFactor('killGold');
+    let m = this.researchFactor('killGold') * this.relicEffect('killGold');
     const w = this.worldInfo();
     if (w.weather && w.weather.killGold) m *= w.weather.killGold;
     return m;
   },
   extDropBonus() {
-    let b = this.petBonus('drop') + this.researchDropBonus();
+    let b = this.petBonus('drop') + this.researchDropBonus() + this.relicDropBonus();
     const w = this.worldInfo();
     if (w.weather && w.weather.drop) b += w.weather.drop;
     const now = Date.now();
@@ -720,6 +725,8 @@ Object.assign(Game, {
         UI.log(`🌀 O portal estelar drenou o chefe: <b>+1 ✦ Essência</b>!`);
         UI.toast('🌀 +1 ✦ Essência (eclipse)!', '#b06fd8', true);
       }
+      // Relíquias (#6): drop raro de chefe (chance pequena, só a partir de ondas altas)
+      if (S.combat.wave >= 40 && Math.random() < 0.08) this.grantRelic();
     }
   },
 

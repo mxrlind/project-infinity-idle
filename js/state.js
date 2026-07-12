@@ -30,7 +30,11 @@ function defaultState() {
       hp: 0, maxHp: 0,
       boss: false, bossT: 0,
       bossCooldown: 0,   // kills de farm antes de re-desafiar o chefe
+      fightT: 0,         // segundos que o inimigo atual está vivo (fúria do Berserker)
       kills: 0, bossKills: 0,
+      bossMech: null,    // id de BOSS_MECHANICS ativa neste chefe (null se não for chefe ou sem mecânica sorteada)
+      bossShiftPhys: false, // Rei Demônio: true = fase de resistência física ativa agora
+      bossShiftT: 0,     // segundos até a próxima troca de resistência (Rei Demônio)
     },
 
     rooms: {},        // id -> nível
@@ -85,6 +89,12 @@ function defaultState() {
     secrets: {},           // flags de segredos: aldric, dot, highSell, scrapLegend, moonBoss
     audio: { vol: 0.7, music: false },
 
+    relics: { owned: {}, equipped: [null, null, null] },  // relicId -> true (owned) | equipped: array de relicId|null (RELIC_SLOTS)
+
+    layers: { ascensions: 0, ascPoints: 0 },  // Progressão em Camadas (#13) — permanente, não reseta nem no prestígio nem na ascensão
+
+    worldTree: { level: 0 },  // Árvore do Mundo (#12) — permanente, não reseta nem no prestígio nem na ascensão
+
     sound: true,
     flashFx: true,    // efeitos de tela cheia (flash de drop lendário)
     hand: 'right',    // 'right' (destro: moeda à direita no mobile) | 'left' (canhoto: à esquerda)
@@ -129,6 +139,17 @@ function loadGame() {
     if (typeof S.codex.lore !== 'object' || !S.codex.lore) S.codex.lore = {};
     S.secrets = Object.assign({}, data.secrets || {});
     S.audio = Object.assign(base.audio, data.audio || {});
+    S.relics = Object.assign({}, base.relics, data.relics || {});
+    S.relics.owned = Object.assign({}, (data.relics || {}).owned || {});
+    if (!Array.isArray(S.relics.equipped) || S.relics.equipped.length !== RELIC_SLOTS) {
+      const eq = Array.isArray((data.relics || {}).equipped) ? data.relics.equipped : [];
+      S.relics.equipped = new Array(RELIC_SLOTS).fill(null).map((_, i) => eq[i] || null);
+    }
+    // saves antigos podem ter equipado uma relíquia que não existe mais nos dados (id removido/renomeado)
+    S.relics.equipped = S.relics.equipped.map(id => (id && RELICS.some(r => r.id === id)) ? id : null);
+    S.layers = Object.assign({}, base.layers, data.layers || {});
+    S.worldTree = Object.assign({}, base.worldTree, data.worldTree || {});
+    if (typeof S.worldTree.level !== 'number' || S.worldTree.level < 0) S.worldTree.level = 0;
     // migração: saves antigos tinham forge.pending (carta única) — descartado (perda aceitável de 1 carta não decidida)
     const rawForge = data.forge || {};
     S.forge = {

@@ -109,6 +109,25 @@ const Game = {
     const def = HEROES.find(x => x.id === heroId);
     return def && def.archetype ? ARCHETYPES[def.archetype] : null;
   },
+
+  // ----- Papel de combate (ROLE) -----
+  heroRole(heroId) {
+    const def = HEROES.find(x => x.id === heroId);
+    return def && def.role ? HERO_ROLES[def.role] : null;
+  },
+  // modificador do DPS PRÓPRIO do herói pelo seu papel (self-dps, fúria do berserker, área do mago).
+  // Depende do estado do combate (fightT / chefe), então NÃO é cacheável — mas é O(1).
+  roleDpsMult(heroId) {
+    const def = HEROES.find(x => x.id === heroId);
+    const role = def && def.role ? HERO_ROLES[def.role] : null;
+    if (!role) return 1;
+    const p = role.combat || {};
+    const c = S.combat;
+    let m = 1 + (p.selfDps || 0);
+    if (p.rage)  m *= 1 + p.rage * Math.min(c.fightT || 0, p.rageMax || 0);  // berserker: fúria por tempo de luta
+    if (p.aoe && c.maxHp > 0 && !c.boss) m *= 1 + p.aoe;                     // mago: dano em área nas ondas comuns
+    return Math.max(0.05, m);
+  },
   // tipo da arma de um item (usa wtype; cai no ícone para itens antigos, sem perder especialização)
   weaponType(item) {
     if (!item) return null;
@@ -162,6 +181,12 @@ const Game = {
       const spec = this.heroSpec(id);
       if (spec) { b.team += spec.team; b.gold += spec.gold; b.crit += spec.crit; b.mat += spec.mat; }
     }
+    // Equipamentos 2.0 (#3): bônus de Conjunto (2pç/4pç) — mesmo cache, recalculado junto do gear
+    if (this.activeSetBonuses) {
+      const setB = this.activeSetBonuses();
+      b.team += setB.team;
+      b.crit += setB.crit;
+    }
     b.crit = Math.min(FORGE_CRIT_CAP, b.crit);
     this.gearBonus = b;
   },
@@ -179,16 +204,36 @@ const Game = {
 
   // A sinergia agora é um MEDIDOR 0–100%, somando três frentes claras que o jogador controla:
   //   composição (proporção 🛡️1:⚔️2:✨1)  +  campo cheio  +  heróis com a ARMA IDEAL equipada.
+  // efeitos agregados dos PAPÉIS em campo (auras/bônus estáticos). Recalculado com _fieldDirty,
+  // no mesmo laço da sinergia. Efeitos que dependem do estado vivo (fúria, exército, área) ficam
+  // em roleDpsMult/teamDps, não aqui.
+  _roleEff: { teamDps: 0, crit: 0, gold: 0, research: 0, bossTime: 0, execute: 0, summon: false, counts: {} },
+  teamRoleEffects() { this.ensureSynergy(); return this._roleEff; },
+
   recomputeSynergy() {
     const counts = { tank: 0, dps: 0, support: 0 };
     const field = this.fieldHeroes();
+    const re = { teamDps: 0, crit: 0, gold: 0, research: 0, bossTime: 0, execute: 0, summon: false, counts: {} };
     let n = 0, matched = 0;
     for (const id of field) {
       const def = HEROES.find(x => x.id === id);
       counts[def.class]++;
       n++;
       if (this.heroMatched(id)) matched++;
+      const role = def.role ? HERO_ROLES[def.role] : null;
+      if (role) {
+        const p = role.combat || {};
+        re.teamDps  += p.teamDps  || 0;
+        re.crit     += p.crit     || 0;
+        re.gold     += p.gold     || 0;
+        re.research += p.research || 0;
+        re.bossTime += p.bossTime || 0;
+        re.execute   = Math.max(re.execute, p.execute || 0);
+        if (p.summon) re.summon = true;
+        re.counts[def.role] = (re.counts[def.role] || 0) + 1;
+      }
     }
+    this._roleEff = re;
     const slots = this.fieldSlots();
     let compScore = 0;
     if (n > 0) {
@@ -257,7 +302,20 @@ const Game = {
     const def = HEROES.find(x => x.id === heroId);
     const h = S.heroes[heroId];
     if (!h || h.lvl <= 0) return 0;
-    return def.baseDps * h.lvl * Math.pow(2, Math.floor(h.lvl / HERO_MILESTONE)) * this.heroGearMult(heroId);
+    return def.baseDps * h.lvl * Math.pow(2, Math.floor(h.lvl / HERO_MILESTONE)) * this.heroGearMult(heroId) * this.roleDpsMult(heroId);
+  },
+
+  // DPS extra das INVOCAÇÕES do necromante (pool separado). Cresce com o total de abates da run.
+  summonDps() {
+    if (!this.teamRoleEffects().summon) return 0;
+    const army = 1 + Math.min(1.5, S.combat.kills / 1000);   // exército cresce até +150%
+    let s = 0;
+    for (const id of this.fieldHeroes()) {
+      const def = HEROES.find(x => x.id === id);
+      const role = def.role ? HERO_ROLES[def.role] : null;
+      if (role && role.combat && role.combat.summon) s += this.heroDps(id) * role.combat.summon * army;
+    }
+    return s;
   },
 
   // ----- Campo de batalha / reserva -----
@@ -302,11 +360,28 @@ const Game = {
     return this.setFieldSlot(heroId, null);
   },
 
+  // true se o DPS deste herói conta como MÁGICO (ignora armadura de chefes blindados) — papel Mago
+  // (ver HERO_ROLES.mago.combat.armorPen) ou, globalmente, o bônus 4pç do Conjunto Golem (gearsets.js)
+  heroIsMagic(heroId) {
+    const role = this.heroRole(heroId);
+    return !!(role && role.combat && role.combat.armorPen);
+  },
+
   teamDps() {
     this.ensureGearBonus();
     this.ensureSynergy();
+    // Chefes Inteligentes (#7): armadura do chefe atual reduz DPS físico (mágico ignora)
+    const armorM = this.bossArmorMults ? this.bossArmorMults() : { phys: 1, magic: 1 };
     let total = 0;
-    for (const id of this.fieldHeroes()) total += this.heroDps(id);
+    for (const id of this.fieldHeroes()) {
+      total += this.heroDps(id) * (this.heroIsMagic(id) ? armorM.magic : armorM.phys);
+    }
+    total += this.summonDps();                  // exército do necromante (pool separado)
+    const re = this._roleEff;
+    total *= 1 + re.teamDps;                    // auras de papel (Tanque provoca, Bardo inspira)
+    // crítico esperado: duelista/assassino/afixo Letal/Lobo valem também no DPS ocioso, não só no clique
+    const critCh = Math.min(FORGE_CRIT_CAP, this.gearBonus.crit + this.extCritBonus() + re.crit);
+    total *= 1 + critCh * (FORGE_CRIT_MULT - 1);
     total *= 1 + this.teamSynergy().atk;        // sinergia de time (faixas 20% + Estado Perfeito 100%)
     total *= 1 + 0.10 * this.roomLvl('quartel');
     total *= 1 + 0.08 * this.roomLvl('torre') * this.baseMult();  // Torre Arcana: DPS mágico (×Castelo)
@@ -315,6 +390,7 @@ const Game = {
     total *= 1 + 0.01 * this.achCount();
     total *= 1 + this.gearBonus.team;          // afixo "Estandarte" (soma dos itens equipados)
     total *= this.extDpsMult();                // expansão: mundo + mascotes + pesquisa
+    total *= (this.bossRolePenaltyMult ? this.bossRolePenaltyMult() : 1);  // Chefes Inteligentes (#7): chefe exige papel em campo
     total *= this.buffMult('dps');
     return total;
   },
@@ -344,7 +420,9 @@ const Game = {
   },
 
   enemyMaxHp(wave, boss) {
-    return 15 * Math.pow(1.45, wave - 1) * (boss ? 9 : 1);
+    let hp = 15 * Math.pow(1.45, wave - 1) * (boss ? 9 : 1);
+    if (boss) hp *= this.extBossHpMult();   // Relíquias (#6): Olho do Dragão / Colar do Vazio
+    return hp;
   },
 
   enemyGold(wave, boss) {
@@ -352,6 +430,7 @@ const Game = {
     let g = 4 * Math.pow(1.42, wave - 1) * (boss ? 14 : 1);
     g *= 1 + 0.08 * this.talentLvl('cacador');
     g *= 1 + this.gearBonus.gold;              // afixo "Cobiça" (ouro por abate)
+    g *= 1 + this.teamRoleEffects().gold;      // papel: Bardo em campo (+ouro por abate)
     g *= 1 + this.teamSynergy().gold;          // sinergia de time (faixa 40%)
     if (boss) g *= 1 + 0.12 * this.roomLvl('arena') * this.baseMult();  // Arena: ouro de chefes (×Castelo)
     g *= this.extKillGoldMult();               // expansão: Lua Cheia + pesquisa "Caçada Ritual"
@@ -359,14 +438,25 @@ const Game = {
     return g;
   },
 
-  bossTimeLimit() { return 30 + 3 * this.talentLvl('paciencia') + 2 * this.roomLvl('arena'); },
+  bossTimeLimit() {
+    let t = 30 + 3 * this.talentLvl('paciencia') + 2 * this.roomLvl('arena') + this.teamRoleEffects().bossTime;
+    if (this.gearSetLifestealActive && this.gearSetLifestealActive()) t += 2;  // Conjunto Sombrio (4pç): sustain = mais tempo de chefe
+    return t;
+  },
 
   spawnEnemy() {
     const c = S.combat;
     c.boss = c.wave % 10 === 0 && c.bossCooldown === 0;
+    // Chefes Inteligentes (#7): sorteia (ou não) uma mecânica pra este chefe
+    c.bossMech = c.boss ? this.rollBossMechanic(c.wave) : null;
+    c.bossShiftPhys = false;
+    const mech = this.bossMechDef();
+    c.bossShiftT = (mech && mech.shifting) ? mech.shiftEvery : 0;
+    if (mech) UI.showBossBanner(mech);
     c.maxHp = this.enemyMaxHp(c.wave, c.boss);
     c.hp = c.maxHp;
     c.bossT = c.boss ? this.bossTimeLimit() : 0;
+    c.fightT = 0;   // reseta a fúria do Berserker a cada novo inimigo
   },
 
   dropChance() {
@@ -378,7 +468,7 @@ const Game = {
     return Math.min(0.95, ch);
   },
 
-  rollGear() {
+  rollGear(preferSetId) {
     // sorteia herói contratado, slot e raridade (ondas altas puxam raridades maiores)
     const owned = Object.keys(S.heroes);
     if (owned.length === 0) return null;
@@ -397,6 +487,11 @@ const Game = {
     const mult = rar.power * (1 + S.combat.wave / 40) * (0.85 + Math.random() * 0.30);
     const item = { heroId, slot: slot.id, rarity: idx, mult };
     this.assignWeaponLook(item, slot);
+    // Equipamentos 2.0 (#3): loot temático — chefes com dropSet (bosses.js) puxam pro set deles
+    if (this.rollItemSetElement) {
+      const se = this.rollItemSetElement(preferSetId);
+      item.set = se.set; item.element = se.element;
+    }
     return item;
   },
 
@@ -436,7 +531,9 @@ const Game = {
     if (wasBoss) {
       c.bossKills++;
       UI.log(`👑 Chefe da onda <b>${c.wave}</b> derrotado! <b>+${fmt(reward)}</b> ouro`);
-      if (Math.random() < this.dropChance()) this.awardGear();
+      // Equipamentos 2.0 (#3): loot temático — o chefe derrotado ainda está em c.bossMech aqui
+      const mech = this.bossMechDef ? this.bossMechDef() : null;
+      if (Math.random() < this.dropChance()) this.awardGear(mech && mech.dropSet);
       c.wave++;
       c.maxWave = Math.max(c.maxWave, c.wave);
       this.heroChatter();
@@ -452,8 +549,8 @@ const Game = {
     this.spawnEnemy();
   },
 
-  awardGear() {
-    const item = this.rollGear();
+  awardGear(preferSetId) {
+    const item = this.rollGear(preferSetId);
     if (!item) return;
     item.affixes = [];                       // drops não têm afixos (uniformiza a forma do item)
     const h = S.heroes[item.heroId];
@@ -511,10 +608,16 @@ const Game = {
     return 0;
   },
 
-  rollAffixes(rarityIdx, tier) {
+  rollAffixes(rarityIdx, tier, elementId) {
     // quantidade: Raro+ ganham 2 (se o tier permitir), senão 1
     const want = Math.min(tier.affixMax, rarityIdx >= 2 ? 2 : 1);
-    const pool = FORGE_AFFIXES.slice();
+    let pool = FORGE_AFFIXES.slice();
+    // Equipamentos 2.0 (#3): se o item saiu com elemento, o afixo de DPS vira a versão elemental
+    // (mesmo teto de afixos — só muda a cor/flavor, sem inflar o poder)
+    if (elementId) {
+      const elemAff = FORGE_ELEMENT_AFFIXES.find(a => a.element === elementId);
+      if (elemAff) pool = pool.map(a => a.type === 'dps' ? elemAff : a);
+    }
     const out = [];
     const rarMult = 1 + rarityIdx * 0.55;              // afixo melhor em raridades altas
     for (let i = 0; i < want && pool.length; i++) {
@@ -522,7 +625,7 @@ const Game = {
       const base = pick.min + Math.random() * (pick.max - pick.min);
       let val = base * rarMult;
       if (pick.type === 'crit') val = Math.min(FORGE_CRIT_CAP, val);
-      out.push({ type: pick.type, val: Math.round(val * 1000) / 1000 });
+      out.push({ type: pick.type, val: Math.round(val * 1000) / 1000, element: pick.element || null });
     }
     return out;
   },
@@ -539,10 +642,12 @@ const Game = {
     const rar = RARITIES[rarityIdx];
     const slot = GEAR_SLOTS[Math.floor(Math.random() * GEAR_SLOTS.length)];  // arma ou amuleto
     const mult = rar.power * (1 + S.combat.maxWave / 40) * (0.85 + Math.random() * 0.30);
-    const affixes = this.rollAffixes(rarityIdx, tier);
+    // Equipamentos 2.0 (#3): a forja também pode revelar set/elemento (sem preferência de chefe)
+    const se = this.rollItemSetElement ? this.rollItemSetElement(null) : { set: null, element: null };
+    const affixes = this.rollAffixes(rarityIdx, tier, se.element);
 
     const uid = S.forge.nextUid++;
-    const item = { uid, slot: slot.id, rarity: rarityIdx, mult, affixes, forged: true };
+    const item = { uid, slot: slot.id, rarity: rarityIdx, mult, affixes, forged: true, set: se.set, element: se.element };
     this.assignWeaponLook(item, slot);         // forja: tipo de arma 100% aleatório (a "aposta")
     S.forge.inventory.push(item);
     S.forge.forged++;
@@ -623,7 +728,7 @@ const Game = {
     // clicar no monstro causa dano; afixo "Letal" dá chance de crítico ×FORGE_CRIT_MULT
     this.ensureGearBonus();
     let dmg = Math.max(1, this.teamDps() * 0.05 + this.clickPower() * 0.5);
-    const critCh = Math.min(FORGE_CRIT_CAP, this.gearBonus.crit + this.extCritBonus());  // afixo "Letal" + Lobo
+    const critCh = Math.min(FORGE_CRIT_CAP, this.gearBonus.crit + this.extCritBonus() + this.teamRoleEffects().crit);  // afixo "Letal" + Lobo + Duelista/Assassino
     const crit = critCh > 0 && Math.random() < critCh;
     if (crit) dmg *= FORGE_CRIT_MULT;
     // Duelista com Espada ideal em campo: chance de ATAQUE DUPLO (dano ×2 no clique)
@@ -892,25 +997,31 @@ const Game = {
     return g;
   },
 
+  // reseta a run — mantém: essência, prestígios, conquistas, talentos, fases desbloqueadas.
+  // Compartilhado por doPrestige e Game.doAscend (js/layers.js, roadmap #13), que resetam também
+  // essência/prestígios por cima disto — mantém a bolsa de cartas, mascotes, pesquisas, mercado,
+  // NPCs, mundo, códex e camadas (S.forge.inventory etc.), todos PERMANENTES.
+  resetRunState() {
+    S.gold = 0;
+    S.earned = 0;
+    S.gens = {};
+    S.upgrades = {};
+    S.heroes = {};
+    S.combat = { wave: 1, maxWave: 1, hp: 0, maxHp: 0, boss: false, bossT: 0, bossCooldown: 0, fightT: 0,
+      bossMech: null, bossShiftPhys: false, bossShiftT: 0, kills: S.combat.kills, bossKills: S.combat.bossKills };
+    S.rooms = {};
+    S.res = { madeira: 0, pedra: 0, ferro: 0, energia: 0, cristal: 0, conhecimento: S.res.conhecimento };
+    S.buffs = [];
+    S.invasion = 0;
+  },
+
   doPrestige() {
     const gain = this.essenceGain();
     if (gain < 1) return false;
     const prevEarned = S.earned;               // para o "ninho de ouro" da Fênix
     S.essence += gain;
     S.prestiges++;
-    // reseta a run — mantém: essência, prestígios, conquistas, talentos, fases desbloqueadas
-    S.gold = 0;
-    S.earned = 0;
-    S.gens = {};
-    S.upgrades = {};
-    S.heroes = {};
-    S.combat = { wave: 1, maxWave: 1, hp: 0, maxHp: 0, boss: false, bossT: 0, bossCooldown: 0, kills: S.combat.kills, bossKills: S.combat.bossKills };
-    S.rooms = {};
-    S.res = { madeira: 0, pedra: 0, ferro: 0, energia: 0, cristal: 0, conhecimento: S.res.conhecimento };
-    S.buffs = [];
-    S.invasion = 0;
-    // a bolsa de cartas (S.forge.inventory) sobrevive ao prestígio, como talentos/conquistas.
-    // Mascotes, pesquisas, mercado, NPCs, mundo e códex também são PERMANENTES.
+    this.resetRunState();
     this._gearDirty = true; this._fieldDirty = true;                    // recalcula bônus de gear (agora zerados)
     this._fieldDirty = true;                   // heróis resetados → campo também
     this.onPrestigeExt(prevEarned);            // Fênix (ninho de ouro) + Memória Persistente
@@ -1025,12 +1136,12 @@ const Game = {
   goldenTimer: 0,
 
   scheduleEvent() {
-    const freq = 1 + 0.10 * this.talentLvl('fortuna');
+    const freq = (1 + 0.10 * this.talentLvl('fortuna')) * this.extEventFreqMult();
     this.eventTimer = (160 + Math.random() * 180) / freq;
   },
 
   scheduleGolden() {
-    const freq = 1 + 0.10 * this.talentLvl('fortuna');
+    const freq = (1 + 0.10 * this.talentLvl('fortuna')) * this.extEventFreqMult();
     this.goldenTimer = (70 + Math.random() * 150) / freq;
   },
 
@@ -1150,16 +1261,21 @@ const Game = {
     // combate
     if (S.unlocked.heroes) {
       if (S.combat.hp <= 0 && S.combat.maxHp === 0) this.spawnEnemy();
+      if (S.combat.hp > 0 && S.combat.maxHp > 0) S.combat.fightT = (S.combat.fightT || 0) + dt;  // fúria do Berserker
       const dps = this.teamDps();
       if (dps > 0) this.damageEnemy(dps * dt);
-      // Assassino com Adaga ideal em campo: EXECUTA inimigos comuns com pouca vida (não vale em chefes)
+      // Execução de inimigos comuns com pouca vida: papel Assassino em campo, ou Adaga ideal (arquétipo)
+      const execT = this.teamRoleEffects().execute;
       const asn = this.fieldSpecial('execute');
-      if (asn && !S.combat.boss && S.combat.hp > 0 && S.combat.maxHp > 0
-          && S.combat.hp / S.combat.maxHp < 0.08 * asn.scale) {
+      const execFrac = Math.max(execT, asn ? 0.08 * asn.scale : 0);
+      if (execFrac > 0 && !S.combat.boss && S.combat.hp > 0 && S.combat.maxHp > 0
+          && S.combat.hp / S.combat.maxHp < execFrac) {
         this.damageEnemy(S.combat.hp);
       }
       if (S.combat.boss && S.combat.hp > 0) {
-        S.combat.bossT -= dt;
+        if (this.tickBossShift) this.tickBossShift(dt);    // Chefes Inteligentes (#7): Rei Demônio troca de resistência
+        const drainMult = this.bossTimeDrainMult ? this.bossTimeDrainMult() : 1;
+        S.combat.bossT -= dt * drainMult;                  // Necromante: drena o tempo mais rápido
         if (S.combat.bossT <= 0) this.bossFailed();
       }
     }

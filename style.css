@@ -137,6 +137,7 @@ body {
   border-radius: 6px; padding: 6px 14px; cursor: pointer;
 }
 .merchant-btn:hover { background: var(--gold-hi); }
+#event-banner.boss-banner { border-color: var(--ember); box-shadow: 0 8px 40px rgba(255, 107, 94, 0.3); }
 
 /* ===== Layout ===== */
 #layout {
@@ -443,6 +444,18 @@ body {
 .boss-timer { font-family: var(--font-num); font-size: 15px; color: var(--ember); min-height: 20px; }
 .team-dps { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
 
+.boss-mech {
+  font-size: 13px;
+  color: var(--ember);
+  border: 1px solid rgba(255, 107, 94, 0.4);
+  background: rgba(255, 107, 94, 0.08);
+  border-radius: 8px;
+  padding: 4px 10px;
+  margin-bottom: 6px;
+  display: inline-block;
+}
+.boss-mech.hidden { display: none; }
+
 /* ===== Heróis ===== */
 .hero-list { display: flex; flex-direction: column; gap: 8px; }
 .hero-row {
@@ -588,6 +601,71 @@ body {
   transition: border-color 0.12s, color 0.12s, background 0.12s;
 }
 .bc-scrap:hover { border-color: var(--ember); color: var(--ember); background: rgba(255, 107, 94, 0.12); }
+
+/* ===== Conjuntos de Equipamento ===== */
+.gearset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 4px; }
+.gearset-card {
+  background: var(--bg2);
+  border: 2px solid var(--border-hi);
+  border-radius: 12px;
+  padding: 10px 12px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.gearset-card.gs-2 { border-color: var(--arcane); }
+.gearset-card.gs-4 { border-color: var(--gold); box-shadow: 0 0 12px rgba(232, 163, 61, 0.3); }
+.gs-icon { font-size: 22px; display: inline-block; margin-right: 6px; }
+.gs-name { font-family: var(--font-display); font-size: 15px; display: inline-block; }
+.gs-progress { font-family: var(--font-num); font-size: 11px; color: var(--text-dim); margin: 2px 0 4px; }
+.gs-tiers { display: flex; flex-direction: column; gap: 2px; }
+.gs-tier { font-size: 11px; color: var(--text-dim); }
+.gs-tier.on { color: var(--green); }
+
+/* ===== Relíquias ===== */
+.relic-panel { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.relic-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; }
+.relic-slot {
+  background: var(--bg2);
+  border: 2px dashed var(--border-hi);
+  border-radius: 12px;
+  padding: 12px 8px;
+  text-align: center;
+  cursor: default;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.relic-slot.filled { border-style: solid; border-color: var(--gold); box-shadow: 0 0 12px rgba(232, 163, 61, 0.25); cursor: pointer; }
+.relic-slot.filled:hover { box-shadow: 0 0 16px rgba(232, 163, 61, 0.4); }
+.relic-slot-icon { font-size: 28px; filter: drop-shadow(0 0 8px currentColor); }
+.relic-slot-empty { opacity: 0.35; }
+.relic-slot-name { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.relic-slot.filled .relic-slot-name { color: var(--gold); }
+
+.relic-net { display: flex; flex-wrap: wrap; gap: 6px; }
+.relic-chip {
+  font-family: var(--font-num);
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 8px;
+  border: 1px solid currentColor;
+  background: rgba(0, 0, 0, 0.25);
+}
+.relic-chip.good { color: var(--green); }
+.relic-chip.bad { color: var(--ember); }
+
+.relic-inv-title { margin-top: 6px; }
+.relic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; }
+.relic-card {
+  background: var(--bg2);
+  border: 2px solid var(--border-hi);
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+  transition: transform 0.12s, box-shadow 0.15s;
+}
+.relic-card:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); }
+.rc-icon { font-size: 30px; filter: drop-shadow(0 0 8px var(--gold)); }
+.rc-name { font-family: var(--font-display); font-size: 15px; color: var(--gold); margin-top: 2px; }
+.rc-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; margin: 6px 0; }
+.rc-equip { width: 100%; }
 
 /* ===== Base ===== */
 .room-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
@@ -784,6 +862,41 @@ body {
 .prestige-btn.disabled { filter: grayscale(0.8); opacity: 0.5; cursor: not-allowed; }
 .prestige-btn .btn-cost { font-family: var(--font-num); font-size: 12px; letter-spacing: 0; }
 .prestige-hint { margin-top: 16px; font-size: 12px; color: var(--text-dim); }
+
+/* Ascensão (roadmap #13) — mesma estrutura do Prestígio, com acento roxo-arcano */
+.ascension-box {
+  border-color: #b06fd8;
+  background: radial-gradient(400px 300px at 50% 0%, rgba(176, 111, 216, 0.10), transparent), var(--panel2);
+  box-shadow: 0 0 60px rgba(176, 111, 216, 0.14);
+}
+.ascension-sigil { color: #b06fd8; text-shadow: 0 0 30px rgba(176, 111, 216, 0.6); }
+.ascension-title { color: #b06fd8; }
+.ascension-btn { background: linear-gradient(180deg, #b06fd8, #6a3a8f); color: #180a22; box-shadow: 0 0 30px rgba(176, 111, 216, 0.4); }
+.ascension-btn:hover { box-shadow: 0 0 45px rgba(176, 111, 216, 0.55); }
+.ascension-box.locked { opacity: 0.7; }
+
+/* Árvore do Mundo (roadmap #12) — mesma estrutura do Prestígio, com acento verde */
+.worldtree-box {
+  border-color: #5fd97a;
+  background: radial-gradient(400px 300px at 50% 0%, rgba(95, 217, 122, 0.10), transparent), var(--panel2);
+  box-shadow: 0 0 60px rgba(95, 217, 122, 0.14);
+}
+.worldtree-sigil { color: #5fd97a; text-shadow: 0 0 30px rgba(95, 217, 122, 0.6); animation: none; }
+.worldtree-title { color: #5fd97a; }
+.worldtree-btn { background: linear-gradient(180deg, #5fd97a, #2f8f47); color: #0a2410; box-shadow: 0 0 30px rgba(95, 217, 122, 0.4); }
+.worldtree-btn:hover { box-shadow: 0 0 45px rgba(95, 217, 122, 0.55); }
+.wt-buy-bar { justify-content: center; margin: 8px 0 16px; }
+.wt-progress {
+  height: 5px; border-radius: 3px;
+  background: rgba(95, 217, 122, 0.12);
+  overflow: hidden;
+  margin: 4px 0 10px;
+}
+.wt-progress-fill {
+  height: 100%; width: 0%;
+  background: linear-gradient(90deg, #5fd97a, #2f8f47);
+  transition: width 0.4s ease;
+}
 
 /* ===== Conquistas ===== */
 .ach-summary {
@@ -1355,6 +1468,12 @@ body {
 /* ===================================================================== */
 /* Especialização de classe (Arquétipo + Arma ideal)                     */
 /* ===================================================================== */
+.hm-role {
+  display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;
+  font-size: 10px; font-family: var(--font-num); font-weight: 700;
+  border: 1px solid currentColor; border-radius: 20px; padding: 1px 7px;
+  margin: 1px 0 2px; letter-spacing: .3px; opacity: .95;
+}
 .hm-arch {
   font-size: 10.5px; color: var(--text-dim); font-family: var(--font-num);
   display: flex; align-items: center; gap: 4px; flex-wrap: wrap; line-height: 1.2;
@@ -1376,6 +1495,7 @@ body {
 .gear-chip.wt-mismatch { opacity: 0.9; }
 .chip-ideal { color: var(--gold-hi); }
 .chip-aff { font-size: 11px; }
+.chip-set { font-size: 11px; filter: drop-shadow(0 0 3px currentColor); }
 
 /* ===================================================================== */
 /* Cena viva da Base                                                     */

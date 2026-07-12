@@ -5,7 +5,7 @@ const UI = {
   buyAmount: 1,           // 1 | 10 | 'max'
   baseSel: null,          // célula da grade da Base selecionada para mover (índice) | null
   baseDrag: null,         // índice da célula sendo arrastada (desktop) | null
-  dirty: { tabs: true, prod: true, heroes: true, forge: true, base: true, talents: true, prestige: true, ach: true, config: true, left: true, pets: true, research: true, market: true, city: true },
+  dirty: { tabs: true, prod: true, heroes: true, forge: true, base: true, talents: true, prestige: true, ach: true, config: true, left: true, pets: true, research: true, market: true, city: true, worldtree: true },
   R: {},                  // refs dinâmicos do tab ativo
   _seenIds: {},            // ids já renderizados por lista, pra animar só linhas novas
 
@@ -46,6 +46,7 @@ const UI = {
       { id: 'market',   name: 'Mercado',    emo: '📈',        unlocked: Game.marketUnlocked(), hideLocked: true },
       { id: 'city',     name: 'Cidade',     emo: '🏘️',        unlocked: Game.npcsUnlocked(), hideLocked: true },
       { id: 'prestige', name: 'Prestígio',  icon: 'prestige', unlocked: S.unlocked.prestige },
+      { id: 'worldtree', name: 'Árvore do Mundo', emo: '🌳', unlocked: Game.worldTreeUnlocked(), hideLocked: true },
       { id: 'ach',      name: 'Conquistas', icon: 'ach',      unlocked: true },
       { id: 'guilds',   name: '???',        icon: 'locked',   unlocked: false, teaser: S.unlocked.phase7 },
       { id: 'config',   name: 'Ajustes',    icon: 'config',   unlocked: true },
@@ -93,6 +94,7 @@ const UI = {
       case 'market':   this.renderMarket(c); break;
       case 'city':     this.renderCity(c); break;
       case 'prestige': this.renderPrestige(c); break;
+      case 'worldtree': this.renderWorldTree(c); break;
       case 'ach':      this.renderAch(c); break;
       case 'config':   this.renderConfig(c); break;
     }
@@ -185,6 +187,9 @@ const UI = {
     };
     combat.appendChild(enemy);
 
+    const bossMechEl = this.el('div', 'boss-mech hidden', '');   // Chefes Inteligentes (#7)
+    combat.appendChild(bossMechEl);
+
     const hpBar = this.el('div', 'hp-bar');
     const hpFill = this.el('div', 'hp-fill');
     hpBar.appendChild(hpFill);
@@ -196,7 +201,7 @@ const UI = {
     const dpsEl = this.el('div', 'team-dps', '');
     combat.appendChild(dpsEl);
     c.appendChild(combat);
-    this.R.combat = { waveEl, enemy, hpFill, hpText, bossTimer, dpsEl };
+    this.R.combat = { waveEl, enemy, hpFill, hpText, bossTimer, dpsEl, bossMechEl, lastMech: undefined };
 
     // seletor de quantidade (vale para subir níveis nos mini-cards)
     const bar = this.el('div', 'buy-bar');
@@ -217,6 +222,8 @@ const UI = {
     this.renderBench(c);
     this.renderRecruit(c);
     this.renderBag(c);
+    if (this.renderGearSets) this.renderGearSets(c); // expansão: Conjuntos de Equipamento (gearsets-ui.js)
+    if (this.renderRelics) this.renderRelics(c);     // expansão: Relíquias (relics-ui.js)
   },
 
   // Painel de sinergia de time: medidor 0–100% + faixas de bônus + Estado Perfeito (100%).
@@ -361,8 +368,10 @@ const UI = {
       row.appendChild(portrait);
       const info = this.el('div', 'hero-info');
       const cd = HERO_CLASSES[def.class];
-      info.appendChild(this.el('div', 'hero-name', `<span class="hero-icon">${def.icon}</span> <b>${def.name}</b> <span class="hero-title">${def.title}</span> <span class="hero-class-tag" style="color:${cd.color}">${cd.icon} ${cd.name}</span>`));
-      info.appendChild(this.el('div', 'hero-story', def.story));
+      const rd = Game.heroRole(def.id);
+      const roleTag = rd ? ` <span class="hero-class-tag" style="color:${rd.color}" title="${this.esc(rd.tagline)}">${rd.icon} ${rd.name}</span>` : '';
+      info.appendChild(this.el('div', 'hero-name', `<span class="hero-icon">${def.icon}</span> <b>${def.name}</b> <span class="hero-title">${def.title}</span>${roleTag} <span class="hero-class-tag" style="color:${cd.color}">${cd.icon} ${cd.name}</span>`));
+      info.appendChild(this.el('div', 'hero-story', def.story + (rd ? ` — ${rd.tagline}` : '')));
       row.appendChild(info);
       const btn = this.el('button', 'buy-btn hire-btn');
       btn.innerHTML = `Contratar<br><span class="btn-cost">${fmt(def.baseCost)} ouro</span>`;
@@ -396,6 +405,7 @@ const UI = {
     const arch = Game.heroArchetype(heroId);
     const wt = arch ? WEAPON_TYPES.find(w => w.id === arch.weapon) : null;
     const matched = Game.heroMatched(heroId);
+    const role = Game.heroRole(heroId);
     const cardSel = this._selected && this._selected.type === 'card';
     const delta = cardSel ? Game.itemDeltaForHero(this._selected.id, heroId) : 0;
     const card = this.el('div', 'hero-mini' + (matched ? ' spec-on' : '') + (this.isNewRow('heroMini', heroId) ? ' row-enter-sm' : ''));
@@ -415,6 +425,7 @@ const UI = {
         ${cardSel ? `<span class="hm-delta">${this.fmtScore(delta)}</span>` : ''}
       </div>
       <div class="hm-name">${def.icon} <b>${def.name}</b></div>
+      ${role ? `<div class="hm-role" style="border-color:${role.color};color:${role.color}" title="${this.esc(role.tagline)}">${role.icon} ${role.name}</div>` : ''}
       ${archTag}
       <div class="hm-stats"></div>
       <div class="hero-gear hm-gear"></div>
@@ -444,15 +455,21 @@ const UI = {
         const r = RARITIES[item.rarity];
         chip.style.borderColor = r.color;
         chip.style.color = r.color;
-        const affIcons = (item.affixes || []).map(a => FORGE_AFFIXES.find(x => x.type === a.type).icon).join('');
+        const affIcons = (item.affixes || []).map(a => this.affixDef(a).icon).join('');
         // marca de arma ideal (✦) quando o tipo da arma casa com o arquétipo do herói
         const arch = slot.id === 'arma' ? Game.heroArchetype(heroId) : null;
         const ideal = arch && Game.weaponType(item) === arch.weapon;
         if (slot.id === 'arma') chip.classList.add(ideal ? 'wt-match' : 'wt-mismatch');
-        chip.innerHTML = `${item.icon} +${Math.round(item.mult * 100)}%${ideal ? ' <span class="chip-ideal">✦</span>' : ''}${affIcons ? ' <span class="chip-aff">' + affIcons + '</span>' : ''}`;
+        // Equipamentos 2.0 (#3): conjunto (badge) + elemento (glow colorido)
+        const setDef = Game.itemSetDef ? Game.itemSetDef(item) : null;
+        const elDef = Game.itemElementDef ? Game.itemElementDef(item) : null;
+        if (elDef) chip.style.boxShadow = `0 0 6px ${elDef.color}`;
+        chip.innerHTML = `${item.icon} +${Math.round(item.mult * 100)}%${ideal ? ' <span class="chip-ideal">✦</span>' : ''}${affIcons ? ' <span class="chip-aff">' + affIcons + '</span>' : ''}${setDef ? ` <span class="chip-set">${setDef.icon}</span>` : ''}`;
         chip.title = `${slot.name} ${r.name}: +${Math.round(item.mult * 100)}% DPS`
           + (slot.id === 'arma' ? `\nTipo: ${this.weaponTypeName(item)}${ideal ? ' ✦ (ideal — especialização ativa!)' : ` (ideal deste herói: ${(WEAPON_TYPES.find(w => w.id === arch.weapon) || {}).name})`}` : '')
           + ((item.affixes && item.affixes.length) ? '\n' + item.affixes.map(a => this.affixLabel(a)).join('\n') : '')
+          + (setDef ? `\n${setDef.icon} Conjunto: ${setDef.name}` : '')
+          + (elDef ? `\n${elDef.icon} Elemento: ${elDef.name}` : '')
           + '\nClique para desequipar (→ Bolsa)';
       } else {
         chip.classList.add('gear-empty');
@@ -479,9 +496,13 @@ const UI = {
     card.draggable = true;
     card.style.borderColor = r.color;
     if (this._selected && this._selected.type === 'card' && this._selected.id === item.uid) card.classList.add('selected');
-    const affIcons = (item.affixes || []).map(a => FORGE_AFFIXES.find(x => x.type === a.type).icon).join(' ');
+    const affIcons = (item.affixes || []).map(a => this.affixDef(a).icon).join(' ');
+    // Equipamentos 2.0 (#3): conjunto (badge) + elemento (glow colorido)
+    const setDef = Game.itemSetDef ? Game.itemSetDef(item) : null;
+    const elDef = Game.itemElementDef ? Game.itemElementDef(item) : null;
+    if (elDef) card.style.boxShadow = `0 0 10px ${elDef.color}`;
     card.innerHTML = `
-      <div class="bc-icon" style="color:${r.color}">${item.icon}</div>
+      <div class="bc-icon" style="color:${r.color}">${item.icon}${setDef ? ` <span class="chip-set">${setDef.icon}</span>` : ''}</div>
       <div class="bc-rar" style="color:${r.color}">${r.name}</div>
       <div class="bc-slot">${item.slot === 'arma' ? this.weaponTypeName(item) : slotName}</div>
       <div class="bc-mult">+${Math.round(item.mult * 100)}% DPS</div>
@@ -489,6 +510,8 @@ const UI = {
       <button class="bc-scrap" title="Desmanchar por materiais">♻️</button>`;
     card.title = `${r.name} ${slotName}: +${Math.round(item.mult * 100)}% DPS`
       + ((item.affixes && item.affixes.length) ? '\n' + item.affixes.map(a => this.affixLabel(a)).join('\n') : '')
+      + (setDef ? `\n${setDef.icon} Conjunto: ${setDef.name}` : '')
+      + (elDef ? `\n${elDef.icon} Elemento: ${elDef.name}` : '')
       + '\nClique para selecionar · arraste até um herói para equipar';
     card.onclick = () => this.selectableClicked('card', item.uid);
     card.querySelector('.bc-scrap').onclick = (e) => {
@@ -619,8 +642,17 @@ const UI = {
     };
   },
 
+  // um afixo pode ser genérico (FORGE_AFFIXES) ou elemental (FORGE_ELEMENT_AFFIXES, quando a.element existe)
+  affixDef(a) {
+    if (a.element) {
+      const e = FORGE_ELEMENT_AFFIXES.find(x => x.type === a.type && x.element === a.element);
+      if (e) return e;
+    }
+    return FORGE_AFFIXES.find(x => x.type === a.type);
+  },
+
   affixLabel(a) {
-    const def = FORGE_AFFIXES.find(x => x.type === a.type);
+    const def = this.affixDef(a);
     return `${def.icon} +${Math.round(a.val * 100)}% ${def.tip}`;
   },
 
@@ -633,11 +665,18 @@ const UI = {
 
   // tooltip de especialização do herói (arquétipo, arma ideal, perks e status)
   specTip(heroId) {
+    const role = Game.heroRole(heroId);
+    let t = '';
+    if (role) {
+      t += `${role.icon} PAPEL: ${role.name} — ${role.tagline}\n`;
+      t += role.perks.map(p => '• ' + p).join('\n');
+      t += '\n\n';
+    }
     const arch = Game.heroArchetype(heroId);
-    if (!arch) return '';
+    if (!arch) return t.trim();
     const wt = WEAPON_TYPES.find(w => w.id === arch.weapon);
     const matched = Game.heroMatched(heroId);
-    let t = `${arch.icon} ${arch.name} — arma ideal: ${wt.icon} ${wt.name}\n`;
+    t += `${arch.icon} ${arch.name} — arma ideal: ${wt.icon} ${wt.name}\n`;
     t += arch.perks.map(p => '• ' + p).join('\n');
     t += matched
       ? `\n✦ ESPECIALIZAÇÃO ATIVA (força ×${Game.specScale(S.heroes[heroId].gear.arma).toFixed(1)} pela raridade da arma)`
@@ -1009,6 +1048,7 @@ const UI = {
     box.appendChild(btn);
     box.appendChild(this.el('div', 'prestige-hint', `Ouro ganho nesta run: ${fmt(S.earned)} — a Essência cresce de forma sublinear com o ouro acumulado (expoente 0.45 — dobrar o ouro rende ~1.37× de Essência). Prestígios feitos: ${S.prestiges}`));
     c.appendChild(box);
+    if (this.renderAscension) this.renderAscension(c); // expansão: Progressão em Camadas (layers-ui.js)
   },
 
   // ---------- Aba: Conquistas ----------
@@ -1303,6 +1343,22 @@ const UI = {
       rc.hpText.textContent = fmt(Math.max(0, cb.hp)) + ' / ' + fmt(cb.maxHp);
       rc.bossTimer.textContent = cb.boss ? '⏳ ' + fmtTime(cb.bossT) : '';
       rc.dpsEl.innerHTML = `DPS do time: <b>${fmt(Game.teamDps())}</b> · recompensa: <b>${fmt(Game.enemyGold(cb.wave, cb.boss))}</b> ouro`;
+
+      // Chefes Inteligentes (#7): badge com a mecânica ativa + resistência atual (Rei Demônio)
+      if (rc.lastMech !== cb.bossMech || (cb.bossMech === 'rei_demonio' && rc._lastShift !== cb.bossShiftPhys)) {
+        rc.lastMech = cb.bossMech;
+        rc._lastShift = cb.bossShiftPhys;
+        const mech = cb.bossMech ? BOSS_MECHANICS.find(m => m.id === cb.bossMech) : null;
+        if (mech) {
+          let extra = '';
+          if (mech.shifting) extra = ` — vulnerável a dano <b>${cb.bossShiftPhys ? 'MÁGICO' : 'FÍSICO'}</b> agora`;
+          rc.bossMechEl.innerHTML = `${mech.icon} <b>${mech.name}</b>${extra}`;
+          rc.bossMechEl.title = mech.desc;
+          rc.bossMechEl.classList.remove('hidden');
+        } else {
+          rc.bossMechEl.classList.add('hidden');
+        }
+      }
 
       this.updateSynergyPanel();
 
