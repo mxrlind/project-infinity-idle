@@ -32,7 +32,7 @@ Object.assign(Game, {
     UI.log(`🌌 <b>ASCENSÃO ${S.layers.ascensions}!</b> Você transcende o Prestígio com <b>+${gain} ⬟ Pontos de Ascensão</b> ` +
       `(agora ${S.layers.ascPoints} — produção/DPS/essência ×${this.ascMult().toFixed(2)}). Essência e Prestígios reiniciam.`);
     UI.toast(`⬟ +${gain} Ascensão!`, '#b06fd8', true);
-    UI.legendaryFlash('#b06fd8');
+    UI.legendaryFlash('#b06fd8', true);
     Sound.play('prestige');
     UI.dirtyAll();
     return true;

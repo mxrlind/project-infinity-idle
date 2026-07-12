@@ -46,7 +46,7 @@ Object.assign(Game, {
     S.relics.owned[def.id] = true;
     UI.log(`${def.icon} <b>Relíquia encontrada: ${def.name}!</b> ${def.desc}`);
     UI.toast(`${def.icon} Relíquia: ${def.name}!`, '#e8a33d', true);
-    UI.legendaryFlash('#e8a33d');
+    UI.legendaryFlash('#e8a33d', true);
     Sound.play('drop');
     UI.dirty.heroes = true;
     return def;

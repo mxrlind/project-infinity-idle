@@ -148,7 +148,7 @@ Object.assign(Game, {
         const stage = this.petStage(p.lvl);
         UI.log(`${def.icon} <b>${def.evo[stage]}</b>! Seu mascote evoluiu (bônus ×${PET_EVO_MULTS[stage]})!`);
         UI.toast(`${def.icon} Evoluiu: ${def.evo[stage]}!`, '#b06fd8', true);
-        UI.legendaryFlash('#b06fd8');
+        UI.legendaryFlash('#b06fd8', true);
         Sound.play('evolve');
       } else if (p.lvl % 10 === 0) {
         UI.log(`${def.icon} ${def.name} alcançou o nível <b>${p.lvl}</b>!`);
@@ -219,7 +219,16 @@ Object.assign(Game, {
     return !def.req || def.req.every(id => S.research.done[id]);
   },
 
+  // Pesquisa 2.0 (#5): ramos exclusivos — concluir um lado de um par `exclusiveWith` tranca o outro
+  // para sempre nesta run (só um caminho de build por par). Retorna o id do concluído que bloqueia,
+  // ou null se `def` ainda está livre para ser pesquisada.
+  researchExclusionBlocker(def) {
+    if (!def.exclusiveWith) return null;
+    return def.exclusiveWith.find(id => S.research.done[id]) || null;
+  },
+
   // pesquisas visíveis: pré-requisitos cumpridos, não concluídas e não enfileiradas
+  // (inclui ramos travados por exclusividade — a UI os mostra bloqueados, não os esconde)
   researchAvailable() {
     const queued = new Set(S.research.queue.map(q => q.id));
     return RESEARCH.filter(r => !S.research.done[r.id] && !queued.has(r.id) && this.researchReqMet(r));
@@ -231,6 +240,7 @@ Object.assign(Game, {
     if (S.research.queue.length >= RESEARCH_QUEUE_MAX) return false;
     if (S.research.queue.some(q => q.id === id)) return false;
     if (!this.researchReqMet(def)) return false;
+    if (this.researchExclusionBlocker(def)) return false;
     const c = this.researchCost(def);
     if (S.res.conhecimento < c.know || S.gold < c.gold) return false;
     for (const k in c.mats) if ((S.res[k] || 0) < c.mats[k]) return false;

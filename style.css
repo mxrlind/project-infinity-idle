@@ -995,6 +995,47 @@ body {
   opacity: 0; transition: opacity 0.15s ease;
 }
 .screen-flash.show { opacity: 0.3; }
+.screen-flash.shake-body { animation: bodyShake 0.4s ease; }
+@keyframes bodyShake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+  100% { transform: none; }
+}
+
+/* Feedback Visual (#14): partículas de drop lendário + confete de conquista, sempre respeitando
+   S.flashFx / prefers-reduced-motion (checado em JS antes de criar qualquer .fx-particle). */
+.fx-particle {
+  position: fixed; z-index: 550; pointer-events: none;
+  top: 50%; left: 50%; font-size: 20px;
+  animation: fxParticleBurst 0.9s cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+}
+@keyframes fxParticleBurst {
+  0% { transform: translate(-50%, -50%) scale(0.4); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--fx-x)), calc(-50% + var(--fx-y))) scale(1.1); opacity: 0; }
+}
+.fx-confetti {
+  position: fixed; z-index: 550; pointer-events: none;
+  top: -20px; left: var(--fx-left); width: 8px; height: 14px;
+  background: var(--fx-color); opacity: 0.95;
+  animation: fxConfettiFall var(--fx-dur) ease-in forwards;
+}
+@keyframes fxConfettiFall {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(70vh) rotate(var(--fx-rot)); opacity: 0; }
+}
+
+/* Chefe (#14): barra de HP e retrato crescem quando o combate é contra um chefe */
+.hp-bar.hp-bar-boss {
+  height: 24px; max-width: 520px;
+  box-shadow: 0 0 16px rgba(255, 60, 40, 0.45);
+  animation: bossBarPulse 1.6s ease-in-out infinite;
+}
+@keyframes bossBarPulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(255, 60, 40, 0.45); }
+  50% { box-shadow: 0 0 26px rgba(255, 90, 60, 0.7); }
+}
 
 /* ===== Moeda dourada ===== */
 .golden-coin {
@@ -1148,6 +1189,7 @@ body {
     transition-duration: 0.01ms !important;
   }
   .screen-flash { display: none; }
+  .fx-particle, .fx-confetti { display: none; }
 }
 
 /* ===== Forja de Armas ===== */
@@ -1328,6 +1370,12 @@ body {
 .rc-cost { font-family: var(--font-num); font-size: 11.5px; }
 .rc-start { align-self: stretch; }
 
+/* Pesquisa 2.0 (#5): ramos exclusivos */
+.research-card.rc-branch { border-color: rgba(255,107,94,0.35); }
+.rc-branch-tag { font-size: 10.5px; color: #ff8f6b; font-weight: 700; letter-spacing: 0.02em; }
+.research-card.rc-locked { opacity: 0.55; border-color: var(--border); background: rgba(0,0,0,0.15); }
+.rc-lock-note { font-size: 11.5px; color: #ff8f6b; }
+
 /* ---- Mercado ---- */
 .market-list { display: flex; flex-direction: column; gap: 10px; }
 .market-row {
@@ -1456,6 +1504,24 @@ body {
 @keyframes megaFlow { to { background-position: 200% 0; } }
 .synergy-panel.mega-on .syn-pct { animation: megaGlow 1.4s ease-in-out infinite; }
 @keyframes megaGlow { 0%,100% { text-shadow: 0 0 6px rgba(232,163,61,0.6); } 50% { text-shadow: 0 0 16px rgba(255,215,0,0.9); } }
+
+/* Sinergia de Composição (#2): reino + elemento + arma dos heróis em campo */
+.syn-comp { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.syn-comp-title { font-family: var(--font-display); color: var(--gold); font-size: 13px; margin-bottom: 6px; }
+.syn-comp-list { display: flex; flex-direction: column; gap: 4px; }
+.syn-comp-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 4px 8px; opacity: 0.6; transition: all 0.25s;
+}
+.syn-comp-row.on { opacity: 1; color: var(--text); border-color: var(--gold); background: rgba(232,163,61,0.08); }
+.scr-ico { font-size: 14px; }
+.scr-name { flex: 1; }
+.scr-prog { font-family: var(--font-num); color: var(--text-dim); }
+.syn-comp-row.on .scr-prog { color: var(--gold-hi); }
+.scr-mark { font-weight: 700; width: 14px; text-align: center; }
+.syn-comp-row.on .scr-mark { color: #7ec98a; }
 
 /* aura da equipe em campo no Estado Perfeito */
 .field-grid.mega-aura .hero-mini {

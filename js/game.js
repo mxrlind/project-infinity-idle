@@ -214,6 +214,7 @@ const Game = {
     const counts = { tank: 0, dps: 0, support: 0 };
     const field = this.fieldHeroes();
     const re = { teamDps: 0, crit: 0, gold: 0, research: 0, bossTime: 0, execute: 0, summon: false, counts: {} };
+    const compCounts = { kingdom: {}, element: {}, weapon: {} };
     let n = 0, matched = 0;
     for (const id of field) {
       const def = HEROES.find(x => x.id === id);
@@ -232,6 +233,27 @@ const Game = {
         if (p.summon) re.summon = true;
         re.counts[def.role] = (re.counts[def.role] || 0) + 1;
       }
+      if (def.kingdom) compCounts.kingdom[def.kingdom] = (compCounts.kingdom[def.kingdom] || 0) + 1;
+      if (def.element) compCounts.element[def.element] = (compCounts.element[def.element] || 0) + 1;
+      const arch = ARCHETYPES[def.archetype];
+      if (arch) compCounts.weapon[arch.weapon] = (compCounts.weapon[arch.weapon] || 0) + 1;
+    }
+    // Sinergia de Composição (#2): reino/elemento/arma/diversidade de papéis dos heróis EM CAMPO.
+    // Some direto no mesmo acumulador `re` (teamDps/gold/research/crit) — já consumido por
+    // teamDps()/enemyGold()/researchSpeed() sem precisar de hooks novos.
+    const teamSynergies = [];
+    for (const ts of TEAM_SYNERGIES) {
+      const w = ts.when;
+      const cat = w.kingdom ? 'kingdom' : w.element ? 'element' : w.weapon ? 'weapon' : 'roles';
+      const have = cat === 'roles' ? Object.keys(re.counts).length : (compCounts[cat][w[cat]] || 0);
+      const active = have >= w.count;
+      if (active) {
+        re.teamDps  += ts.bonus.dps || 0;
+        re.gold     += ts.bonus.gold || 0;
+        re.research += ts.bonus.research || 0;
+        re.crit     += ts.bonus.crit || 0;
+      }
+      teamSynergies.push({ id: ts.id, name: ts.name, icon: ts.icon, desc: ts.desc, need: w.count, have, active });
     }
     this._roleEff = re;
     const slots = this.fieldSlots();
@@ -245,7 +267,7 @@ const Game = {
     const specScore = n > 0 ? matched / n : 0;
     const pct = n === 0 ? 0 : Math.round(Math.min(100,
       compScore * SYNERGY_WEIGHTS.comp + fillScore * SYNERGY_WEIGHTS.fill + specScore * SYNERGY_WEIGHTS.spec));
-    this._lastSynergy = { counts, n, matched, slots, pct, compScore, fillScore, specScore };
+    this._lastSynergy = { counts, n, matched, slots, pct, compScore, fillScore, specScore, teamSynergies };
     this.synergyMult = 1 + (pct >= 20 ? SYNERGY_TIER_VAL.atk : 0) + (pct >= 100 ? SYNERGY_MEGA.atk : 0);
   },
 
@@ -563,7 +585,7 @@ const Game = {
       const isRare = item.rarity >= 3; // Épico ou Lendário
       UI.log(`${item.icon} <b>${def.name}</b> equipou <span style="color:${rar.color}">${rar.name}</span> (+${Math.round(item.mult * 100)}% DPS)!`);
       UI.toast(`${item.icon} ${rar.name} para ${def.name}!`, rar.color, isRare);
-      if (isRare) UI.legendaryFlash(rar.color);
+      if (isRare) UI.legendaryFlash(rar.color, item.rarity === 4);   // partículas extra (#14) só no Lendário
       Sound.play('drop');
       UI.dirty.heroes = true;
     } else {
@@ -655,7 +677,7 @@ const Game = {
 
     const isRare = rarityIdx >= 3;
     Sound.play('drop');
-    if (isRare) UI.legendaryFlash(rar.color);
+    if (isRare) UI.legendaryFlash(rar.color, rarityIdx === 4);   // partículas extra (#14) só no Lendário
     UI.log(`${tier.icon} Forja (${tier.name}) revelou <span style="color:${rar.color}">${rar.name}</span> ${item.icon}! (na Bolsa)`);
     UI.toast(`${item.icon} ${rar.name}!`, rar.color, isRare);
     UI.showForgeReveal(S.forge.inventory[S.forge.inventory.length - 1]);
@@ -1106,7 +1128,8 @@ const Game = {
       if (ok) {
         S.ach[a.id] = true;
         UI.log(`🏅 Conquista: <b>${a.name}</b> — ${a.desc} <span class="ach-bonus">(+1% produção)</span>`);
-        UI.toast(`🏅 ${a.name}`, '#e8a33d');
+        UI.toast(`🏅 ${a.name}`, '#e8a33d', true);
+        UI.confettiBurst();
         Sound.play('achievement');
         UI.dirty.ach = true;
         UI.dirty.prod = true;

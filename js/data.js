@@ -68,38 +68,46 @@ const UPGRADES = [
 ];
 
 // ---- Heróis (NPCs com personalidade) ----
+// kingdom/element (#2 Sinergia de Composição): camadas ORTOGONAIS extras a class/archetype/role,
+// usadas só por TEAM_SYNERGIES (ver abaixo). solar=4 heróis (bran+sera+io+kael, o quarteto exato
+// cabe nos FIELD_SLOTS), selvagem=3 (thora+vex+nyx), arcano=3 (magnus+lyra+orin).
 const HEROES = [
-  { id: 'bran', name: 'Bran', title: 'Escudeiro Teimoso', icon: '🛡️', baseCost: 200, baseDps: 4, class: 'tank', archetype: 'paladino', role: 'tank',
+  { id: 'bran', name: 'Bran', title: 'Escudeiro Teimoso', icon: '🛡️', baseCost: 200, baseDps: 4, class: 'tank', archetype: 'paladino', role: 'tank', kingdom: 'solar', element: 'sagrado',
     story: 'Ex-fazendeiro que decidiu que porcos não revidam, mas monstros sim.',
     lines: ['Meu escudo já foi uma porta de celeiro. Ainda range.', 'Se eu cair, me levantem. De novo.', 'Um dia serei cavaleiro. Hoje, aparo pancadas.'] },
-  { id: 'lyra', name: 'Lyra', title: 'Arqueira do Crepúsculo', icon: '🏹', baseCost: 4e3, baseDps: 22, class: 'dps', archetype: 'arqueiro', role: 'duelista',
+  { id: 'lyra', name: 'Lyra', title: 'Arqueira do Crepúsculo', icon: '🏹', baseCost: 4e3, baseDps: 22, class: 'dps', archetype: 'arqueiro', role: 'duelista', kingdom: 'arcano', element: 'sombra',
     story: 'Nunca errou um alvo. Uma vez errou de propósito e ainda se arrepende.',
     lines: ['Vejo o ponto fraco daqui.', 'Uma flecha, uma história encerrada.', 'O vento me deve favores.'] },
-  { id: 'magnus', name: 'Magnus', title: 'Mago Distraído', icon: '🔮', baseCost: 90e3, baseDps: 160, class: 'support', archetype: 'mago', role: 'mago',
+  { id: 'magnus', name: 'Magnus', title: 'Mago Distraído', icon: '🔮', baseCost: 90e3, baseDps: 160, class: 'support', archetype: 'mago', role: 'mago', kingdom: 'arcano', element: 'fogo',
     story: 'Esqueceu mais feitiços do que a maioria dos magos aprendeu. Alguns explodem sozinhos.',
     lines: ['Hmm? Ah sim, a bola de fogo. Onde deixei mesmo...', 'A magia é 90% memória. Estou perdido.', 'Isso vai fazer BUM. Provavelmente.'] },
-  { id: 'thora', name: 'Thora', title: 'Berserker Sorridente', icon: '🪓', baseCost: 2.2e6, baseDps: 1.3e3, class: 'dps', archetype: 'duelista', role: 'berserker',
+  { id: 'thora', name: 'Thora', title: 'Berserker Sorridente', icon: '🪓', baseCost: 2.2e6, baseDps: 1.3e3, class: 'dps', archetype: 'duelista', role: 'berserker', kingdom: 'selvagem', element: 'raio',
     story: 'Sorri durante a batalha. Os inimigos acham isso profundamente perturbador.',
     lines: ['HAHA! Mais! MAIS!', 'Meu machado tem nome: Segunda-feira.', 'Dor é só fraqueza fazendo cócegas.'] },
-  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 60e6, baseDps: 11e3, class: 'dps', archetype: 'assassino', role: 'assassino',
+  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 60e6, baseDps: 11e3, class: 'dps', archetype: 'assassino', role: 'assassino', kingdom: 'selvagem', element: 'sombra',
     story: 'Chega sempre três segundos antes do necessário. Ninguém sabe como.',
     lines: ['Você não me viu. Ninguém nunca vê.', 'Contratos são sagrados. Alvos, nem tanto.', '...', ], },
-  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 1.8e9, baseDps: 95e3, class: 'support', archetype: 'paladino', role: 'bardo',
+  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 1.8e9, baseDps: 95e3, class: 'support', archetype: 'paladino', role: 'bardo', kingdom: 'solar', element: 'sagrado',
     story: 'Sua luz cega aliados desavisados. Ela pede desculpas. Sempre.',
     lines: ['A luz cobra caro, mas paga em dobro.', 'Perdão pela claridade. De novo.', 'Nenhuma sombra resiste para sempre.'] },
-  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank', archetype: 'necromante', role: 'necromante',
+  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank', archetype: 'necromante', role: 'necromante', kingdom: 'selvagem', element: 'sombra',
     story: 'Saiu da aposentadoria porque o plano de previdência do Além faliu.',
     lines: ['Os mortos trabalham de graça. Aprendam.', 'Aposentadoria era tediosa demais.', 'Todo fim é só um contrato renovável.'] },
-  { id: 'io', name: 'Io', title: 'Golem de Areia Antiga', icon: '🗿', baseCost: 3.2e12, baseDps: 1.4e7, reqPrestige: 2, class: 'tank', archetype: 'paladino', role: 'tank',
+  { id: 'io', name: 'Io', title: 'Golem de Areia Antiga', icon: '🗿', baseCost: 3.2e12, baseDps: 1.4e7, reqPrestige: 2, class: 'tank', archetype: 'paladino', role: 'tank', kingdom: 'solar', element: 'sagrado',
     story: 'Construído para guardar um templo que ninguém mais lembra onde fica. Ainda guarda.',
     lines: ['Areia não esquece. Eu também não.', 'Mil anos de pé. Nem uma rachadura.', 'Templo? Que templo?'] },
-  { id: 'kael', name: 'Kael', title: 'Duelista Relâmpago', icon: '⚡', baseCost: 1.1e14, baseDps: 1.8e8, reqPrestige: 2, class: 'dps', archetype: 'duelista', role: 'duelista',
+  { id: 'kael', name: 'Kael', title: 'Duelista Relâmpago', icon: '⚡', baseCost: 1.1e14, baseDps: 1.8e8, reqPrestige: 2, class: 'dps', archetype: 'duelista', role: 'duelista', kingdom: 'solar', element: 'raio',
     story: 'Vence duelos antes do oponente perceber que começaram.',
     lines: ['Já acabou. Você só não viu.', 'Rápido demais pra ter medo.', 'Relâmpago não erra duas vezes.'] },
-  { id: 'orin', name: 'Orin', title: 'Bardo do Fim dos Tempos', icon: '🕊️', baseCost: 3.8e15, baseDps: 2.3e9, reqPrestige: 3, class: 'support', archetype: 'mago', role: 'bardo',
+  { id: 'orin', name: 'Orin', title: 'Bardo do Fim dos Tempos', icon: '🕊️', baseCost: 3.8e15, baseDps: 2.3e9, reqPrestige: 3, class: 'support', archetype: 'mago', role: 'bardo', kingdom: 'arcano', element: 'gelo',
     story: 'Canta a mesma canção desde antes do primeiro prestígio. Ainda não chegou ao refrão.',
     lines: ['Essa música ainda não acabou. Nem vai.', 'Toda batalha precisa de trilha sonora.', 'Já vi isso terminar. E recomeçar.'] },
 ];
+const KINGDOMS = {
+  solar:    { name: 'Reino Solar',    icon: '☀️', color: '#e8a33d' },
+  selvagem: { name: 'Reino Selvagem', icon: '🐺', color: '#7ec98a' },
+  arcano:   { name: 'Reino Arcano',   icon: '🔮', color: '#8f6fd8' },
+};
 const HERO_LVL_COST_MULT = 1.08;
 const HERO_MILESTONE = 25; // a cada 25 níveis, DPS ×2
 
@@ -215,6 +223,31 @@ const SYNERGY_TIERS = [
 const SYNERGY_TIER_VAL = { atk: 0.05, gold: 0.10, prod: 0.15, know: 0.20 };
 const SYNERGY_MEGA = { atk: 0.50, gold: 0.50, prod: 0.50, know: 0.50 }; // buff de 100%: tudo +50%
 const SYNERGY_WEIGHTS = { comp: 40, fill: 25, spec: 35 };
+
+// ---- Sinergia de Composição (#2) ----
+// ORTOGONAL ao medidor 0–100% acima: conta reino/elemento/arma dos heróis EM CAMPO (não depende de
+// gear equipado) e ativa bônus extra quando o time se agrupa em torno de um tema. `when` tem uma
+// única chave (kingdom|element|weapon|roles) + `count` mínimo entre os FIELD_SLOTS heróis em campo.
+// `roles` é especial: conta PAPÉIS distintos (não um papel específico), premia times versáteis.
+// bonus.dps/gold/research/crit somam direto no mesmo acumulador de Game._roleEff (teamDps/gold/research/crit).
+const TEAM_SYNERGIES = [
+  { id: 'reino_solar',    name: 'Ordem Solar',          icon: '☀️', when: { kingdom: 'solar',    count: 4 }, bonus: { gold: 0.25 },
+    desc: 'Bran + Sera + Io + Kael em campo: +25% de ouro por abate.' },
+  { id: 'reino_selvagem', name: 'Alcateia Selvagem',    icon: '🐺', when: { kingdom: 'selvagem', count: 3 }, bonus: { dps: 0.20 },
+    desc: '3 heróis do Reino Selvagem em campo: +20% de DPS de todo o time.' },
+  { id: 'reino_arcano',   name: 'Círculo Arcano',       icon: '🔮', when: { kingdom: 'arcano',   count: 3 }, bonus: { research: 0.20 },
+    desc: '3 heróis do Reino Arcano em campo: +20% de velocidade de pesquisa.' },
+  { id: 'sombra_x3',      name: 'Manto das Sombras',    icon: '🌑', when: { element: 'sombra',   count: 3 }, bonus: { crit: 0.15 },
+    desc: '3 heróis do elemento Sombra em campo: +15% de crítico do time.' },
+  { id: 'sagrado_x3',     name: 'Círculo Sagrado',      icon: '✨', when: { element: 'sagrado',  count: 3 }, bonus: { dps: 0.15 },
+    desc: '3 heróis do elemento Sagrado em campo: +15% de DPS de todo o time.' },
+  { id: 'raio_x2',        name: 'Duo Fulminante',       icon: '⚡', when: { element: 'raio',     count: 2 }, bonus: { dps: 0.10 },
+    desc: '2 heróis do elemento Raio em campo: +10% de DPS de todo o time.' },
+  { id: 'martelo_x3',     name: 'Linha de Frente',      icon: '🔨', when: { weapon: 'martelo',   count: 3 }, bonus: { gold: 0.10 },
+    desc: '3 heróis de Martelo (arma ideal) em campo: +10% de ouro por abate.' },
+  { id: 'equilibrado',    name: 'Esquadrão Equilibrado', icon: '⚖️', when: { roles: true,          count: 4 }, bonus: { dps: 0.10, gold: 0.10, research: 0.10 },
+    desc: '4 papéis de combate DIFERENTES em campo: pequeno bônus em DPS, ouro e pesquisa.' },
+];
 
 // ---- Salas da Base ----
 const ROOMS = [
@@ -538,7 +571,7 @@ const ACHIEVEMENTS = [
   // Pesquisa
   { id: 'rs1', cat: 'Sabedoria', name: 'Eureka',              icon: '💡', desc: 'Conclua sua primeira pesquisa',         check: (S) => { for (const k in S.research.done) return true; return false; }, progress: (S) => [Object.keys(S.research.done).length, 1] },
   { id: 'rs2', cat: 'Sabedoria', name: 'Renascentista',       icon: '🎨', desc: 'Conclua 10 pesquisas',                  check: (S) => Object.keys(S.research.done).length >= 10, progress: (S) => [Object.keys(S.research.done).length, 10] },
-  { id: 'rs3', cat: 'Sabedoria', name: 'Singularidade Mental', icon: '🧠', desc: 'Conclua todas as pesquisas',           check: (S) => Object.keys(S.research.done).length >= RESEARCH.length, progress: (S) => [Object.keys(S.research.done).length, RESEARCH.length] },
+  { id: 'rs3', cat: 'Sabedoria', name: 'Singularidade Mental', icon: '🧠', desc: 'Conclua todas as pesquisas possíveis (ramos exclusivos contam só um lado)', check: (S) => Object.keys(S.research.done).length >= RESEARCH_MAX_COMPLETABLE, progress: (S) => [Object.keys(S.research.done).length, RESEARCH_MAX_COMPLETABLE] },
   // Mercado / Cidade
   { id: 'mk1', cat: 'Exploração', name: 'Primeira Barganha',  icon: '🤝', desc: 'Faça uma transação no Mercado',         check: (S) => S.market.stats.trades >= 1, progress: (S) => [S.market.stats.trades, 1] },
   { id: 'mk2', cat: 'Exploração', name: 'Tubarão do Mercado', icon: '🦈', desc: 'Faça 100 transações no Mercado',        check: (S) => S.market.stats.trades >= 100, progress: (S) => [S.market.stats.trades, 100] },
@@ -641,6 +674,11 @@ const RESEARCH = [
   { id: 'taticas',      cat: 'war',   name: 'Táticas de Guerra',   icon: '🗺️', time: 1800,   cost: { know: 30 },                              desc: '+15% DPS do time', mult: { dps: 1.15 } },
   { id: 'balistica',    cat: 'war',   name: 'Balística',           icon: '🏹', time: 7200,   cost: { know: 70, ferro: 120 },     req: ['taticas'],   desc: '+6% chance de drop de equipamento', drop: 0.06 },
   { id: 'cacada',       cat: 'war',   name: 'Caçada Ritual',       icon: '🩸', time: 28800,  cost: { know: 140, goldMult: 40 },  req: ['balistica'], desc: 'Monstros valem +20% ouro', killGold: 1.2 },
+  // Ramo exclusivo (#5): dois caminhos opostos após Caçada Ritual — só um pode ser concluído por run.
+  { id: 'furia_sangue',  cat: 'war', name: 'Fúria de Sangue',      icon: '🩸', time: 86400,  cost: { know: 300, goldMult: 150 }, req: ['cacada'], exclusiveWith: ['disciplina_ferro'],
+    desc: '+25% DPS do time · −8% chance de drop de equipamento (tudo no ataque)', mult: { dps: 1.25 }, drop: -0.08 },
+  { id: 'disciplina_ferro', cat: 'war', name: 'Disciplina de Ferro', icon: '🛡️', time: 86400, cost: { know: 300, goldMult: 150 }, req: ['cacada'], exclusiveWith: ['furia_sangue'],
+    desc: '+12% chance de drop de equipamento · −10% DPS do time (farm disciplinado)', drop: 0.12, mult: { dps: 0.90 } },
   // Construções
   { id: 'engenharia',   cat: 'build', name: 'Engenharia Anã',      icon: '⛏️', time: 7200,   cost: { know: 60, pedra: 400 },                  desc: 'Salas da Base custam −10%', roomCost: 0.9 },
   { id: 'urbanismo',    cat: 'build', name: 'Urbanismo Arcano',    icon: '🏙️', time: 28800,  cost: { know: 150, madeira: 600, pedra: 600 }, req: ['engenharia'], desc: 'Sinergias de vizinhança da Base +25% mais fortes', synergy: 1.25 },
@@ -657,6 +695,11 @@ const RESEARCH = [
   { id: 'comercio',     cat: 'eco',   name: 'Rotas de Comércio',   icon: '⚖️', time: 1800,   cost: { know: 40, goldMult: 15 },  req: ['metodos'],   desc: 'Desbloqueia o MERCADO — compre e venda recursos com preços vivos', unlock: 'market' },
   { id: 'cidade',       cat: 'eco',   name: 'Distrito da Cidade',  icon: '🏘️', time: 7200,   cost: { know: 90, madeira: 400, pedra: 300 }, req: ['comercio'], desc: 'Desbloqueia a CIDADE e seus 5 NPCs (mercador, ferreira, mago, alquimista, colecionador)', unlock: 'npcs' },
   { id: 'especulacao',  cat: 'eco',   name: 'Especulação',         icon: '📈', time: 28800,  cost: { know: 200, goldMult: 90 }, req: ['cidade'],    desc: 'Taxas do Mercado caem pela metade', fee: 0.5 },
+  // Ramo exclusivo (#5): dois caminhos opostos após Especulação — só um pode ser concluído por run.
+  { id: 'monopolio',    cat: 'eco',   name: 'Monopólio Mercantil', icon: '👑', time: 86400,  cost: { know: 400, goldMult: 200 }, req: ['especulacao'], exclusiveWith: ['redistribuicao'],
+    desc: '+40% produção de ouro · heróis custam +20% (ganância sem freio)', mult: { gold: 1.40 }, heroCost: 1.20 },
+  { id: 'redistribuicao', cat: 'eco', name: 'Redistribuição Justa', icon: '🤲', time: 86400,  cost: { know: 400, goldMult: 200 }, req: ['especulacao'], exclusiveWith: ['monopolio'],
+    desc: 'Heróis custam −15% para nivelar · produção de ouro −10% (crescimento sustentável)', heroCost: 0.85, mult: { gold: 0.90 } },
   // Magia
   { id: 'domesticacao', cat: 'magic', name: 'Domesticação',        icon: '🐾', time: 300,    cost: { know: 20 },                              desc: 'Desbloqueia a Coruja 🦉 (mascote de conhecimento)', unlock: 'coruja' },
   { id: 'vinculo',      cat: 'magic', name: 'Vínculo Animal',      icon: '💞', time: 28800,  cost: { know: 150 },               req: ['domesticacao'], desc: 'Permite 2 mascotes ativos ao mesmo tempo', unlock: 'petslot2' },
@@ -667,6 +710,9 @@ const RESEARCH = [
 ];
 const RESEARCH_QUEUE_MAX = 3;
 const RESEARCH_CANCEL_REFUND = 0.5;
+// Pesquisa 2.0 (#5): com ramos exclusivos, nunca dá pra concluir TODAS as pesquisas — cada par
+// `exclusiveWith` só permite uma das duas. Máximo completável = total − metade das que têm par.
+const RESEARCH_MAX_COMPLETABLE = RESEARCH.length - RESEARCH.filter(r => r.exclusiveWith).length / 2;
 
 // ---- Economia Dinâmica (Mercado) ----
 // Valor-base por unidade = enemyGold(maiorOnda) × k (auto-escala, nunca fica obsoleto).

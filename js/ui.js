@@ -276,8 +276,15 @@ const UI = {
     }
     bar.appendChild(ladder);
 
+    // Sinergia de Composição (#2): reino + elemento + arma dos heróis em campo
+    const comp = this.el('div', 'syn-comp');
+    comp.appendChild(this.el('div', 'syn-comp-title', '🧩 Composição de Time'));
+    const compList = this.el('div', 'syn-comp-list');
+    comp.appendChild(compList);
+    bar.appendChild(comp);
+
     c.appendChild(bar);
-    this.R.synergy = { bar, fill, pctEl: head.querySelector('.syn-pct'), classRefs, hint, tierRefs, lastPct: -1, lastMega: null };
+    this.R.synergy = { bar, fill, pctEl: head.querySelector('.syn-pct'), classRefs, hint, tierRefs, compList, compSig: null, lastPct: -1, lastMega: null };
     this.updateSynergyPanel();
   },
 
@@ -311,6 +318,19 @@ const UI = {
       const grid = this.R.fieldGrid;
       if (grid) grid.classList.toggle('mega-aura', mega);
       if (mega) this.toast('🌟 ESTADO PERFEITO! +50% em tudo!', '#e8a33d', true);
+    }
+
+    // Sinergia de Composição (#2): só reconstrói a lista quando algo realmente muda
+    const sig = s.teamSynergies.map(t => `${t.id}:${t.active ? 1 : 0}:${t.have}`).join('|');
+    if (sig !== R.compSig) {
+      R.compSig = sig;
+      R.compList.innerHTML = '';
+      for (const t of s.teamSynergies) {
+        const row = this.el('div', 'syn-comp-row' + (t.active ? ' on' : ''));
+        row.title = t.desc;
+        row.innerHTML = `<span class="scr-ico">${t.icon}</span><span class="scr-name">${t.name}</span><span class="scr-prog">${t.have}/${t.need}</span><span class="scr-mark">${t.active ? '✔' : '✖'}</span>`;
+        R.compList.appendChild(row);
+      }
     }
   },
 
@@ -1253,14 +1273,50 @@ const UI = {
     hpFill.classList.add('flash');
   },
 
-  legendaryFlash(color) {
+  // `big` (#14): momentos rarísssimos (Lendário, Relíquia, Ascensão...) ganham tremor de tela +
+  // rajada de partículas além do flash de cor já existente.
+  legendaryFlash(color, big) {
     if (!S.flashFx) return;
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const flash = this.el('div', 'screen-flash');
+    const flash = this.el('div', 'screen-flash' + (big ? ' shake-body' : ''));
     flash.style.background = color;
     document.body.appendChild(flash);
     requestAnimationFrame(() => flash.classList.add('show'));
     setTimeout(() => { flash.classList.remove('show'); setTimeout(() => flash.remove(), 300); }, 250);
+    if (big) this.particleBurst(color);
+  },
+
+  // rajada de partículas (✦) a partir do centro da tela — usado por drops lendários e outros
+  // marcos raros. Sempre respeita S.flashFx/prefers-reduced-motion (mesma checagem do legendaryFlash).
+  particleBurst(color) {
+    const n = 14;
+    for (let i = 0; i < n; i++) {
+      const p = this.el('div', 'fx-particle', '✦');
+      const angle = (Math.PI * 2 * i) / n + Math.random() * 0.4;
+      const dist = 90 + Math.random() * 70;
+      p.style.setProperty('--fx-x', Math.cos(angle) * dist + 'px');
+      p.style.setProperty('--fx-y', Math.sin(angle) * dist + 'px');
+      p.style.color = color;
+      document.body.appendChild(p);
+      setTimeout(() => p.remove(), 950);
+    }
+  },
+
+  // explosão de confete — usado ao desbloquear uma conquista (#14)
+  confettiBurst() {
+    if (!S.flashFx) return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const colors = ['#e8a33d', '#5fbf6b', '#4fa8d8', '#ff6b5e', '#b06fd8'];
+    const n = 24;
+    for (let i = 0; i < n; i++) {
+      const c = this.el('div', 'fx-confetti');
+      c.style.setProperty('--fx-left', Math.random() * 100 + 'vw');
+      c.style.setProperty('--fx-color', colors[i % colors.length]);
+      c.style.setProperty('--fx-dur', (0.9 + Math.random() * 0.6) + 's');
+      c.style.setProperty('--fx-rot', (Math.random() > 0.5 ? 1 : -1) * (180 + Math.random() * 360) + 'deg');
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 1600);
+    }
   },
 
   // ---------- Atualização dinâmica (todo tick) ----------
@@ -1333,6 +1389,7 @@ const UI = {
         enemyImg.dataset.file = enemyFile;
       }
       rc.enemy.classList.toggle('is-boss', cb.boss);
+      rc.hpFill.parentElement.classList.toggle('hp-bar-boss', cb.boss);   // barra "gigante" (#14)
       const pct = cb.maxHp > 0 ? Math.max(0, cb.hp / cb.maxHp) : 0;
       if (this._lastHp !== undefined && cb.maxHp > 0 && this._lastHp > cb.hp) {
         const drop = (this._lastHp - cb.hp) / cb.maxHp;

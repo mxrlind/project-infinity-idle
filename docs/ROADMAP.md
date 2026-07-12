@@ -7,9 +7,9 @@ foi implementado** (ver [CHANGELOG.md](CHANGELOG.md) → *Papéis de Combate*). 
 `js/expansion.js` (motor), `js/ui.js` / `js/ui-ext.js` (UI), `js/state.js` (estado), `style.css`.
 
 > **#6 Relíquias, #7 Chefes Inteligentes, #3 Equipamentos 2.0, #13 Progressão em Camadas
-> (Ascensão) e #12 Árvore do Mundo já foram implementados** (ver [CHANGELOG.md](CHANGELOG.md)),
-> cada um como par próprio `js/<sistema>.js` + `js/<sistema>-ui.js` (seguindo a recomendação do #16
-> abaixo). Restam **10** sistemas. Próximos na ordem recomendada: **#2 → #5 → #14 → #15 → ...**
+> (Ascensão), #12 Árvore do Mundo, #2 Sinergia de Composição, #5 Pesquisa 2.0 (ramos exclusivos)
+> e #14 Feedback Visual já foram implementados** (ver [CHANGELOG.md](CHANGELOG.md)). Restam **7**
+> sistemas. Próximos na ordem recomendada: **#15 → #4/#8/#9/#10/#11/#16**.
 
 > **Convenções do projeto** (respeitar em toda implementação):
 > - Tudo data-driven: conteúdo novo entra como const em `data.js`, nunca hard-coded no motor.
@@ -187,7 +187,7 @@ const WORLD_TREE = {
 
 ---
 
-## #2 · Sinergia de Composição (Reino + Elemento + Tipo) 🟨 APROFUNDAR
+## #2 · Sinergia de Composição (Reino + Elemento + Tipo) ✅ IMPLEMENTADO
 
 **Existe hoje:** medidor 0–100% por classe (🛡️1:⚔️2:✨1) + campo cheio + arma ideal, com 5 faixas de bônus (`SYNERGY_TIERS`). **Falta:** as sinergias temáticas do doc (mesmo reino, mesmo elemento, mesmo tipo de arma, grupo equilibrado).
 
@@ -207,9 +207,15 @@ const TEAM_SYNERGIES = [
 
 **Save/compat:** aditivo. **Esforço: M.** Depende de: #1 (papéis, feito). Bom par com #3 (elementos).
 
+> **Implementado:** `kingdom`/`element` adicionados a `HEROES`; `TEAM_SYNERGIES` com 8 combos reais
+> (Ordem Solar 4/4, Alcateia Selvagem/Círculo Arcano 3/3, Manto das Sombras/Círculo Sagrado 3/3,
+> Duo Fulminante 2/2, Linha de Frente 3/3, Esquadrão Equilibrado 4 papéis distintos). Bônus somam
+> direto no acumulador `_roleEff` já existente (sem hooks novos). UI: seção "🧩 Composição de Time"
+> com progresso `have/need` e ✔/✖. Ver [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
-## #5 · Pesquisa 2.0 (Árvore com Exclusividade) 🟨 APROFUNDAR
+## #5 · Pesquisa 2.0 (Árvore com Exclusividade) ✅ IMPLEMENTADO (parcial, por design)
 
 **Existe hoje:** 22 techs em 9 categorias com `req` (pré-requisitos), tempo real, fila, offline. **Falta:** a estrutura de **árvore ramificada com escolhas exclusivas** ("não dá pra pegar tudo → cria builds"), como Metalurgia→Aço Negro→Titânio *ou* Magia→Runas→Caos.
 
@@ -221,9 +227,17 @@ const TEAM_SYNERGIES = [
 
 **Save/compat:** cuidado — saves com techs "conflitantes" já concluídas precisam de regra de reconciliação. **Esforço: M-G (UI pesada).** Depende de: nada.
 
+> **Implementado (escopo ajustado, por design):** só o mecanismo de `exclusiveWith` + 2 pares reais
+> de ramos exclusivos (Economia: Monopólio Mercantil ou Redistribuição Justa; Combate: Fúria de
+> Sangue ou Disciplina de Ferro) — **não** a reforma completa de `renderResearch` em layout de árvore
+> com nós/linhas (a lista por categoria já existente ganhou tag "ramo exclusivo" + nota de bloqueio,
+> sem big-bang de UI). `RESEARCH_MAX_COMPLETABLE` corrige a conquista que exigia concluir todas as
+> pesquisas. Mais pares podem ser adicionados incrementalmente reaproveitando o mesmo campo. Ver
+> [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
-## #14 · Feedback Visual 🟨 APROFUNDAR
+## #14 · Feedback Visual ✅ IMPLEMENTADO
 
 **Existe hoje:** `legendaryFlash`, `toast`, `shake`, `prefers-reduced-motion` + toggle `S.flashFx`. **Falta:** o "juice" do doc.
 
@@ -233,6 +247,13 @@ const TEAM_SYNERGIES = [
 - Respeitar `S.flashFx`/`prefers-reduced-motion` sempre.
 
 **Onde:** `ui.js`/`ui-ext.js` + `style.css` (keyframes). **Esforço: M.** Depende de: melhor junto com #7. Baixo risco.
+
+> **Implementado:** `legendaryFlash(color, big)` ganhou parâmetro `big` (tremor de tela +
+> `UI.particleBurst`, 14 partículas) ligado no drop Lendário de verdade (raridade 4, não Épico) e em
+> todos os marcos raros que já chamavam a função (Relíquia, evolução de mascote, estágio da Árvore
+> do Mundo, Ascensão). Conquistas ganharam `UI.confettiBurst()` (24 peças). Chefes ganharam
+> `.hp-bar-boss` (barra mais alta + glow pulsante) ao lado do `.is-boss` já existente. Tudo respeita
+> `S.flashFx`/`prefers-reduced-motion`. Ver [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -313,9 +334,9 @@ carregado no `index.html`, seguindo o padrão do `expansion.js`. Modularização
 | 3 | Equipamentos 2.0 (sets) | ✅ feito | M-G | ★★☆ | #7 (feito) |
 | 13 | Progressão em Camadas | ✅ feito (Ascensão) | G | ★★☆ | — |
 | 12 | Árvore do Mundo | ✅ feito | G | ★★☆ | #6, #13 (feitos) |
-| 2 | Sinergia de composição | 🟨 | M | ★★☆ | #1 (feito) |
-| 5 | Pesquisa 2.0 (árvore) | 🟨 | M-G | ★☆☆ | — |
-| 14 | Feedback visual | 🟨 | M | ★★☆ | #7 |
+| 2 | Sinergia de composição | ✅ feito | M | ★★☆ | #1 (feito) |
+| 5 | Pesquisa 2.0 (árvore) | ✅ feito (parcial) | M-G | ★☆☆ | — |
+| 14 | Feedback visual | ✅ feito | M | ★★☆ | #7 (feito) |
 | 15 | Música dinâmica | 🟨 | M | ★☆☆ | — |
 | 4 | Base estratégica | 🟩 | P | ★☆☆ | — |
 | 8 | Mundo vivo | 🟩 | P-M | ★☆☆ | #7 |
@@ -327,4 +348,5 @@ carregado no `index.html`, seguindo o padrão do `expansion.js`. Modularização
 **Caminho crítico do "ciclo interdependente" do doc:** #6 Relíquias → #7 Chefes → #3 Sets →
 #13 Camadas → #12 Árvore do Mundo. **Esses cinco já estão implementados** (ver
 [CHANGELOG.md](CHANGELOG.md)) e fecham o fluxograma (drops → build → chefes → recursos → recomeço)
-que é o coração da proposta. O resto é aprofundamento de sistemas que já existem — próximo: #2 → #5 → #14 → #15 → #4/#8/#9/#10/#11/#16.
+que é o coração da proposta. **#2 Sinergia de Composição, #5 Pesquisa 2.0 e #14 Feedback Visual também
+já estão implementados.** Restam: #15 Música dinâmica → #4/#8/#9/#10/#11 (polimento) → #16 (contínuo).

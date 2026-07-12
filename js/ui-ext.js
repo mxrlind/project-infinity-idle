@@ -112,12 +112,17 @@ Object.assign(UI, {
       if (!list.length) continue;
       const grid = this.el('div', 'research-grid');
       for (const def of list) {
-        const card = this.el('div', 'research-card' + (this.isNewRow('research', def.id) ? ' row-enter' : ''));
+        // Pesquisa 2.0 (#5): ramo exclusivo — mostra o galho travado em vez de escondê-lo
+        const blocker = Game.researchExclusionBlocker(def);
+        const card = this.el('div', 'research-card' + (blocker ? ' rc-locked' : '') + (def.exclusiveWith ? ' rc-branch' : '') + (this.isNewRow('research', def.id) ? ' row-enter' : ''));
         card.innerHTML = `
+          ${def.exclusiveWith ? `<div class="rc-branch-tag">⚔️ Ramo exclusivo — só um dos dois</div>` : ''}
           <div class="rc-head">${def.icon} <b>${def.name}</b> <span class="rc-time">⏱️ ${fmtTime(def.time)}</span></div>
           <div class="rc-desc">${def.desc}</div>
+          ${blocker ? `<div class="rc-lock-note">🔒 Bloqueado — você já escolheu <b>${this.esc(Game.researchDef(blocker).name)}</b> neste ramo.</div>` : ''}
           <div class="rc-cost"></div>`;
-        const btn = this.el('button', 'buy-btn rc-start', 'Pesquisar');
+        const btn = this.el('button', 'buy-btn rc-start', blocker ? 'Bloqueado' : 'Pesquisar');
+        if (blocker) btn.disabled = true;
         btn.onclick = () => { if (Game.startResearch(def.id)) { this.dirty.research = true; this.renderActive(); } else Sound.play('error'); };
         card.appendChild(btn);
         grid.appendChild(card);

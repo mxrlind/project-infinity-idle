@@ -71,7 +71,7 @@ Object.assign(Game, {
     if (lastGift) {
       UI.log(`${lastGift.stage.icon} A Árvore floresce em <b>${lastGift.stage.name}</b>! +${lastGift.gift} ⬟ Pontos de Ascensão de bônus.`);
       UI.toast(`${lastGift.stage.icon} Árvore: ${lastGift.stage.name}!`, '#5fd97a', true);
-      UI.legendaryFlash('#5fd97a');
+      UI.legendaryFlash('#5fd97a', true);
     }
     UI.dirty.worldtree = true; UI.dirty.left = true;
     return true;
