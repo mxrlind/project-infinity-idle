@@ -130,6 +130,7 @@ const UI = {
       if (owned === 0 && S.earned < g.baseCost * 0.4) continue;
 
       const row = this.el('div', 'gen-row' + (this.isNewRow('gens', g.id) ? ' row-enter' : ''));
+      row.title = g.flavor; // descrição vira tooltip (padrão Cookie Clicker) — linha a menos por gerador na lista
 
       const thumb = this.el('img', 'gen-thumb');
       thumb.src = `img/gens/${g.id}.jpg`;
@@ -139,7 +140,6 @@ const UI = {
 
       const info = this.el('div', 'gen-info');
       info.appendChild(this.el('div', 'gen-name', `${g.name} <span class="gen-owned">×${owned}</span>`));
-      info.appendChild(this.el('div', 'gen-flavor', g.flavor));
       const prodEl = this.el('div', 'gen-prod', '');
       info.appendChild(prodEl);
       row.appendChild(info);

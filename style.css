@@ -201,6 +201,8 @@ body {
   margin-bottom: 14px;
 }
 
+.side-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin: 10px 0 4px; border-top: 1px solid var(--border); padding-top: 8px; }
+.side-label.first { border-top: none; padding-top: 0; margin-top: 6px; }
 #resources-box { margin: 6px 0; }
 .res-row {
   display: flex; align-items: center; gap: 8px;
@@ -224,7 +226,7 @@ body {
 .buff-t { float: right; font-family: var(--font-num); font-size: 12px; color: var(--gold); }
 
 #closest-ach-box { margin: 6px 0 10px; }
-.closest-ach-title { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+.closest-ach-title { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin: 10px 0 4px; border-top: 1px solid var(--border); padding-top: 8px; }
 .closest-ach-card {
   display: flex; align-items: center; gap: 10px;
   border: 1px solid var(--border-hi);
@@ -352,7 +354,8 @@ body {
   background: var(--panel2);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 10px 14px;
+  padding: 8px 14px;
+  cursor: help; /* a descrição do gerador virou tooltip (title) nesta linha */
 }
 .row-enter { animation: rowIn 0.35s ease; }
 .row-enter-sm { animation: rowIn 0.3s ease; }
@@ -360,16 +363,15 @@ body {
 .gen-row:hover { border-color: var(--border-hi); }
 .gen-info { flex: 1; min-width: 0; }
 .gen-thumb {
-  width: 52px; height: 52px; flex: none;
+  width: 44px; height: 44px; flex: none;
   object-fit: cover; border-radius: 8px;
   border: 1px solid var(--border);
   display: block;
 }
 .gen-icon { font-size: 20px; }
-.gen-name { font-size: 16px; font-weight: 700; }
+.gen-name { font-size: 15px; font-weight: 700; }
 .gen-owned { font-family: var(--font-num); font-size: 12px; color: var(--gold); margin-left: 6px; }
-.gen-flavor { font-size: 12px; color: var(--text-dim); font-style: italic; }
-.gen-prod { font-family: var(--font-num); font-size: 12px; color: var(--green); margin-top: 2px; }
+.gen-prod { font-family: var(--font-num); font-size: 12.5px; color: var(--green); margin-top: 1px; }
 
 /* ===== Upgrades ===== */
 .up-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
