@@ -36,7 +36,8 @@ Object.assign(UI, {
       }).join('');
       card.innerHTML = `
         <div class="pet-head">
-          <span class="pet-icon">${def.icon}</span>
+          <img class="pet-portrait" src="img/pets/${def.id}.jpg" alt="" draggable="false"
+            onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'pet-icon',textContent:'${def.icon}'}))">
           <div>
             <div class="pet-name" style="color:${rar.color}">${def.evo[stage]}</div>
             <div class="pet-rar" style="color:${rar.color}">${rar.name}${active ? ' · <b>ATIVO</b>' : ''}</div>
@@ -189,7 +190,8 @@ Object.assign(UI, {
 
       const row = this.el('div', 'market-row');
       row.innerHTML = `
-        <div class="mkt-good"><span class="mkt-icon">${g.icon}</span><div><b>${g.name}</b><div class="mkt-owned">você tem <b class="mo-num">${fmt(S.res[g.id] || 0)}</b></div></div></div>
+        <div class="mkt-good"><img class="mkt-thumb" src="img/materials/${g.id}.jpg" alt="" draggable="false"
+            onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mkt-icon',textContent:'${g.icon}'}))"><div><b>${g.name}</b><div class="mkt-owned">você tem <b class="mo-num">${fmt(S.res[g.id] || 0)}</b></div></div></div>
         <div class="mkt-chart">${this.marketSpark(g.id)}
           <div class="mkt-idx">índice <b>${idx.toFixed(2)}</b> <span class="${delta >= 0 ? 'mkt-up' : 'mkt-down'}">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}%</span></div>
           <div class="mkt-badges">${badges.join(' ')}</div>
@@ -230,7 +232,8 @@ Object.assign(UI, {
       const card = this.el('div', 'npc-card' + (this.isNewRow('npc', def.id) ? ' row-enter' : ''));
       card.innerHTML = `
         <div class="npc-head">
-          <span class="npc-icon">${def.icon}</span>
+          <img class="npc-portrait" src="img/npcs/${def.id}.jpg" alt="" draggable="false"
+            onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'npc-icon',textContent:'${def.icon}'}))">
           <div>
             <div class="npc-name"><b>${def.name}</b> <span class="hero-title">${def.title}</span></div>
             <div class="npc-line">"${line}"</div>
