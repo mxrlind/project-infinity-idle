@@ -32,6 +32,12 @@ const UI = {
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   },
 
+  // ícone do herói: usa arte custom em img/hero-icons/{id}.jpg quando existe, senão cai no emoji (def.icon)
+  heroIconHtml(def) {
+    return `<img class="hero-icon-img" src="img/hero-icons/${def.id}.jpg" alt="" draggable="false"
+      onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'hero-icon',textContent:'${def.icon}'}))">`;
+  },
+
   // ---------- Tabs ----------
 
   tabDefs() {
@@ -390,7 +396,7 @@ const UI = {
       const cd = HERO_CLASSES[def.class];
       const rd = Game.heroRole(def.id);
       const roleTag = rd ? ` <span class="hero-class-tag" style="color:${rd.color}" title="${this.esc(rd.tagline)}">${rd.icon} ${rd.name}</span>` : '';
-      info.appendChild(this.el('div', 'hero-name', `<span class="hero-icon">${def.icon}</span> <b>${def.name}</b> <span class="hero-title">${def.title}</span>${roleTag} <span class="hero-class-tag" style="color:${cd.color}">${cd.icon} ${cd.name}</span>`));
+      info.appendChild(this.el('div', 'hero-name', `${this.heroIconHtml(def)} <b>${def.name}</b> <span class="hero-title">${def.title}</span>${roleTag} <span class="hero-class-tag" style="color:${cd.color}">${cd.icon} ${cd.name}</span>`));
       info.appendChild(this.el('div', 'hero-story', def.story + (rd ? ` — ${rd.tagline}` : '')));
       row.appendChild(info);
       const btn = this.el('button', 'buy-btn hire-btn');
@@ -444,7 +450,7 @@ const UI = {
         <span class="hm-class" style="color:${cd.color}" title="${cd.name}">${cd.icon}</span>
         ${cardSel ? `<span class="hm-delta">${this.fmtScore(delta)}</span>` : ''}
       </div>
-      <div class="hm-name">${def.icon} <b>${def.name}</b></div>
+      <div class="hm-name">${this.heroIconHtml(def)} <b>${def.name}</b></div>
       ${role ? `<div class="hm-role" style="border-color:${role.color};color:${role.color}" title="${this.esc(role.tagline)}">${role.icon} ${role.name}</div>` : ''}
       ${archTag}
       <div class="hm-stats"></div>
@@ -1552,9 +1558,18 @@ const UI = {
 
   // ---------- Eventos / banner ----------
 
+  // a barra de abas pode ocupar 1 ou 2 linhas (flex-wrap, varia com nº de abas desbloqueadas e viewport);
+  // reposiciona o banner sempre logo abaixo dela em vez de usar um `top` fixo no CSS (que sobrepunha as abas).
+  // +30px (não +10) pra sobrar folga durante a animação de entrada (bannerIn desliza -20px no início).
+  positionEventBanner(b) {
+    const tabs = document.getElementById('tabs');
+    b.style.top = (tabs.getBoundingClientRect().bottom + 30) + 'px';
+  },
+
   showEventBanner(ev, extra) {
     const b = document.getElementById('event-banner');
     b.className = '';
+    this.positionEventBanner(b);
     b.innerHTML = `<span class="ev-icon">${ev.icon}</span> <b>${ev.name}</b> — ${ev.desc} ${extra ? '<b>' + extra + '</b>' : ''}`;
     clearTimeout(this._bannerT);
     this._bannerT = setTimeout(() => b.classList.add('hidden'), 9000);
@@ -1563,6 +1578,7 @@ const UI = {
   showMerchantOffer(price) {
     const b = document.getElementById('event-banner');
     b.className = '';
+    this.positionEventBanner(b);
     b.innerHTML = `<span class="ev-icon">🧙</span> <b>Mercador Errante</b> — "Um pacto, viajante? Pode ser produção, poder... ou algo brilhante." `;
     const btn = this.el('button', 'merchant-btn', `Aceitar (${fmt(price)} ouro)`);
     btn.onclick = () => {

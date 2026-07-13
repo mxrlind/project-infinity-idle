@@ -7,6 +7,7 @@ Object.assign(UI, {
   showBossBanner(mech, secret) {
     const b = document.getElementById('event-banner');
     b.className = 'boss-banner';
+    this.positionEventBanner(b);
     const secretPrefix = secret ? '🌑 <b>Chefe Secreto do Eclipse!</b> — ' : '';
     b.innerHTML = mech
       ? `${secretPrefix}<span class="ev-icon">${mech.icon}</span> <b>${mech.name}</b> — ${mech.desc}`

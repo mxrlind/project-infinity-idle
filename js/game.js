@@ -1068,8 +1068,9 @@ const Game = {
 
   // reseta a run — mantém: essência, prestígios, conquistas, talentos, fases desbloqueadas.
   // Compartilhado por doPrestige e Game.doAscend (js/layers.js, roadmap #13), que resetam também
-  // essência/prestígios por cima disto — mantém a bolsa de cartas, mascotes, pesquisas, mercado,
-  // NPCs, mundo, códex e camadas (S.forge.inventory etc.), todos PERMANENTES.
+  // essência/prestígios por cima disto — mantém mascotes, pesquisas, mercado, NPCs, mundo, códex
+  // e camadas, todos PERMANENTES. A bolsa de equipamentos (S.forge.inventory) NÃO é permanente:
+  // é esvaziada aqui (os heróis também são resetados acima, então os itens equipados já se perdem).
   resetRunState() {
     S.gold = 0;
     S.earned = 0;
@@ -1081,6 +1082,7 @@ const Game = {
       kills: S.combat.kills, bossKills: S.combat.bossKills };
     S.rooms = {};
     S.res = { madeira: 0, pedra: 0, ferro: 0, energia: 0, cristal: 0, conhecimento: S.res.conhecimento };
+    S.forge.inventory = [];
     S.buffs = [];
     S.invasion = 0;
   },
