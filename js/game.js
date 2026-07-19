@@ -1094,8 +1094,7 @@ const Game = {
     S.essence += gain;
     S.prestiges++;
     this.resetRunState();
-    this._gearDirty = true; this._fieldDirty = true;                    // recalcula bônus de gear (agora zerados)
-    this._fieldDirty = true;                   // heróis resetados → campo também
+    this._gearDirty = true; this._fieldDirty = true;   // gear zerado + heróis resetados → recalcula ambos os caches
     this.onPrestigeExt(prevEarned);            // Fênix (ninho de ouro) + Memória Persistente
     this.spawnEnemy();
     UI.log(`🌅 <b>PRESTÍGIO ${S.prestiges}!</b> Você renasce com <b>+${gain} ✦ Essência</b> (agora ${S.essence} — produção global ×${(1 + 0.02 * S.essence).toFixed(2)})`);

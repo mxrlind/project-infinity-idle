@@ -53,5 +53,5 @@ Object.assign(Game, {
 
   gearSetArmorPenActive()  { return !!this.activeSetBonuses().special.armorpen; },
   gearSetLifestealActive() { return !!this.activeSetBonuses().special.lifesteal; },
-  gearSetBurnActive()      { return !!this.activeSetBonuses().special.burn; },
+  // 'burn' (Conjunto Dragão) não tem helper próprio: seu efeito já é o DPS extra somado em bonus4.
 });

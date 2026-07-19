@@ -41,14 +41,9 @@ Object.assign(Game, {
     S.world.min += dt * WORLD_MIN_PER_SEC;
     const w1 = this.worldInfo();
 
-    // registra estações vistas (conquista/consciência do mundo)
-    if (!S.world.seenSeasons[w1.season.id]) {
-      S.world.seenSeasons[w1.season.id] = true;
-      if (w0.season.id !== w1.season.id) {
-        UI.log(`${w1.season.icon} A estação mudou: <b>${w1.season.name}</b> — ${w1.season.desc}.`);
-        UI.toast(`${w1.season.icon} ${w1.season.name} chegou!`, '#e8a33d');
-      }
-    } else if (w0.season.id !== w1.season.id) {
+    // registra estações vistas (conquista/consciência do mundo) e anuncia a troca uma vez por virada
+    if (!S.world.seenSeasons[w1.season.id]) S.world.seenSeasons[w1.season.id] = true;
+    if (w0.season.id !== w1.season.id) {
       UI.log(`${w1.season.icon} A estação mudou: <b>${w1.season.name}</b> — ${w1.season.desc}.`);
       UI.toast(`${w1.season.icon} ${w1.season.name} chegou!`, '#e8a33d');
     }
