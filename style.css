@@ -389,7 +389,10 @@ body {
 }
 .up-card.afford { opacity: 1; border-color: var(--arcane); cursor: pointer; box-shadow: 0 0 12px rgba(143, 111, 216, 0.12); }
 .up-card.afford:hover { transform: translateY(-2px); border-color: #b9a0f0; }
-.up-icon { font-size: 22px; }
+.up-icon { font-size: 28px; height: 40px; line-height: 40px; }
+img.up-icon { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
+img.res-icon { width: 18px; height: 18px; object-fit: cover; border-radius: 4px; vertical-align: middle; border: 1px solid var(--border); }
+.bc-icon img.gear-art { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; vertical-align: middle; border: 1px solid var(--border); }
 .up-name { font-weight: 700; font-size: 14px; margin: 4px 0 2px; }
 .up-desc { font-size: 12px; color: var(--text-dim); }
 .up-cost { font-family: var(--font-num); font-size: 11px; color: var(--gold); margin-top: 6px; }

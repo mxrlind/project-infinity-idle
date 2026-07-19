@@ -38,6 +38,21 @@ const UI = {
       onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'hero-icon',textContent:'${def.icon}'}))">`;
   },
 
+  // ícone genérico com arte custom + fallback pro emoji (mesmo padrão de heroIconHtml). Se o arquivo
+  // em `src` não existir, o onerror troca o <img> por um <span class="{cls}"> com o emoji — assim uma
+  // área pode ganhar arte item a item sem quebrar os itens que ainda não têm imagem.
+  iconImgHtml(src, emoji, cls) {
+    return `<img class="${cls}" src="${src}" alt="" draggable="false"
+      onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'${cls}',textContent:'${emoji}'}))">`;
+  },
+
+  // ícone de um item de gear: arma equipada com tipo (wtype) usa a arte de img/weapons/{wtype}.jpg,
+  // com fallback pro emoji da arma; amuletos (sem wtype) e tipos sem arte continuam no emoji.
+  gearIconHtml(item) {
+    if (item && item.wtype) return this.iconImgHtml(`img/weapons/${item.wtype}.jpg`, item.icon, 'gear-art');
+    return item ? item.icon : '';
+  },
+
   // ---------- Tabs ----------
 
   tabDefs() {
@@ -164,7 +179,7 @@ const UI = {
       this.R.ups = [];
       for (const u of ups) {
         const b = this.el('button', 'up-card');
-        b.innerHTML = `<div class="up-icon">${u.icon}</div><div class="up-name">${u.name}</div><div class="up-desc">${u.desc}</div><div class="up-cost">${fmt(u.cost)} ouro</div>`;
+        b.innerHTML = `${this.iconImgHtml(`img/upgrades/${u.id}.jpg`, u.icon, 'up-icon')}<div class="up-name">${u.name}</div><div class="up-desc">${u.desc}</div><div class="up-cost">${fmt(u.cost)} ouro</div>`;
         b.onclick = () => { if (Game.buyUpgrade(u.id)) { this.dirty.prod = true; this.renderActive(); } };
         grid.appendChild(b);
         this.R.ups.push({ cost: u.cost, btn: b });
@@ -528,7 +543,7 @@ const UI = {
     const elDef = Game.itemElementDef ? Game.itemElementDef(item) : null;
     if (elDef) card.style.boxShadow = `0 0 10px ${elDef.color}`;
     card.innerHTML = `
-      <div class="bc-icon" style="color:${r.color}">${item.icon}${setDef ? ` <span class="chip-set">${setDef.icon}</span>` : ''}</div>
+      <div class="bc-icon" style="color:${r.color}">${this.gearIconHtml(item)}${setDef ? ` <span class="chip-set">${setDef.icon}</span>` : ''}</div>
       <div class="bc-rar" style="color:${r.color}">${r.name}</div>
       <div class="bc-slot">${item.slot === 'arma' ? this.weaponTypeName(item) : slotName}</div>
       <div class="bc-mult">+${Math.round(item.mult * 100)}% DPS</div>
@@ -769,7 +784,7 @@ const UI = {
     const slotName = GEAR_SLOTS.find(s => s.id === item.slot).name;
     const affHtml = (item.affixes || []).map(a => this.affixLabel(a)).join('<br>');
     this.R.forge.cardArea.innerHTML = `<div class="forge-card">
-      <div class="bc-icon" style="color:${r.color};font-size:34px">${item.icon}</div>
+      <div class="bc-icon" style="color:${r.color};font-size:34px">${this.gearIconHtml(item)}</div>
       <div>
         <div class="bc-rar" style="color:${r.color}">${r.name} · ${item.slot === 'arma' ? this.weaponTypeName(item) : slotName}</div>
         <div class="bc-mult">+${Math.round(item.mult * 100)}% DPS</div>
@@ -1237,7 +1252,7 @@ const UI = {
     for (const d of defs) {
       if (S.res[d.k] < 1 && !(d.k !== 'cristal' && S.unlocked.base)) continue;
       const row = this.el('div', 'res-row');
-      row.innerHTML = `<span class="res-icon">${d.icon}</span><span class="res-name">${d.name}</span><span class="res-val">${fmt(S.res[d.k])}</span>`;
+      row.innerHTML = `${this.iconImgHtml(`img/materials/${d.k}.jpg`, d.icon, 'res-icon')}<span class="res-name">${d.name}</span><span class="res-val">${fmt(S.res[d.k])}</span>`;
       rb.appendChild(row);
       this.R.resEls[d.k] = row.querySelector('.res-val');
     }
