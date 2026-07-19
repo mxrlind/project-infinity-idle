@@ -1080,6 +1080,8 @@ body {
   border-radius: 14px;
   padding: 26px 30px;
   max-width: 480px; width: 90%;
+  /* nunca mais alto que a tela: rola por dentro pra o ✕/título continuarem alcançáveis no mobile */
+  max-height: 90vh; overflow-y: auto;
   box-shadow: 0 20px 80px rgba(0,0,0,0.7);
   animation: bannerIn 0.3s ease;
 }
@@ -1164,6 +1166,14 @@ body {
   #left-panel.open #left-extra { display: block; }
 
   #main-panel { flex: 1 1 auto; min-height: 0; }
+
+  /* Alvos de toque confortáveis no celular (~44px, recomendação de acessibilidade) — só afeta o mobile */
+  .buy-btn { min-height: 44px; }
+  .buy-amt { min-height: 40px; padding: 4px 16px; font-size: 13px; }
+  .cfg-seg-btn { min-height: 44px; }
+  #codex-btn { min-height: 40px; display: inline-flex; align-items: center; }
+  .bc-scrap { min-height: 34px; }
+  .cfg-vol { height: 26px; }               /* slider de volume era fino demais pra arrastar com o dedo */
 }
 
 @media (max-width: 480px) {

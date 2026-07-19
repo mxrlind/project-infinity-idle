@@ -4,6 +4,64 @@
 
 > Glifos de interface (setas, X, check, menu, som, salvar/exportar) foram deixados de fora a pedido - devem continuar como fonte/CSS.
 
+> ⚠️ **Nota:** as 21 grades abaixo (alvo `img/icons/...`) são um plano genérico antigo que **não está ligado ao jogo atual** — a arte em uso é por-entidade (`img/gens/`, `img/heroes/`, `img/rooms/`, `img/pets/`, `img/npcs/`, `img/materials/`, `img/enemies/`, `img/hero-icons/`). A seção **"⭐ FALTANTES"** logo abaixo é a que corresponde ao jogo de hoje e deve ser priorizada.
+
+---
+
+# ⭐ FALTANTES (arte por-entidade — bate com o jogo atual)
+
+Estas são as únicas imagens que o código referencia e **ainda não existem**. Todas caem no emoji via `onerror` (não quebram), mas ganham arte de verdade quando os arquivos aparecerem. Verificado em 2026-07-19.
+
+## A) Salas da Base faltantes (5) → `img/rooms/<id>.jpg`
+
+Faltam **mercado, templo, torre, arena, castelo**. Devem casar com as 8 salas que já existem (`quartel`, `cofre`, `serraria`, `mina_r`, `gerador`, `lab`, `biblioteca`, `oficina`): **prédio isométrico em vista 3/4 (top-down)**, arte pintada semi-realista dark-fantasy, pedra/madeira detalhada, brilho quente de tocha/lanterna, alguns baús/moedas de ouro no piso, estandartes azuis quando couber, fundo obsidiana quase preto (#0b0a10), **mesma escala e iluminação** em todos. Imagem quadrada.
+
+**Prompt (grade única — recorte 5 células):**
+
+```
+Crie UMA imagem quadrada com uma grade 3x2 (6 células iguais e bem separadas; use as 5 primeiras e deixe a última célula vazia/fundo liso). Cada célula mostra UM edifício de fantasia medieval em vista isométrica 3/4 top-down, todos na MESMA escala, MESMA iluminação e MESMO enquadramento, como peças de um mesmo conjunto de jogo idle. Estilo: arte pintada semi-realista dark-fantasy, pedra e madeira bem detalhadas, brilho quente de tocha/lanterna, alguns baús e moedas de ouro no piso da célula, estandartes azuis quando fizer sentido, luz de contorno (rim light). Paleta: ouro envelhecido (#e8a33d / #ffd700) e violeta arcano (#8f6fd8), brilhos vermelho-brasa (#ff6b5e), sobre fundo obsidiana quase preto (#0b0a10). Silhuetas nítidas e legíveis em tamanho pequeno. SEM texto, SEM letras, SEM números, SEM legendas, SEM marca d'água. Os 5 edifícios, da esquerda para a direita e de cima para baixo:
+1. Mercado — barraca/loja medieval com toldos, tábuas de mercadorias, sacas e caixotes (comércio)
+2. Templo — santuário de pedra com portal torii/colunas, braseiros acesos, ar sagrado e sereno
+3. Torre Arcana — torre alta e esguia de mago, cristais flutuantes e runas violetas brilhando no topo
+4. Arena — coliseu/anfiteatro de pedra em ruína nobre, arquibancadas curvas, portões de combate
+5. Castelo — fortaleza grandiosa com torres, muralhas ameadas e estandartes reais (o edifício mais imponente do conjunto)
+```
+
+Recorte → `img/rooms/mercado.jpg`, `img/rooms/templo.jpg`, `img/rooms/torre.jpg`, `img/rooms/arena.jpg`, `img/rooms/castelo.jpg` (quadrados ~320px).
+
+## B) Mascote Fênix (1) → `img/pets/fenix.jpg`
+
+Deve casar com os pets existentes (`dragao`, `lobo`, `coruja`): **busto/cabeça da criatura em 3/4**, dramático, arte pintada semi-realista, **anel de aura radial violeta/roxa brilhando atrás**, luz de contorno ouro + brasa, fundo quase preto, moldura fina escura, quadrado.
+
+**Prompt (imagem única):**
+
+```
+Crie UMA imagem quadrada: retrato dramático da cabeça/busto de uma FÊNIX (ave de fogo lendária) em vista 3/4, arte pintada semi-realista dark-fantasy de jogo idle. Plumagem em ouro incandescente e vermelho-brasa (#ff6b5e) com penas que parecem chamas vivas, olhar intenso. Atrás dela, um ANEL de aura radial violeta/roxo (#8f6fd8) brilhando, com fagulhas e brasas subindo. Luz de contorno dourada (#e8a33d / #ffd700), fundo obsidiana quase preto (#0b0a10), moldura fina escura na borda. Silhueta nítida e legível em tamanho pequeno. SEM texto, SEM letras, SEM números, SEM legendas, SEM marca d'água.
+```
+
+Recorte → `img/pets/fenix.jpg` (quadrado ~400px).
+
+## C) Ícones de herói (9, OPCIONAL) → `img/hero-icons/<id>.jpg`
+
+`hero-icons` são **sobreposições opcionais** que só substituem o emoji do herói quando o arquivo existe — hoje só a Thora tem (`hero-icons/thora.jpg` = machado). Estilo: **arma/símbolo do herói centralizado num tablete de pedra rachada**, com **círculo de runas arcanas violeta brilhando atrás**, rachaduras de energia ouro + brasa, luz de contorno, moldura de pedra esculpida na borda, quadrado. Cada arma segue o emoji do herói.
+
+**Prompt (grade 3x3 — recorte 9 células):**
+
+```
+Crie UMA imagem quadrada com uma grade 3x3 (9 células iguais e bem separadas, cada objeto centralizado, todos do mesmo tamanho). Cada célula mostra UM objeto/arma icônico apoiado sobre um tablete de PEDRA rachada escura, com um CÍRCULO de runas arcanas violeta (#8f6fd8) brilhando atrás, rachaduras de energia em ouro (#e8a33d / #ffd700) e vermelho-brasa (#ff6b5e), luz de contorno, e uma moldura de pedra esculpida na borda da célula. Estilo pintado semi-realista dark-fantasy de jogo idle, fundo obsidiana quase preto (#0b0a10). Silhuetas nítidas e legíveis em tamanho pequeno. SEM texto, SEM letras, SEM números, SEM legendas, SEM marca d'água. Os 9 objetos, da esquerda para a direita e de cima para baixo:
+1. um escudo de paladino robusto (Bran, tanque)
+2. um arco de caça élfico com uma flecha (Lyra, arqueira)
+3. uma esfera/orbe de cristal mágico (Magnus, mago)
+4. uma adaga curva de assassino (Vex, assassino)
+5. um clarão de luz sagrada / estrela cintilante (Seraphine, suporte sagrado)
+6. uma caveira arcana (Nyx, necromante)
+7. um totem/monólito de pedra rúnica (Io, guardião)
+8. um raio/relâmpago cristalizado (Kael, duelista veloz)
+9. uma pomba branca estilizada com ramo (Orin, suporte)
+```
+
+Recorte → `img/hero-icons/bran.jpg`, `lyra.jpg`, `magnus.jpg`, `vex.jpg`, `sera.jpg`, `nyx.jpg`, `io.jpg`, `kael.jpg`, `orin.jpg` (quadrados ~400px). **Observação:** o arquivo da Seraphine é `sera.jpg` (não `seraphine.jpg`).
+
 ---
 
 ## Grade 01 - Moedas & Riqueza

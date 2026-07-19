@@ -2,6 +2,24 @@
 
 ## Não lançado
 
+### Responsividade mobile: modais roláveis + alvos de toque
+Validação ponta a ponta da experiência no celular (medição de layout via DOM em 375px, 320px e
+paisagem 812×375 — as 13 abas), a pedido do usuário. Zero overflow horizontal em todas as abas nas
+duas larguras; gaveta de recursos ☰, modo canhoto/destro e clamp de layout em paisagem
+(`100vh − 57px`) confirmados corretos.
+
+- **🐛 Modais altos ficavam impossíveis de fechar no celular (`style.css`)**: `.modal-box` não tinha
+  `max-height` nem `overflow-y`, então um modal mais alto que a tela (Códex media 1245px em 812px)
+  empurrava o título e o botão ✕ para **fora do topo da viewport** (topo em −236px), sem rolagem
+  possível — o usuário ficava preso. Fix: `max-height: 90vh; overflow-y: auto;`. Depois: o modal cabe
+  (731px), rola por dentro e o ✕ fica visível e clicável. Também afetava boas-vindas offline e
+  confirmações longas. Validado em retrato e paisagem.
+- **🎯 Alvos de toque confortáveis no mobile (`style.css`, dentro de `@media max-width:900px`)**: vários
+  controles estavam abaixo do confortável (44px) e dois abaixo do piso WCAG 2.5.8 de 24px. Ampliados só
+  no mobile (desktop intacto): `.buy-btn` 34→44px (botão mais tocado), `.buy-amt` (×1/×10/Máx) 26→40px,
+  `.cfg-seg-btn` 38→44px, `#codex-btn` 26→40px, `.bc-scrap` 20→34px, `.cfg-vol` (slider de volume)
+  16→26px. Reconfirmado 0 overflow após as mudanças.
+
 ### Auditoria técnica: migração de save, testes automatizados, narrativa da Fase 1, trade-offs de Talentos
 Trata 4 itens do backlog de [AUDIT.md](AUDIT.md) (itens 6, 7, 4 e 8 da Parte 9), a pedido do usuário
 depois do roadmap de conteúdo fechado.
