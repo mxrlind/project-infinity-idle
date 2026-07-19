@@ -18,7 +18,7 @@ Object.assign(UI, {
       const card = this.el('div', 'gearset-card' + (n >= 4 ? ' gs-4' : n >= 2 ? ' gs-2' : ''));
       const bonus4Special = setDef.bonus4.special;
       card.innerHTML = `
-        <div class="gs-icon">${setDef.icon}</div>
+        ${this.iconImgHtml(`img/gearsets/${setDef.id}.jpg`, setDef.icon, 'gs-icon', 'div')}
         <div class="gs-name">${setDef.name}</div>
         <div class="gs-progress">${Math.min(n, 4)}/4 peças</div>
         <div class="gs-tiers">

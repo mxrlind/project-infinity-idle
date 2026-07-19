@@ -10,7 +10,7 @@ Object.assign(UI, {
     this.positionEventBanner(b);
     const secretPrefix = secret ? '🌑 <b>Chefe Secreto do Eclipse!</b> — ' : '';
     b.innerHTML = mech
-      ? `${secretPrefix}<span class="ev-icon">${mech.icon}</span> <b>${mech.name}</b> — ${mech.desc}`
+      ? `${secretPrefix}${this.iconImgHtml(`img/bosses/${mech.id}.jpg`, mech.icon, 'ev-icon')} <b>${mech.name}</b> — ${mech.desc}`
       : `${secretPrefix}o vazio trouxe um inimigo inesperado.`;
     clearTimeout(this._bannerT);
     this._bannerT = setTimeout(() => b.classList.add('hidden'), 7000);

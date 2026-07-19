@@ -86,7 +86,7 @@ Object.assign(UI, {
     S.research.queue.forEach((q, i) => {
       const def = Game.researchDef(q.id);
       const row = this.el('div', 'rq-row' + (i === 0 ? ' rq-current' : ''));
-      row.innerHTML = `<span class="rq-icon">${def.icon}</span>
+      row.innerHTML = `${this.iconImgHtml(`img/research/${def.id}.jpg`, def.icon, 'rq-icon')}
         <div class="rq-info">
           <div class="rq-name"><b>${def.name}</b> ${i > 0 ? '<span class="rq-wait">na fila</span>' : ''}</div>
           <div class="rq-bar"><div class="rq-fill"></div></div>

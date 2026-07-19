@@ -392,7 +392,19 @@ body {
 .up-icon { font-size: 28px; height: 40px; line-height: 40px; }
 img.up-icon { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
 img.res-icon { width: 18px; height: 18px; object-fit: cover; border-radius: 4px; vertical-align: middle; border: 1px solid var(--border); }
-.bc-icon img.gear-art { width: 34px; height: 34px; object-fit: cover; border-radius: 6px; vertical-align: middle; border: 1px solid var(--border); }
+img.gear-art { width: 16px; height: 16px; object-fit: cover; border-radius: 3px; vertical-align: middle; }
+.bc-icon img.gear-art { width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--border); }
+/* arte custom (com fallback pro emoji) nas demais áreas — dimensiona o <img>; o <span>/<div>
+   de fallback continua no tamanho de fonte original definido pela própria classe. */
+img.tal-ico   { width: 22px; height: 22px; object-fit: cover; border-radius: 5px; vertical-align: middle; border: 1px solid var(--border); }
+img.ach-icon  { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); }
+img.ev-icon   { width: 22px; height: 22px; object-fit: cover; border-radius: 5px; vertical-align: middle; margin-right: 6px; }
+img.bsb-ico   { width: 20px; height: 20px; object-fit: cover; border-radius: 4px; vertical-align: middle; }
+img.ft-ico    { width: 24px; height: 24px; object-fit: cover; border-radius: 5px; vertical-align: middle; }
+img.gs-icon   { width: 30px; height: 30px; object-fit: cover; border-radius: 6px; vertical-align: middle; }
+img.rq-icon   { width: 26px; height: 26px; object-fit: cover; border-radius: 5px; vertical-align: middle; }
+img.relic-slot-icon { width: 40px; height: 40px; object-fit: cover; border-radius: 8px; }
+img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
 .up-name { font-weight: 700; font-size: 14px; margin: 4px 0 2px; }
 .up-desc { font-size: 12px; color: var(--text-dim); }
 .up-cost { font-family: var(--font-num); font-size: 11px; color: var(--gold); margin-top: 6px; }

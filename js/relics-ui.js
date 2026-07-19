@@ -53,7 +53,7 @@ Object.assign(UI, {
       const slot = this.el('div', 'relic-slot' + (relicId ? ' filled' : ''));
       if (relicId) {
         const def = Game.relicDef(relicId);
-        slot.innerHTML = `<div class="relic-slot-icon">${def.icon}</div><div class="relic-slot-name">${def.name}</div>`;
+        slot.innerHTML = `${this.iconImgHtml(`img/relics/${def.id}.jpg`, def.icon, 'relic-slot-icon', 'div')}<div class="relic-slot-name">${def.name}</div>`;
         slot.title = def.desc + '\nClique para desequipar.';
         slot.onclick = () => { Game.unequipRelicSlot(i); this.dirty.heroes = true; this.renderActive(); };
       } else {
@@ -98,7 +98,7 @@ Object.assign(UI, {
     const card = this.el('div', 'relic-card' + (this.isNewRow('relic', relicId) ? ' row-enter-sm' : ''));
     const chips = this.relicEffectChips(def).map(ch => `<span class="relic-chip ${ch.good ? 'good' : 'bad'}">${ch.label}: ${ch.text}</span>`).join('');
     card.innerHTML = `
-      <div class="rc-icon">${def.icon}</div>
+      ${this.iconImgHtml(`img/relics/${def.id}.jpg`, def.icon, 'rc-icon', 'div')}
       <div class="rc-name">${def.name}</div>
       <div class="rc-chips">${chips}</div>
       <button class="buy-btn rc-equip">Equipar</button>`;

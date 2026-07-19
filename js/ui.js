@@ -41,9 +41,9 @@ const UI = {
   // ícone genérico com arte custom + fallback pro emoji (mesmo padrão de heroIconHtml). Se o arquivo
   // em `src` não existir, o onerror troca o <img> por um <span class="{cls}"> com o emoji — assim uma
   // área pode ganhar arte item a item sem quebrar os itens que ainda não têm imagem.
-  iconImgHtml(src, emoji, cls) {
+  iconImgHtml(src, emoji, cls, tag = 'span') {
     return `<img class="${cls}" src="${src}" alt="" draggable="false"
-      onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'${cls}',textContent:'${emoji}'}))">`;
+      onerror="this.replaceWith(Object.assign(document.createElement('${tag}'),{className:'${cls}',textContent:'${emoji}'}))">`;
   },
 
   // ícone de um item de gear: arma equipada com tipo (wtype) usa a arte de img/weapons/{wtype}.jpg,
@@ -505,7 +505,7 @@ const UI = {
         const setDef = Game.itemSetDef ? Game.itemSetDef(item) : null;
         const elDef = Game.itemElementDef ? Game.itemElementDef(item) : null;
         if (elDef) chip.style.boxShadow = `0 0 6px ${elDef.color}`;
-        chip.innerHTML = `${item.icon} +${Math.round(item.mult * 100)}%${ideal ? ' <span class="chip-ideal">✦</span>' : ''}${affIcons ? ' <span class="chip-aff">' + affIcons + '</span>' : ''}${setDef ? ` <span class="chip-set">${setDef.icon}</span>` : ''}`;
+        chip.innerHTML = `${this.gearIconHtml(item)} +${Math.round(item.mult * 100)}%${ideal ? ' <span class="chip-ideal">✦</span>' : ''}${affIcons ? ' <span class="chip-aff">' + affIcons + '</span>' : ''}${setDef ? ` <span class="chip-set">${setDef.icon}</span>` : ''}`;
         chip.title = `${slot.name} ${r.name}: +${Math.round(item.mult * 100)}% DPS`
           + (slot.id === 'arma' ? `\nTipo: ${this.weaponTypeName(item)}${ideal ? ' ✦ (ideal — especialização ativa!)' : ` (ideal deste herói: ${(WEAPON_TYPES.find(w => w.id === arch.weapon) || {}).name})`}` : '')
           + ((item.affixes && item.affixes.length) ? '\n' + item.affixes.map(a => this.affixLabel(a)).join('\n') : '')
@@ -757,7 +757,7 @@ const UI = {
       const unlocked = Game.forgeTierUnlocked(t);
       const btn = this.el('button', 'forge-tier' + (unlocked ? '' : ' locked'));
       const npcName = t.unlockAt ? NPCS.find(n => n.id === t.unlockAt.npc).name : '';
-      btn.innerHTML = `<div class="ft-head">${t.icon} ${t.name}</div>
+      btn.innerHTML = `<div class="ft-head">${this.iconImgHtml(`img/forge-tiers/${t.id}.jpg`, t.icon, 'ft-ico')} ${t.name}</div>
         <div class="ft-odds">${unlocked ? this.forgeOddsHtml(t) : `🔒 amizade nv ${t.unlockAt.lvl} com ${npcName}`}</div>
         <div class="ft-cost"></div>`;
       btn.onclick = () => { if (Game.forgeItem(t.id)) this.updateDynamic(); };
@@ -961,7 +961,7 @@ const UI = {
         const b = this.el('div', 'bs-building');
         b.style.height = h + '%';
         b.title = `${r.name} — Nv ${lvl}`;
-        b.innerHTML = `<span class="bsb-ico">${r.icon}</span><span class="bsb-lvl">${lvl}</span>`;
+        b.innerHTML = `${this.iconImgHtml(`img/rooms/${r.id}.jpg`, r.icon, 'bsb-ico')}<span class="bsb-lvl">${lvl}</span>`;
         skyline.appendChild(b);
       }
     }
@@ -1054,7 +1054,7 @@ const UI = {
         const costHtml = blocker ? `🔒 Bloqueado — você escolheu ${blockedDef.name}`
           : (lvl >= t.max ? 'MÁXIMO' : fmt(Game.talentCost(t.id)) + ' 📘 conhecimento');
         card.innerHTML = `${t.exclusiveWith ? '<div class="rc-branch-tag">⚔️ Ramo exclusivo — só um dos dois</div>' : ''}
-          <div class="tal-head">${t.icon} <b>${t.name}</b> <span class="tal-lvl">${lvl}/${t.max}</span></div>
+          <div class="tal-head">${this.iconImgHtml(`img/talents/${t.id}.jpg`, t.icon, 'tal-ico')} <b>${t.name}</b> <span class="tal-lvl">${lvl}/${t.max}</span></div>
           <div class="tal-desc">${t.desc}</div>
           <div class="tal-cost">${costHtml}</div>`;
         card.onclick = () => { if (Game.buyTalent(t.id)) this.updateDynamic(); };
@@ -1116,7 +1116,7 @@ const UI = {
         const card = this.el('div', 'ach-card' + (done ? ' done' : '') + (hidden ? ' secret' : ''));
         card.innerHTML = hidden
           ? `<div class="ach-icon">❓</div><div class="ach-name">???</div><div class="ach-desc">Segredo...</div>`
-          : `<div class="ach-icon">${a.icon}</div><div class="ach-name">${a.name}</div><div class="ach-desc">${a.desc}</div>`;
+          : `${this.iconImgHtml(`img/achievements/${a.id}.jpg`, a.icon, 'ach-icon', 'div')}<div class="ach-name">${a.name}</div><div class="ach-desc">${a.desc}</div>`;
         card.title = hidden ? 'Uma conquista secreta aguarda...' : a.desc;
         grid.appendChild(card);
       }
@@ -1585,7 +1585,7 @@ const UI = {
     const b = document.getElementById('event-banner');
     b.className = '';
     this.positionEventBanner(b);
-    b.innerHTML = `<span class="ev-icon">${ev.icon}</span> <b>${ev.name}</b> — ${ev.desc} ${extra ? '<b>' + extra + '</b>' : ''}`;
+    b.innerHTML = `${this.iconImgHtml(`img/events/${ev.id}.jpg`, ev.icon, 'ev-icon')} <b>${ev.name}</b> — ${ev.desc} ${extra ? '<b>' + extra + '</b>' : ''}`;
     clearTimeout(this._bannerT);
     this._bannerT = setTimeout(() => b.classList.add('hidden'), 9000);
   },
