@@ -417,6 +417,7 @@ const Game = {
     total *= 1 + this.gearBonus.team;          // afixo "Estandarte" (soma dos itens equipados)
     total *= this.extDpsMult();                // expansão: mundo + mascotes + pesquisa
     total *= (this.bossRolePenaltyMult ? this.bossRolePenaltyMult() : 1);  // Chefes Inteligentes (#7): chefe exige papel em campo
+    total *= this.bossStudyMult();             // tentativas falhas neste chefe viram DPS contra ele
     total *= this.buffMult('dps');
     return total;
   },
@@ -464,6 +465,18 @@ const Game = {
     g *= this.extKillGoldMult();               // expansão: Lua Cheia + pesquisa "Caçada Ritual"
     if (S.invasion > 0 && !boss) g *= 3;
     return g;
+  },
+
+  // ESTUDO DO INIMIGO: cada tentativa falha no chefe atual dá +15% de DPS contra ELE (só contra
+  // chefe, some quando a onda avança). Existe pra resolver o pior momento do jogo: sem isso, falhar
+  // num chefe congela a onda por tempo indeterminado — nas medições do simulador a run passava até
+  // 28 minutos parada na onda 30, sem nenhuma compra de combate possível e sem nenhum sinal de
+  // progresso. Com o estudo, a parede vira contagem regressiva: o time aprende os padrões e a
+  // tentativa seguinte é sempre melhor que a anterior. O teto de ×3 é deliberado — não trivializa
+  // uma parede grande (que continua exigindo investimento real), só elimina o bloqueio infinito.
+  bossStudyMult() {
+    if (!S.combat.boss) return 1;
+    return Math.min(BOSS_STUDY_MAX, 1 + BOSS_STUDY_PER_TRY * (S.combat.bossTries || 0));
   },
 
   bossTimeLimit() {
@@ -570,9 +583,14 @@ const Game = {
       S.res.pedra += amt;
       if (Math.random() < 0.5) S.res.ferro += Math.ceil(amt / 2);
     }
-    if (wasBoss && c.wave >= 30 && Math.random() < 0.4) {
-      S.res.cristal += 1;
-      UI.log(`💠 O chefe soltou um <b>Cristal</b>!`);
+    // Chefes soltam cristal a partir da onda 20 (era 30, com 40% de chance de 1 unidade fixa — cedo
+    // demais pra ser útil e raro demais pra sustentar Forja + Árvore do Mundo). Agora a quantidade
+    // acompanha a onda, então derrubar chefes continua sendo a fonte "grande" de cristal ao lado do
+    // fluxo estável da Mina Profunda.
+    if (wasBoss && c.wave >= 20 && Math.random() < 0.5) {
+      const amt = 1 + Math.floor(c.wave / 25);
+      S.res.cristal += amt;
+      UI.log(`💠 O chefe soltou <b>${amt} Cristal${amt > 1 ? 'is' : ''}</b>!`);
     }
 
     this.onKillExt(wasBoss);                    // expansão: XP de mascote, missões, segredos
@@ -583,6 +601,7 @@ const Game = {
       // Equipamentos 2.0 (#3): loot temático — o chefe derrotado ainda está em c.bossMech aqui
       const mech = this.bossMechDef ? this.bossMechDef() : null;
       if (Math.random() < this.dropChance()) this.awardGear(mech && mech.dropSet);
+      c.bossTries = 0;                          // chefe caiu: o Estudo do Inimigo zera para o próximo
       c.wave++;
       c.maxWave = Math.max(c.maxWave, c.wave);
       this.heroChatter();
@@ -623,7 +642,19 @@ const Game = {
 
   bossFailed() {
     const c = S.combat;
+    // Diagnóstico: falhar num chefe congela a progressão de onda (e, com ela, quase todo o combate),
+    // então o jogador precisa saber QUANTO faltou — não só que falhou. `need` é o DPS que teria
+    // derrubado o chefe dentro do tempo; a razão vira uma meta concreta ("falta ×2,3 de DPS").
+    const need = c.maxHp / Math.max(1, this.bossTimeLimit());
+    const have = Math.max(1, this.teamDps());
+    const short = need / have;
     UI.log(`⏳ O chefe da onda <b>${c.wave}</b> resistiu! O time recua para treinar (5 abates).`);
+    UI.log(`📊 Faltou <b>×${short < 10 ? short.toFixed(1) : fmt(short)}</b> de DPS — suba níveis de herói, forje armas ou melhore o Quartel.`);
+    c.bossTries = (c.bossTries || 0) + 1;
+    const study = Math.min(BOSS_STUDY_MAX, 1 + BOSS_STUDY_PER_TRY * c.bossTries);
+    if (study < BOSS_STUDY_MAX) {
+      UI.log(`🔍 <b>Estudo do Inimigo</b>: o time decorou mais um padrão — <b>+${Math.round((study - 1) * 100)}%</b> de dano contra este chefe.`);
+    }
     c.bossCooldown = 5;
     this.spawnEnemy();
   },
@@ -843,7 +874,13 @@ const Game = {
       UI.toast(`${g.icon} ${g.name} ×2!`, '#e8a33d');
     }
     Sound.play('buy');
-    UI.dirty.prod = true;
+    // NÃO marca dirty.prod: um dirty aqui faria `renderActive` apagar (`innerHTML = ''`) e reconstruir
+    // a aba inteira A CADA COMPRA — o botão que está sob o cursor é destruído no meio do clique, o
+    // :active morre, e um segundo clique rápido cai no vazio do rebuild. É exatamente a sensação de
+    // "o botão de compra fica congelado". `updateDynamic` já atualiza custo, quantidade, produção e
+    // afford de cada linha a cada tick; só a APARIÇÃO de um gerador novo precisa de re-render, e disso
+    // cuida a checagem de visibilidade da UI (que este aviso força a rodar agora, sem esperar 3s).
+    UI.invalidateProdVisibility();
     return true;
   },
 
@@ -892,7 +929,9 @@ const Game = {
       UI.log(`${def.icon} <b>${def.name}:</b> <i>"${line}"</i>`);
     }
     Sound.play('buy');
-    UI.dirty.heroes = true;
+    // Mesmo motivo do buyGen: subir nível é o botão mais clicado da aba Heróis, e marcar dirty aqui
+    // reconstruía a aba inteira (painel de combate, campo, todas as seções) a cada clique — o botão
+    // sumia debaixo do cursor. `updateDynamic` já mantém nível, DPS, custo e afford dos mini-cards.
     return true;
   },
 
@@ -932,6 +971,36 @@ const Game = {
   },
 
   energyBoost() { return 1 + 0.08 * this.roomLvl('gerador'); },
+
+  // Rendimento efetivo de uma sala produtora: nível × marco de extração.
+  // MARCO DE EXTRAÇÃO (ROOM_MILESTONE): a cada 10 níveis a sala DOBRA o que rende, no mesmo espírito
+  // dos marcos de gerador e de herói. Sem isso a Base travava de vez — o custo de uma sala cresce
+  // ×1,7–2,0 por nível (exponencial) enquanto a produção crescia só LINEARMENTE com o nível, então a
+  // partir de ~nível 10 nenhuma quantidade de tempo alcançava o próximo nível de Castelo/Torre/Arena.
+  roomYield(roomId) {
+    const lvl = this.roomLvl(roomId);
+    return lvl * Math.pow(2, Math.floor(lvl / ROOM_MILESTONE));
+  },
+
+  // Materiais por segundo, num lugar só. tick() e offlineGains() liam a mesma fórmula duplicada —
+  // qualquer ajuste precisava ser feito nos dois (e a energia já havia divergido: o tick aplicava
+  // extEnergyMult, o offline não).
+  matPerSec() {
+    const eb = this.energyBoost();
+    const mat = (1 + this.synergyBonuses().material) * this.extMaterialMult();   // sinergia + estação/clima
+    const mina = this.roomYield('mina_r');
+    return {
+      madeira: 2 * this.roomYield('serraria') * eb * mat,
+      pedra: 1.5 * mina * eb * mat,
+      ferro: 0.5 * mina * eb * mat,
+      // Cristal tinha UMA fonte só no jogo inteiro (40% de chance ao abater um chefe de onda ≥ 30 —
+      // justamente o ponto onde o jogador mais empacava) contra cinco consumidores: Forja, Árvore do
+      // Mundo, salas avançadas, poções e ofertas de NPC. A Mina Profunda passa a render cristal a
+      // partir do nível 5, transformando o recurso de "sorte no chefe" em fluxo previsível.
+      cristal: this.roomLvl('mina_r') >= CRYSTAL_MINE_LEVEL ? 0.02 * mina * eb * mat : 0,
+      energia: 1 * this.roomYield('gerador') * mat * this.extEnergyMult(),
+    };
+  },
 
   knowledgePerSec() {
     return 0.2 * this.roomLvl('lab')
@@ -1010,11 +1079,107 @@ const Game = {
   },
 
   // bônus agregados por tipo, aplicados nas fórmulas do motor
+  // Vizinhos ortogonais de uma célula, nos dois sentidos (cellForwardNeighbors só olha pra frente,
+  // porque quem varre a grade inteira contaria cada par duas vezes).
+  cellAllNeighbors(i) {
+    const n = [];
+    const col = i % BASE_GRID_COLS;
+    const size = BASE_GRID_COLS * BASE_GRID_ROWS;
+    if (col > 0) n.push(i - 1);
+    if (col < BASE_GRID_COLS - 1) n.push(i + 1);
+    if (i - BASE_GRID_COLS >= 0) n.push(i - BASE_GRID_COLS);
+    if (i + BASE_GRID_COLS < size) n.push(i + BASE_GRID_COLS);
+    return n;
+  },
+
+  // 🟢 NÍVEL 1 — Vizinhança: todo par ortogonal de salas CONSTRUÍDAS, tenham afinidade ou não.
+  // É o piso do sistema: recompensa ocupar a grade de forma compacta em vez de espalhar as salas.
+  adjacencyPairs() {
+    const g = this.ensureBaseGrid();
+    const out = [];
+    for (let i = 0; i < g.length; i++) {
+      if (!g[i] || this.roomLvl(g[i]) < 1) continue;
+      for (const j of this.cellForwardNeighbors(i)) {
+        if (!g[j] || this.roomLvl(g[j]) < 1) continue;
+        out.push({ i, j, lvl: Math.min(this.roomLvl(g[i]), this.roomLvl(g[j])) });
+      }
+    }
+    return out;
+  },
+
+  // 🟣 NÍVEL 3 — Complexos: 3+ salas específicas, todas construídas E formando um grupo conectado
+  // entre si por adjacência ortogonal (uma peça só — linha, L ou bloco). Não basta estarem na grade:
+  // é isso que transforma a Base num puzzle em vez de uma lista de caixas pra marcar.
+  activeComplexes() {
+    const g = this.ensureBaseGrid();
+    const out = [];
+    for (const def of ROOM_COMPLEXES) {
+      const cells = [];
+      let lvl = Infinity, ok = true;
+      for (const roomId of def.rooms) {
+        const idx = g.indexOf(roomId);
+        const rl = this.roomLvl(roomId);
+        if (idx < 0 || rl < 1) { ok = false; break; }
+        cells.push(idx);
+        lvl = Math.min(lvl, rl);
+      }
+      if (!ok || !this.cellsConnected(cells)) continue;
+      out.push({ def, cells, lvl });
+    }
+    return out;
+  },
+
+  // As células dadas formam um grupo conectado, andando só por vizinhos ortogonais DENTRO do grupo?
+  cellsConnected(cells) {
+    if (cells.length <= 1) return true;
+    const inSet = new Set(cells);
+    const seen = new Set([cells[0]]);
+    const queue = [cells[0]];
+    while (queue.length) {
+      for (const n of this.cellAllNeighbors(queue.pop())) {
+        if (inSet.has(n) && !seen.has(n)) { seen.add(n); queue.push(n); }
+      }
+    }
+    return seen.size === cells.length;
+  },
+
   synergyBonuses() {
     const b = { gold: 0, dps: 0, knowledge: 0, material: 0, equip: 0 };
     const mul = this.extSynergyMult() * this.baseMult();   // pesquisa "Urbanismo Arcano" × Castelo
-    for (const s of this.activeSynergies()) b[s.def.type] += s.value * mul;
+    for (const p of this.adjacencyPairs()) b.gold += ADJACENCY_BONUS * p.lvl * mul;   // 🟢 vizinhança
+    for (const s of this.activeSynergies()) b[s.def.type] += s.value * mul;           // 🔵 combinação
+    for (const cx of this.activeComplexes()) {                                        // 🟣 complexo
+      for (const k in cx.def.per) b[k] += cx.def.per[k] * cx.lvl * mul;
+    }
     return b;
+  },
+
+  // Tudo em que a sala de UMA célula participa. É o que a UI desenha ao selecionar uma sala — a Base
+  // fica limpa por padrão e só revela as ligações daquela peça quando o jogador pergunta por ela.
+  roomConnections(cellIndex) {
+    const g = this.ensureBaseGrid();
+    const id = g[cellIndex];
+    const out = { vizinhanca: [], combinacoes: [], complexos: [] };
+    if (!id || this.roomLvl(id) < 1) return out;
+    const mul = this.extSynergyMult() * this.baseMult();
+
+    for (const s of this.activeSynergies()) {
+      if (s.i !== cellIndex && s.j !== cellIndex) continue;
+      out.combinacoes.push({ def: s.def, other: s.i === cellIndex ? s.j : s.i, value: s.value * mul });
+    }
+    // Vizinhança lista TODOS os vizinhos construídos, inclusive os que também formam uma combinação
+    // ou um complexo: o bônus de adjacência é cumulativo com eles (synergyBonuses soma os três
+    // níveis), então filtrar aqui faria o painel reportar menos ouro do que o jogador realmente ganha.
+    // A sobreposição é resolvida no DESENHO (UI.drawBaseLinks mantém só a linha do nível mais forte
+    // por par), não na contabilidade.
+    for (const p of this.adjacencyPairs()) {
+      if (p.i !== cellIndex && p.j !== cellIndex) continue;
+      out.vizinhanca.push({ other: p.i === cellIndex ? p.j : p.i, value: ADJACENCY_BONUS * p.lvl * mul });
+    }
+    for (const cx of this.activeComplexes()) {
+      if (cx.cells.includes(cellIndex)) out.complexos.push({ def: cx.def, cells: cx.cells, lvl: cx.lvl, mul });
+    }
+    return out;
   },
 
   // troca (ou move) o conteúdo de duas células da grade
@@ -1077,7 +1242,7 @@ const Game = {
     S.gens = {};
     S.upgrades = {};
     S.heroes = {};
-    S.combat = { wave: 1, maxWave: 1, hp: 0, maxHp: 0, boss: false, bossT: 0, bossCooldown: 0, fightT: 0,
+    S.combat = { wave: 1, maxWave: 1, hp: 0, maxHp: 0, boss: false, bossT: 0, bossCooldown: 0, bossTries: 0, fightT: 0,
       bossMech: null, bossShiftPhys: false, bossShiftT: 0, special: null, secretBoss: false,
       kills: S.combat.kills, bossKills: S.combat.bossKills };
     S.rooms = {};
@@ -1314,13 +1479,9 @@ const Game = {
     const know = this.knowledgePerSec() * capped * offMult;
     if (gold > 0) this.gainGold(gold);
     if (know > 0) S.res.conhecimento += know;
-    // salas produzem materiais offline
-    const eb = this.energyBoost();
-    const mat = (1 + this.synergyBonuses().material) * this.extMaterialMult();   // sinergia + estação/clima
-    S.res.madeira += 2 * this.roomLvl('serraria') * eb * mat * capped * offMult;
-    S.res.pedra += 1.5 * this.roomLvl('mina_r') * eb * mat * capped * offMult;
-    S.res.ferro += 0.5 * this.roomLvl('mina_r') * eb * mat * capped * offMult;
-    S.res.energia += 1 * this.roomLvl('gerador') * mat * capped * offMult;
+    // salas produzem materiais offline (mesma fórmula do tick — ver Game.matPerSec)
+    const mps = this.matPerSec();
+    for (const k in mps) S.res[k] += mps[k] * capped * offMult;
     // expansão: o mundo gira, a pesquisa continua e o mercado se move enquanto você dorme
     const ext = this.offlineExt(capped);
     return { seconds: capped, gold, know, research: ext.research };
@@ -1331,12 +1492,8 @@ const Game = {
   tick(dt) {
     // produção
     this.gainGold(this.goldPerSec() * dt);
-    const eb = this.energyBoost();
-    const mat = (1 + this.synergyBonuses().material) * this.extMaterialMult();   // sinergia + estação/clima
-    S.res.madeira += 2 * this.roomLvl('serraria') * eb * mat * dt;
-    S.res.pedra += 1.5 * this.roomLvl('mina_r') * eb * mat * dt;
-    S.res.ferro += 0.5 * this.roomLvl('mina_r') * eb * mat * dt;
-    S.res.energia += 1 * this.roomLvl('gerador') * mat * this.extEnergyMult() * dt;   // tempestade turbina a energia
+    const mps = this.matPerSec();
+    for (const k in mps) S.res[k] += mps[k] * dt;
     S.res.conhecimento += this.knowledgePerSec() * dt;
     S.playTime += dt;
 

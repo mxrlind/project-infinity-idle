@@ -108,12 +108,13 @@ Upgrades só aparecem na lista quando o jogador já tem ~25% do custo (ou, para 
 
 **Combate é 100% automático**: o time inteiro ataca o inimigo atual continuamente (`DPS do time × dt` a cada tick). O jogador só precisa contratar, nivelar e equipar — clicar no inimigo é um bônus opcional de dano extra.
 
-- **Nível de herói**: custo cresce ×1.08 por nível; DPS do herói = `DPS_base × nível × 2^⌊nível/25⌋ × multiplicador_de_equipamento`. Ou seja, marco a cada 25 níveis também dobra o DPS daquele herói.
+- **Nível de herói**: custo cresce ×1.08 por nível; DPS do herói = `DPS_base × nível × 2^⌊nível/18⌋ × multiplicador_de_equipamento`. Ou seja, marco a cada 18 níveis também dobra o DPS daquele herói. (Era 25; ver `HERO_MILESTONE` em `js/data.js` — com 25 o combate divergia permanentemente da curva de HP do inimigo e travava de vez por volta da onda 45.)
 - **DPS do time** = soma do DPS de todos os heróis, multiplicado por: `(1 + 10%×nível do Quartel) × (1 + 10%×talento Fúria) × (1 + 1%×conquistas) × buffs ativos`.
 - **Ondas**: o inimigo atual sobe de onda a cada abate. HP do inimigo = `15 × 1.45^(onda-1)`, ×9 se for chefe. Cada onda exibe uma ilustração de monstro (8 inimigos comuns alternando em ciclo, mais uma arte exclusiva de chefe) em vez de um emoji.
-- **Chefes**: aparecem a cada onda múltipla de 10. Têm um cronômetro (30s + 3s por nível do talento *Paciência*) — se não forem derrotados a tempo, o time recua para "treinar" (5 abates de inimigos normais antes de desafiar o chefe de novo).
+- **Chefes**: aparecem a cada onda múltipla de 10. Têm um cronômetro (30s + 3s por nível do talento *Paciência*) — se não forem derrotados a tempo, o time recua para "treinar" (5 abates de inimigos normais antes de desafiar o chefe de novo). O log informa **quanto DPS faltou** (`×2,3`, por exemplo), para a parede virar uma meta concreta.
+- **Estudo do Inimigo**: cada tentativa falha no chefe atual dá **+15% de dano contra ele**, acumulativo até **×3**, e zera quando o chefe cai. Existe para que uma parede de chefe seja uma contagem regressiva em vez de um bloqueio indefinido — o teto é deliberado: uma parede grande continua exigindo investimento real.
 - **Recompensa de ouro por abate** = `4 × 1.42^(onda-1)`, ×14 se for chefe, ×3 durante invasões, +8%/nível do talento *Caçador*.
-- **Materiais**: a partir da onda 12, há 30% de chance de ganhar pedra/ferro por abate; chefes a partir da onda 30 têm 40% de chance de dropar 1 Cristal.
+- **Materiais**: a partir da onda 12, há 30% de chance de ganhar pedra/ferro por abate; chefes a partir da onda 20 têm 50% de chance de dropar `1 + ⌊onda/25⌋` Cristais.
 - **Falas espontâneas**: heróis têm 25% de chance de comentar algo após derrotar um chefe, e sempre falam ao atingir um marco de nível (25, 50, 75...) ou ao serem contratados.
 
 ---
@@ -147,13 +148,40 @@ Cada herói tem 2 slots: **Arma** 🗡️ e **Amuleto** 📿. Equipamentos só v
 | Sala | Efeito por nível | Custo inicial | Multiplicador |
 |---|---|---|---:|
 | 🪵 Serraria | +2 madeira/s | 50 mil ouro | ×1.70 |
-| ⛰️ Mina Profunda | +1.5 pedra/s, +0.5 ferro/s | 120 mil ouro + 50 madeira | ×1.70 |
+| ⛰️ Mina Profunda | +1.5 pedra/s, +0.5 ferro/s, +0.02 cristal/s (a partir do nível 5) | 120 mil ouro + 50 madeira | ×1.70 |
 | ⚡ Gerador | +1 energia/s, +8% produção das salas | 400 mil ouro + madeira/pedra | ×1.80 |
 | 🧪 Laboratório | +0.2 conhecimento/s (para Talentos) | 1 Mi ouro + pedra/ferro | ×1.80 |
 | 🏰 Quartel | +10% DPS dos heróis | 800 mil ouro + madeira/ferro | ×1.75 |
 | 📚 Biblioteca | +15% de conhecimento | 2.5 Mi ouro + madeira/pedra | ×1.80 |
 | 🔧 Oficina | +5% chance de drop, +10% poder de equip. | 5 Mi ouro + ferro | ×1.80 |
 | 💰 Cofre-Forte | +6% de produção de ouro | 10 Mi ouro + pedra/ferro | ×1.85 |
+
+### Sinergias da Base: três níveis de adjacência
+
+A Base é um mini-puzzle: só contam salas **construídas** e **ortogonalmente vizinhas** (lado a lado,
+nunca na diagonal), e todo bônus escala com o **MENOR nível** entre as salas envolvidas — subir só uma
+não adianta. Os três níveis são cumulativos: um mesmo par pode render vizinhança *e* combinação, e
+ainda participar de um complexo.
+
+| Nível | O que é | Quantos | Bônus |
+|---|---|---:|---|
+| 🟢 **Vizinhança** | Qualquer par de salas construídas lado a lado, com ou sem afinidade | — | `ADJACENCY_BONUS` = +0,4%/nível de ouro por par |
+| 🔵 **Combinação** | Duas salas **específicas** lado a lado (`ROOM_SYNERGIES`) | 21 | +4% a +6%/nível, no bucket da dupla |
+| 🟣 **Complexo** | Três salas específicas formando um grupo **conectado entre si** (`ROOM_COMPLEXES`) | 6 | +3% a +7%/nível, geralmente em dois buckets |
+
+Os seis complexos: **Centro Militar** (Quartel + Oficina + Arena), **Distrito Arcano** (Torre + Lab +
+Biblioteca), **Complexo Industrial** (Serraria + Mina + Gerador), **Distrito Financeiro** (Mercado +
+Cofre + Castelo), **Cidadela Sagrada** (Templo + Castelo + Arena) e **Academia de Guerra** (Quartel +
+Biblioteca + Oficina). Eles compartilham salas **de propósito** — com 13 salas em 16 células é
+impossível ter todos ao mesmo tempo, então montar a Base é escolher quais combinações servem à sua run.
+
+**Leitura na tela**: a grade fica limpa; cada célula mostra apenas pontos coloridos indicando em quais
+níveis aquela sala participa. Ao **selecionar uma sala**, as ligações *dela* são desenhadas por cima da
+grade (verde tracejado = vizinhança, azul = combinação, roxo = contorno do complexo), as salas ligadas
+se destacam e o resto recua. O painel abaixo detalha cada ganho e sugere os complexos que ainda dá
+para formar. Para reposicionar, arraste (desktop) ou use o botão **⇄ Mover**.
+
+**Marco de extração**: a cada **10 níveis** (`ROOM_MILESTONE`), uma sala produtora DOBRA o que rende — o rendimento efetivo é `nível × 2^⌊nível/10⌋` (`Game.roomYield`). Sem isso a Base travava permanentemente: o custo de uma sala cresce ×1.7–2.0 por nível (exponencial) contra uma produção que crescia só linearmente, então a partir de ~nível 10 nenhuma quantidade de tempo alcançava o próximo nível de Castelo/Torre/Arena.
 
 O **Gerador** é multiplicativo sobre a produção de madeira/pedra/ferro/energia das outras salas (`+8%/nível`), tornando-o prioritário cedo. O **Laboratório** é a única fonte de Conhecimento, o recurso usado nos Talentos — sem ele, a aba de Talentos fica bloqueada mesmo desbloqueada.
 

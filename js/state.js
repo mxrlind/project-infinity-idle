@@ -52,6 +52,7 @@ function defaultState() {
       hp: 0, maxHp: 0,
       boss: false, bossT: 0,
       bossCooldown: 0,   // kills de farm antes de re-desafiar o chefe
+      bossTries: 0,      // tentativas falhas neste chefe — vira bônus de DPS acumulado (Game.bossStudyMult)
       fightT: 0,         // segundos que o inimigo atual está vivo (fúria do Berserker)
       kills: 0, bossKills: 0,
       bossMech: null,    // id de BOSS_MECHANICS ativa neste chefe (null se não for chefe ou sem mecânica sorteada)
@@ -119,6 +120,11 @@ function defaultState() {
     layers: { ascensions: 0, ascPoints: 0 },  // Progressão em Camadas (#13) — permanente, não reseta nem no prestígio nem na ascensão
 
     worldTree: { level: 0 },  // Árvore do Mundo (#12) — permanente, não reseta nem no prestígio nem na ascensão
+
+    // Seções recolhíveis (UI.section): id -> true/false. As telas densas (Heróis, Base, Forja) abrem
+    // mostrando só o essencial; o resto vira um cabeçalho de uma linha com o número que importa, e o
+    // jogador expande o que quiser. A escolha dele fica salva — recolher algo tem que ser permanente.
+    ui: { sections: {} },
 
     sound: true,
     flashFx: true,    // efeitos de tela cheia (flash de drop lendário)

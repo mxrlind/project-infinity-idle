@@ -411,7 +411,9 @@ Object.assign(Game, {
   npcsUnlocked() { return this.hasResearch('cidade'); },
 
   npcLevel(npcId) {
-    const xp = S.npcs.rep[npcId] || 0;
+    // `S.npcs.rep` faltando derruba o tick inteiro (npcLevel é chamado de forgeTierUnlocked, que a UI
+    // consulta a cada render). Um estado incompleto aqui vale nível 0, não uma exceção por segundo.
+    const xp = (S.npcs && S.npcs.rep && S.npcs.rep[npcId]) || 0;
     let lvl = 0;
     for (let i = 0; i < NPC_FRIEND_XP.length; i++) if (xp >= NPC_FRIEND_XP[i]) lvl = i;
     return lvl;

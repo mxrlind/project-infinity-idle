@@ -21,10 +21,17 @@ const GENERATORS = [
   { id: 'banco',      name: 'Banco Anão',          icon: '🏦', baseCost: 160e3,  prod: 1.8e3, flavor: 'Juros compostos, literalmente escavados.' },
   { id: 'templo',     name: 'Templo Dourado',      icon: '🏛️', baseCost: 1.9e6,  prod: 14e3,  flavor: 'Dízimos fluem em uma só direção.' },
   { id: 'torre',      name: 'Torre Arcana',        icon: '🗼', baseCost: 24e6,   prod: 115e3, flavor: 'Transmuta tédio em ouro puro.' },
-  { id: 'portal',     name: 'Portal Dimensional',  icon: '🌀', baseCost: 320e6,  prod: 1e6,   flavor: 'Importa riqueza de universos falidos.' },
-  { id: 'santuario',  name: 'Santuário do Tempo',  icon: '⏳', baseCost: 4.5e9,  prod: 9.5e6, flavor: 'Cobra aluguel do passado e do futuro.' },
-  { id: 'motor',      name: 'Motor Cósmico',       icon: '🌌', baseCost: 68e9,   prod: 95e6,  flavor: 'Gira galáxias. As galáxias pagam.' },
-  { id: 'singular',   name: 'Singularidade',       icon: '🕳️', baseCost: 1.2e12, prod: 1.4e9, flavor: 'Nem a luz escapa. O ouro muito menos.', reqPrestige: 1 },
+  // Os quatro últimos tiers tiveram a produção elevada. O custo/produção crescia ×1,53 por tier, o
+  // que — somado ao fato de um gerador NOVO começar sem nenhum marco de ×2 enquanto os antigos já
+  // acumulavam vários — deixava o payback do Portal/Santuário/Motor em 175s/259s/392s contra ~120s
+  // dos iniciais. Ou seja: comprar o gerador recém-desbloqueado era sempre a PIOR compra do jogo, e o
+  // jogador ótimo simplesmente ignorava metade do conteúdo de Produção. Agora o ratio cresce ×1,25
+  // nos tiers de topo: continuam mais caros por unidade de ouro/s (a progressão é real), mas entram
+  // na disputa em vez de serem armadilha.
+  { id: 'portal',     name: 'Portal Dimensional',  icon: '🌀', baseCost: 320e6,  prod: 1.23e6, flavor: 'Importa riqueza de universos falidos.' },
+  { id: 'santuario',  name: 'Santuário do Tempo',  icon: '⏳', baseCost: 4.5e9,  prod: 1.38e7, flavor: 'Cobra aluguel do passado e do futuro.' },
+  { id: 'motor',      name: 'Motor Cósmico',       icon: '🌌', baseCost: 68e9,   prod: 1.67e8, flavor: 'Gira galáxias. As galáxias pagam.' },
+  { id: 'singular',   name: 'Singularidade',       icon: '🕳️', baseCost: 1.2e12, prod: 2.35e9, flavor: 'Nem a luz escapa. O ouro muito menos.', reqPrestige: 1 },
 ];
 const GEN_COST_MULT = 1.15;
 const GEN_MILESTONE = 25; // a cada 25 unidades, produção ×2
@@ -68,6 +75,11 @@ const UPGRADES = [
 ];
 
 // ---- Heróis (NPCs com personalidade) ----
+// Escada de contratação: cada herói custa ~20–30× o anterior. Os seis últimos foram barateados —
+// a escada tinha degraus de 27× a 44×, e o salto Thora(2,2M) → Vex(60M) era o que criava a parede
+// mais longa da run: por volta da onda 30 o time chegava ao teto dos 3 heróis disponíveis e ficava
+// ~25 minutos sem NENHUMA compra de combate possível enquanto juntava o 4º. Degraus mais parelhos
+// mantêm a sensação de conquista sem o vácuo.
 // kingdom/element (#2 Sinergia de Composição): camadas ORTOGONAIS extras a class/archetype/role,
 // usadas só por TEAM_SYNERGIES (ver abaixo). solar=4 heróis (bran+sera+io+kael, o quarteto exato
 // cabe nos FIELD_SLOTS), selvagem=3 (thora+vex+nyx), arcano=3 (magnus+lyra+orin).
@@ -84,22 +96,22 @@ const HEROES = [
   { id: 'thora', name: 'Thora', title: 'Berserker Sorridente', icon: '🪓', baseCost: 2.2e6, baseDps: 1.3e3, class: 'dps', archetype: 'duelista', role: 'berserker', kingdom: 'selvagem', element: 'raio',
     story: 'Sorri durante a batalha. Os inimigos acham isso profundamente perturbador.',
     lines: ['HAHA! Mais! MAIS!', 'Meu machado tem nome: Segunda-feira.', 'Dor é só fraqueza fazendo cócegas.'] },
-  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 60e6, baseDps: 11e3, class: 'dps', archetype: 'assassino', role: 'assassino', kingdom: 'selvagem', element: 'sombra',
+  { id: 'vex', name: 'Vex', title: 'Assassino Pontual', icon: '🗡️', baseCost: 40e6, baseDps: 11e3, class: 'dps', archetype: 'assassino', role: 'assassino', kingdom: 'selvagem', element: 'sombra',
     story: 'Chega sempre três segundos antes do necessário. Ninguém sabe como.',
     lines: ['Você não me viu. Ninguém nunca vê.', 'Contratos são sagrados. Alvos, nem tanto.', '...', ], },
-  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 1.8e9, baseDps: 95e3, class: 'support', archetype: 'paladino', role: 'bardo', kingdom: 'solar', element: 'sagrado',
+  { id: 'sera', name: 'Seraphine', title: 'Paladina Radiante', icon: '✨', baseCost: 900e6, baseDps: 95e3, class: 'support', archetype: 'paladino', role: 'bardo', kingdom: 'solar', element: 'sagrado',
     story: 'Sua luz cega aliados desavisados. Ela pede desculpas. Sempre.',
     lines: ['A luz cobra caro, mas paga em dobro.', 'Perdão pela claridade. De novo.', 'Nenhuma sombra resiste para sempre.'] },
-  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 80e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank', archetype: 'necromante', role: 'necromante', kingdom: 'selvagem', element: 'sombra',
+  { id: 'nyx', name: 'Nyx', title: 'Necromante Aposentada', icon: '💀', baseCost: 22e9, baseDps: 1.1e6, reqPrestige: 1, class: 'tank', archetype: 'necromante', role: 'necromante', kingdom: 'selvagem', element: 'sombra',
     story: 'Saiu da aposentadoria porque o plano de previdência do Além faliu.',
     lines: ['Os mortos trabalham de graça. Aprendam.', 'Aposentadoria era tediosa demais.', 'Todo fim é só um contrato renovável.'] },
-  { id: 'io', name: 'Io', title: 'Golem de Areia Antiga', icon: '🗿', baseCost: 3.2e12, baseDps: 1.4e7, reqPrestige: 2, class: 'tank', archetype: 'paladino', role: 'tank', kingdom: 'solar', element: 'sagrado',
+  { id: 'io', name: 'Io', title: 'Golem de Areia Antiga', icon: '🗿', baseCost: 600e9, baseDps: 1.4e7, reqPrestige: 2, class: 'tank', archetype: 'paladino', role: 'tank', kingdom: 'solar', element: 'sagrado',
     story: 'Construído para guardar um templo que ninguém mais lembra onde fica. Ainda guarda.',
     lines: ['Areia não esquece. Eu também não.', 'Mil anos de pé. Nem uma rachadura.', 'Templo? Que templo?'] },
-  { id: 'kael', name: 'Kael', title: 'Duelista Relâmpago', icon: '⚡', baseCost: 1.1e14, baseDps: 1.8e8, reqPrestige: 2, class: 'dps', archetype: 'duelista', role: 'duelista', kingdom: 'solar', element: 'raio',
+  { id: 'kael', name: 'Kael', title: 'Duelista Relâmpago', icon: '⚡', baseCost: 17e12, baseDps: 1.8e8, reqPrestige: 2, class: 'dps', archetype: 'duelista', role: 'duelista', kingdom: 'solar', element: 'raio',
     story: 'Vence duelos antes do oponente perceber que começaram.',
     lines: ['Já acabou. Você só não viu.', 'Rápido demais pra ter medo.', 'Relâmpago não erra duas vezes.'] },
-  { id: 'orin', name: 'Orin', title: 'Bardo do Fim dos Tempos', icon: '🕊️', baseCost: 3.8e15, baseDps: 2.3e9, reqPrestige: 3, class: 'support', archetype: 'mago', role: 'bardo', kingdom: 'arcano', element: 'gelo',
+  { id: 'orin', name: 'Orin', title: 'Bardo do Fim dos Tempos', icon: '🕊️', baseCost: 500e12, baseDps: 2.3e9, reqPrestige: 3, class: 'support', archetype: 'mago', role: 'bardo', kingdom: 'arcano', element: 'gelo',
     story: 'Canta a mesma canção desde antes do primeiro prestígio. Ainda não chegou ao refrão.',
     lines: ['Essa música ainda não acabou. Nem vai.', 'Toda batalha precisa de trilha sonora.', 'Já vi isso terminar. E recomeçar.'] },
 ];
@@ -109,7 +121,17 @@ const KINGDOMS = {
   arcano:   { name: 'Reino Arcano',   icon: '🔮', color: '#8f6fd8' },
 };
 const HERO_LVL_COST_MULT = 1.08;
-const HERO_MILESTONE = 25; // a cada 25 níveis, DPS ×2
+// A cada 18 níveis, DPS ×2. Era 25, o que tornava o combate MATEMATICAMENTE insustentável: o HP do
+// inimigo cresce ×1,45/onda (×41 a cada 10 ondas), mas com marco 25 subir o DPS ×41 exigia ~111
+// níveis, ou ×2200 de ouro (1,08^111), enquanto a renda cresce só ×33 nas mesmas 10 ondas — a
+// divergência era permanente e crescente, e com o time inteiro no nível 80 o chefe da onda 75 ainda
+// pedia 50.000× mais DPS do que qualquer investimento entregava. Com marco 18 as mesmas ×41 custam
+// ~1,08^96 ≈ ×490: o combate ainda anda ATRÁS da economia (490 contra 33, que é o que mantém os
+// geradores como espinha dorsal e o nível de herói como compra concorrente), mas dentro do alcance
+// do crescimento exponencial da produção, em vez de fora dele para sempre.
+// Testado no simulador (tests/sim.html): 10 e 13 invertem o problema — o combate vira a economia
+// inteira e a run dispara pra onda 400+ em duas horas; 25 mantém a parede impossível.
+const HERO_MILESTONE = 18;
 
 // ---- Classes e Campo de Batalha (sinergia de time) ----
 // Cada herói pertence a uma classe. Só heróis alocados num slot de campo lutam (fieldSlot !== null);
@@ -120,6 +142,11 @@ const HERO_CLASSES = {
   dps:     { name: 'Dano',    icon: '⚔️', color: '#ff6b5e' },
   support: { name: 'Suporte', icon: '✨', color: '#5fbf6b' },
 };
+// Estudo do Inimigo (ver Game.bossStudyMult): cada tentativa falha num chefe dá +15% de dano contra
+// ele, até ×3. Transforma "parede de chefe" em contagem regressiva em vez de bloqueio indefinido.
+const BOSS_STUDY_PER_TRY = 0.15;
+const BOSS_STUDY_MAX = 3;
+
 const FIELD_SLOTS = 4;
 const SYNERGY_TARGET = { tank: 0.25, dps: 0.5, support: 0.25 };
 const SYNERGY_MAX_BONUS = 0.30; // (legado) compat com saves — a sinergia agora é um medidor 0–100%
@@ -252,7 +279,7 @@ const TEAM_SYNERGIES = [
 // ---- Salas da Base ----
 const ROOMS = [
   { id: 'serraria',   name: 'Serraria',    icon: '🪵', desc: '+2 madeira/s por nível',                     baseCost: { gold: 50e3 },                          costMult: 1.7 },
-  { id: 'mina_r',     name: 'Mina Profunda', icon: '⛰️', desc: '+1,5 pedra/s e +0,5 ferro/s por nível',   baseCost: { gold: 120e3, madeira: 50 },            costMult: 1.7 },
+  { id: 'mina_r',     name: 'Mina Profunda', icon: '⛰️', desc: '+1,5 pedra/s e +0,5 ferro/s por nível — e +0,02 cristal/s a partir do nível 5', baseCost: { gold: 120e3, madeira: 50 }, costMult: 1.7 },
   { id: 'gerador',    name: 'Gerador',     icon: '⚡', desc: '+1 energia/s e +8% produção das salas por nível', baseCost: { gold: 400e3, madeira: 120, pedra: 80 }, costMult: 1.8 },
   { id: 'lab',        name: 'Laboratório', icon: '🧪', desc: '+0,2 conhecimento/s por nível (para Talentos)', baseCost: { gold: 1e6, pedra: 150, ferro: 40 },  costMult: 1.8 },
   { id: 'quartel',    name: 'Quartel',     icon: '🏰', desc: '+10% de DPS dos heróis por nível',           baseCost: { gold: 800e3, madeira: 200, ferro: 60 }, costMult: 1.75 },
@@ -270,6 +297,13 @@ const ROOMS = [
 // ---- Grade da Base ----
 // Topologia FIXA (mesma em todas as telas) — as sinergias dependem de quem é vizinho de quem,
 // então a grade não pode mudar de forma conforme o tamanho do dispositivo.
+// Marco de extração das salas produtoras: a cada 10 níveis, o rendimento de materiais DOBRA
+// (ver Game.roomYield). Existe porque o custo das salas cresce ×1,7–2,0 por nível, exponencial,
+// contra uma produção que era linear no nível — a Base travava permanentemente por volta do nível 10.
+const ROOM_MILESTONE = 10;
+// Nível da Mina Profunda a partir do qual ela também rende cristal (ver Game.matPerSec).
+const CRYSTAL_MINE_LEVEL = 5;
+
 const BASE_GRID_COLS = 4;
 const BASE_GRID_ROWS = 4;           // 16 células para 13 salas + 3 vagas para arranjar sinergias
 
@@ -302,6 +336,42 @@ const ROOM_SYNERGIES = [
   { a: 'mercado',    b: 'biblioteca', type: 'gold',      per: 0.04, icon: '📊', name: 'Comércio de Saber',  short: '+Produção de ouro' },
 ];
 const SYNERGY_LABELS = { gold: 'ouro', dps: 'DPS', knowledge: 'conhecimento', material: 'recursos', equip: 'equipamento' };
+
+// ===== Sinergias da Base em TRÊS NÍVEIS =====
+// A Base é um mini-puzzle de adjacência (a referência é Dorfromantik): a pergunta não é só "qual sala
+// dá mais produção?", é "onde eu ponho essa sala pra formar a melhor combinação?". Três níveis, do
+// mais genérico ao mais específico — e é a especificidade que paga:
+//
+//   🟢 VIZINHANÇA  — qualquer par de salas construídas lado a lado. Recompensa ocupar a grade de forma
+//                    compacta. Bônus pequeno, mas soma em toda a grade.
+//   🔵 COMBINAÇÃO  — duas salas ESPECÍFICAS lado a lado (ROOM_SYNERGIES, acima). Bônus médio.
+//   🟣 COMPLEXO    — três ou mais salas específicas formando um grupo CONECTADO entre si. Bônus grande.
+//
+// Os complexos compartilham salas de propósito (o Quartel está no Centro Militar e na Academia de
+// Guerra; o Castelo, no Distrito Financeiro e na Cidadela Sagrada): não dá pra ter todos ao mesmo
+// tempo em 16 células, então montar a Base é escolher quais combinações valem mais pra sua run.
+
+// 🟢 Vizinhança: bônus de produção de ouro por par ortogonal de salas construídas, × menor nível.
+// Deliberadamente pequeno — é o piso que recompensa compactar a grade, não a estrela do sistema.
+const ADJACENCY_BONUS = 0.004;
+
+// 🟣 Complexos: precisam de TODAS as salas construídas E ortogonalmente conectadas entre si
+// (formando uma peça só: linha, L ou bloco). `per` escala com o MENOR nível entre os membros,
+// mesma regra das combinações.
+const ROOM_COMPLEXES = [
+  { id: 'centro_militar', name: 'Centro Militar', icon: '🎖️', rooms: ['quartel', 'oficina', 'arena'],
+    per: { dps: 0.05, equip: 0.03 }, desc: 'Treinar, equipar e testar no mesmo pátio.' },
+  { id: 'distrito_arcano', name: 'Distrito Arcano', icon: '🔯', rooms: ['torre', 'lab', 'biblioteca'],
+    per: { knowledge: 0.06, dps: 0.03 }, desc: 'Onde a teoria vira feitiço sem passar pela porta da rua.' },
+  { id: 'complexo_industrial', name: 'Complexo Industrial', icon: '🏭', rooms: ['serraria', 'mina_r', 'gerador'],
+    per: { material: 0.07 }, desc: 'Extração, corte e energia numa linha só.' },
+  { id: 'distrito_financeiro', name: 'Distrito Financeiro', icon: '🏛️', rooms: ['mercado', 'cofre', 'castelo'],
+    per: { gold: 0.06 }, desc: 'O ouro circula sem nunca sair do quarteirão.' },
+  { id: 'cidadela_sagrada', name: 'Cidadela Sagrada', icon: '⛪', rooms: ['templo', 'castelo', 'arena'],
+    per: { gold: 0.04, dps: 0.04 }, desc: 'Fé, coroa e sangue de arena — o tripé de todo reino antigo.' },
+  { id: 'academia_guerra', name: 'Academia de Guerra', icon: '📯', rooms: ['quartel', 'biblioteca', 'oficina'],
+    per: { dps: 0.04, equip: 0.04 }, desc: 'Estudar a guerra dá mais resultado do que só travá-la.' },
+];
 
 // ---- Talentos (3 árvores, custam Conhecimento) ----
 const TALENTS = [

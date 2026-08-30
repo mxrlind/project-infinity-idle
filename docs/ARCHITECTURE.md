@@ -26,8 +26,12 @@ js/bosses-ui.js  — banner de intro de chefe + badge da mecânica ativa
 js/gearsets-ui.js — seção "Conjuntos" (na aba Heróis)
 js/main.js      — boot() : carrega save, calcula offline, inicia o loop de tick
 img/            — artes estáticas (retratos, inimigos, textura de fundo, favicon) — ver seção "Assets visuais"
-tests/          — testes automatizados das fórmulas puras (sem build/npm — abrir tests/index.html
-                  direto ou via preview; carrega só o "motor", nunca ui.js/main.js)
+js/art-manifest.js — GERADO por tools/gen-art-manifest.py: que arte existe em img/ (ver "Assets visuais")
+tools/          — scripts de apoio, rodados à mão (não há build)
+tests/          — testes automatizados das fórmulas puras + simulador de balanceamento (sem build/npm —
+                  abrir tests/index.html ou tests/sim.html direto ou via preview; ambos carregam só o
+                  "motor", nunca ui.js/main.js, então nenhum deles tem autosave que possa sobrescrever
+                  o save de verdade do preview)
 ```
 
 Ordem de carregamento no `index.html` importa: `format.js` → `data.js` → `state.js` → `game.js` → `expansion.js` → `relics.js` → `bosses.js` → `gearsets.js` → `ui.js` → `ui-ext.js` → `relics-ui.js` → `bosses-ui.js` → `gearsets-ui.js` → `main.js`, pois cada um assume que os anteriores já definiram suas globais (`fmt`, `GENERATORS`, `S`, `Game`, `UI`).
@@ -55,6 +59,24 @@ Fora isso, `UI.updateDynamic()` roda a cada tick e só atualiza **texto/classe/l
 Ao adicionar uma nova seção de UI, siga o padrão:
 1. `render<Aba>(c)` cria os elementos uma vez e guarda referências em `this.R`.
 2. Uma seção correspondente em `updateDynamic()` atualiza esses elementos a cada tick, se `this.activeTab === '<aba>'`.
+
+## Densidade de tela: a regra das seções
+
+As abas com muito conteúdo (Heróis, Base) usam `UI.section(parent, {id, title, summary, open})`, que
+devolve o corpo de uma seção recolhível. O contrato:
+
+- O **cabeçalho fechado carrega o número que importa** (`3 melhorias!`, `65% → 80%`, `3/21 ativas`).
+  Recolher só é aceitável se nada de decisivo sumir da tela — por isso todo `summary` é atualizado no
+  `updateDynamic` via `UI.setSectionSummary(id, html)` quando o valor muda.
+- O padrão de `open` segue **uma regra**: a seção nasce aberta apenas quando há uma *decisão pendente*
+  (slot vago com alguém no banco, herói contratável agora, carta na bolsa melhor que a equipada,
+  relíquia achada com slot livre). Consulta pura nasce fechada.
+- O estado fica em `S.ui.sections[id]` e é salvo — recolher algo tem que ser permanente.
+
+Isso não é decoração: a aba Heróis tinha 1841px de altura numa tela de 800, com 452px só de painel de
+sinergia (quase todo inativo) entre o combate e os heróis; a Base tinha 667px fixos listando as 21
+afinidades possíveis. O objetivo declarado é que o jogo impressione por profundidade conforme se joga,
+não por volume de informação simultânea na primeira tela.
 
 ## Como adicionar conteúdo novo
 
@@ -86,7 +108,28 @@ img/enemies/boss.png   — inimigo exibido quando cb.boss === true
 - **Retratos de herói**: `UI.renderHeroes()` (`js/ui.js`) cria uma `<div class="hero-portrait">` por linha de herói com `background-image` apontando para `img/heroes/${def.id}.jpg`; o CSS aplica `filter: grayscale` enquanto o herói não foi contratado (`.hero-locked .hero-portrait`).
 - **Inimigos**: o botão `.enemy-box` (painel de combate) contém um `<img class="enemy-img">` cujo `src` é atualizado a cada tick em `UI.updateDynamic()` com base em `cb.boss` e `cb.wave % 8`, mapeando para `e1..e8` ou `boss`. Como os PNGs têm fundo transparente, o `drop-shadow` do `.enemy-box` continua funcionando por cima da arte.
 - **Convenção de nomes**: ao adicionar um novo herói em `HEROES` (data.js), o arquivo `img/heroes/{id}.jpg` precisa existir com esse exato `id` — não há fallback automático se faltar.
+- **Manifesto de arte** (`js/art-manifest.js`): mapeia pasta de `img/` → nomes de arquivo existentes.
+  `UI.iconImgHtml()` consulta o manifesto antes de emitir um `<img>`; se não há arte, emite direto o
+  emoji, sem requisição. Sem isso, cada ícone de uma área ainda sem arte (conquistas, talentos, tiers
+  da Forja, eventos...) disparava um 404 — eram ~90 por carregamento, com o console vermelho de erro.
+  **Ao adicionar ou remover arte, regere o manifesto**: `python tools/gen-art-manifest.py`.
 - Nenhum asset é gerado ou buscado em runtime; todos são arquivos estáticos versionados no repo, então funcionam offline e não dependem de nenhuma API de terceiros.
+
+## Balanceamento: medir, não sentir
+
+`tests/sim.html` + `tests/sim.js` rodam um **jogador automático** sobre o motor real (compra o gerador
+de melhor payback, sobe o herói de melhor ouro-por-DPS, constrói salas, gasta talentos) e reportam o
+que nenhuma leitura de código revela: quanto tempo até cada fase, a curva de ouro/s, até onde a onda
+avança e — o mais importante — **onde a run trava e por quanto tempo**.
+
+```
+Sim.run({ minutes: 120, cps: 3 })   // 2h simuladas com 3 cliques/s → { phaseAt, stalls, log }
+Sim.paybacks()                      // custo por +1 ouro/s de cada gerador no estado atual
+```
+
+Foi assim que se descobriu que o combate divergia permanentemente da curva de HP, que o cristal
+terminava uma run de 2h com 2 unidades, e que os geradores de topo tinham payback 3× pior que os
+iniciais. Antes de mexer em qualquer número de `data.js`, rode uma run de referência e compare.
 
 ## Fórmulas centrais (referência rápida)
 

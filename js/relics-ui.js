@@ -36,10 +36,19 @@ Object.assign(UI, {
   // painel completo: slots equipados + inventário de relíquias possuídas
   renderRelics(c) {
     const owned = Game.ownedRelicIds();
-    c.appendChild(this.el('h3', 'section-title', `🔮 Relíquias <span class="bag-count">${owned.length}/${RELICS.length}</span>`));
+    const equipped = Game.relicEquippedIds().length;
+    // Aberta quando há relíquia achada e slot vago — ou seja, quando há uma DECISÃO a tomar.
+    const body = this.section(c, {
+      id: 'heroes.relics',
+      title: '🔮 Relíquias',
+      summary: owned.length
+        ? `<b class="sec-strong">${equipped}</b>/${RELIC_SLOTS} equipadas<span class="sec-next">${owned.length}/${RELICS.length} achadas</span>`
+        : 'nenhuma ainda',
+      open: owned.length > 0 && equipped < RELIC_SLOTS,
+    });
 
     if (!owned.length) {
-      c.appendChild(this.el('div', 'empty-hint',
+      body.appendChild(this.el('div', 'empty-hint',
         `${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"Relíquias são rarísssimas: chefes fortes as guardam, e o Colecionador na Cidade troca uma por vez. Cada uma muda profundamente como você joga — escolha com cuidado."</i>`));
       return;
     }
@@ -90,7 +99,7 @@ Object.assign(UI, {
       panel.appendChild(grid);
     }
 
-    c.appendChild(panel);
+    body.appendChild(panel);
   },
 
   relicCard(relicId) {

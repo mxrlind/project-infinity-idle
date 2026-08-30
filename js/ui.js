@@ -32,17 +32,29 @@ const UI = {
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   },
 
-  // ícone do herói: usa arte custom em img/hero-icons/{id}.jpg quando existe, senão cai no emoji (def.icon)
-  heroIconHtml(def) {
-    return `<img class="hero-icon-img" src="img/hero-icons/${def.id}.jpg" alt="" draggable="false"
-      onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'hero-icon',textContent:'${def.icon}'}))">`;
+  // `src` ("img/talents/furia.jpg") tem arte de verdade no disco? Consulta o manifesto gerado
+  // (js/art-manifest.js). Sem esta checagem, cada ícone de uma área ainda SEM arte — conquistas,
+  // talentos, tiers da Forja, eventos, energia/conhecimento — disparava uma requisição 404: eram ~90
+  // por carregamento, com o console cheio de erro vermelho escondendo qualquer erro real.
+  hasArt(src) {
+    const m = /^img\/([^/]+)\/([^/]+)\.[a-z]+$/i.exec(src);
+    if (!m) return false;
+    const group = ART[m[1]];
+    return !!group && group.indexOf(m[2]) !== -1;
   },
 
-  // ícone genérico com arte custom + fallback pro emoji (mesmo padrão de heroIconHtml). Se o arquivo
-  // em `src` não existir, o onerror troca o <img> por um <span class="{cls}"> com o emoji — assim uma
-  // área pode ganhar arte item a item sem quebrar os itens que ainda não têm imagem.
-  iconImgHtml(src, emoji, cls, tag = 'span') {
-    return `<img class="${cls}" src="${src}" alt="" draggable="false"
+  // ícone do herói: usa arte custom em img/hero-icons/{id}.jpg quando existe, senão cai no emoji (def.icon)
+  heroIconHtml(def) {
+    return this.iconImgHtml(`img/hero-icons/${def.id}.jpg`, def.icon, 'hero-icon', 'span', 'hero-icon-img');
+  },
+
+  // ícone genérico com arte custom + fallback pro emoji. Se a arte existe no manifesto, sai um <img>
+  // (com onerror como rede de segurança, caso o arquivo suma sem o manifesto ser regerado); se não
+  // existe, sai direto o <{tag}> com o emoji, sem requisição nenhuma. Assim uma área ganha arte item
+  // a item sem que os itens ainda sem imagem custem um 404 cada.
+  iconImgHtml(src, emoji, cls, tag = 'span', imgCls) {
+    if (!this.hasArt(src)) return `<${tag} class="${cls}">${emoji}</${tag}>`;
+    return `<img class="${imgCls || cls}" src="${src}" alt="" draggable="false"
       onerror="this.replaceWith(Object.assign(document.createElement('${tag}'),{className:'${cls}',textContent:'${emoji}'}))">`;
   },
 
@@ -123,6 +135,61 @@ const UI = {
     this.updateDynamic(); // aplica custos/afford imediatamente, sem esperar o próximo tick (evita flash de "indisponível")
   },
 
+  // ---------- Seções recolhíveis ----------
+  // O princípio das telas densas (Heróis, Base, Forja): a tela abre mostrando o que o jogador FAZ,
+  // e tudo que é referência/consulta vira um cabeçalho de uma linha com o número que importa à
+  // direita. Nada é removido do jogo — só deixa de ocupar a tela até ser pedido. É isso que faz o
+  // conteúdo parecer profundo (tem muito lá dentro) em vez de assustador (tem muito na cara).
+  //
+  // REGRA DO PADRÃO `open`: uma seção só nasce aberta quando tem uma DECISÃO pendente para o jogador
+  // (há uma relíquia pra encaixar num slot vago, há um herói contratável agora, há uma carta na bolsa
+  // melhor que a equipada). Seção que é só consulta — sinergia, conjuntos — nasce fechada. Isso é o
+  // que faz a tela pedir atenção só quando merece, em vez de gritar tudo o tempo todo.
+  //
+  // section(parent, { id, title, summary, open }) devolve o CORPO da seção, onde se append o conteúdo.
+  // `id` é a chave de persistência em S.ui.sections; `open` é só o padrão da primeira vez.
+  section(parent, opts) {
+    const id = opts.id;
+    const saved = S.ui && S.ui.sections ? S.ui.sections[id] : undefined;
+    const open = saved === undefined ? !!opts.open : saved;
+
+    const wrap = this.el('div', 'sec' + (open ? ' sec-open' : ''));
+    const head = this.el('button', 'sec-head');
+    head.innerHTML =
+      `<span class="sec-caret">▸</span>` +
+      `<span class="sec-title">${opts.title}</span>` +
+      `<span class="sec-summary">${opts.summary || ''}</span>`;
+    const body = this.el('div', 'sec-body');
+    head.onclick = () => {
+      const nowOpen = !wrap.classList.contains('sec-open');
+      wrap.classList.toggle('sec-open', nowOpen);
+      if (!S.ui) S.ui = { sections: {} };
+      if (!S.ui.sections) S.ui.sections = {};
+      S.ui.sections[id] = nowOpen;
+      Sound.play('click');
+    };
+    wrap.appendChild(head);
+    wrap.appendChild(body);
+    parent.appendChild(wrap);
+    // guardado para updateDynamic conseguir atualizar o resumo sem re-renderizar a seção inteira
+    if (!this.R.sections) this.R.sections = {};
+    this.R.sections[id] = { wrap, summaryEl: head.querySelector('.sec-summary') };
+    return body;
+  },
+
+  // Chamado pelo motor após uma compra de gerador: força a checagem de "apareceu alguém novo na
+  // lista?" no próximo tick, em vez de esperar o intervalo de 3s. Existe para que comprar NÃO precise
+  // marcar a aba como suja (o que reconstruiria o DOM inteiro debaixo do clique do jogador).
+  invalidateProdVisibility() {
+    this._lastProdCheck = undefined;
+  },
+
+  // Atualiza o texto-resumo de uma seção já renderizada (chamado do updateDynamic).
+  setSectionSummary(id, html) {
+    const s = this.R.sections && this.R.sections[id];
+    if (s && s.summaryEl.innerHTML !== html) s.summaryEl.innerHTML = html;
+  },
+
   // ---------- Aba: Produção ----------
 
   renderProd(c) {
@@ -147,11 +214,15 @@ const UI = {
       const row = this.el('div', 'gen-row' + (this.isNewRow('gens', g.id) ? ' row-enter' : ''));
       row.title = g.flavor; // descrição vira tooltip (padrão Cookie Clicker) — linha a menos por gerador na lista
 
-      const thumb = this.el('img', 'gen-thumb');
-      thumb.src = `img/gens/${g.id}.jpg`;
-      thumb.alt = '';
-      thumb.onerror = () => thumb.replaceWith(Object.assign(document.createElement('span'), { className: 'gen-icon', textContent: g.icon }));
-      row.appendChild(thumb);
+      if (this.hasArt(`img/gens/${g.id}.jpg`)) {
+        const thumb = this.el('img', 'gen-thumb');
+        thumb.src = `img/gens/${g.id}.jpg`;
+        thumb.alt = '';
+        thumb.onerror = () => thumb.replaceWith(Object.assign(document.createElement('span'), { className: 'gen-icon', textContent: g.icon }));
+        row.appendChild(thumb);
+      } else {
+        row.appendChild(this.el('span', 'gen-icon', g.icon));
+      }
 
       const info = this.el('div', 'gen-info');
       info.appendChild(this.el('div', 'gen-name', `${g.name} <span class="gen-owned">×${owned}</span>`));
@@ -201,9 +272,12 @@ const UI = {
     enemy.onclick = (ev) => {
       const r = Game.clickAttack();
       Sound.play('click');
-      if (r.crit) this.floatText(ev.clientX, ev.clientY, '★ CRIT! -' + fmt(r.dmg), '#ffd700');
-      else if (r.dbl) this.floatText(ev.clientX, ev.clientY, '⚔️×2 -' + fmt(r.dmg), '#ff9d5e');
-      else this.floatText(ev.clientX, ev.clientY, '-' + fmt(r.dmg), '#ff6b5e');
+      const o = this.floatOrigin(ev, enemy);
+      // Crítico e ataque duplo merecem um número próprio (são o evento raro); o dano comum acumula,
+      // pelo mesmo motivo do clique na moeda.
+      if (r.crit) this.floatText(o.x, o.y, '★ CRIT! -' + fmt(r.dmg), '#ffd700');
+      else if (r.dbl) this.floatText(o.x, o.y, '⚔️×2 -' + fmt(r.dmg), '#ff9d5e');
+      else this.floatAccum('atk', o.x, o.y, r.dmg, '#ff6b5e', (v) => '-' + fmt(v));
       this.shakeEnemy();
     };
     combat.appendChild(enemy);
@@ -238,8 +312,12 @@ const UI = {
     this.R.recruit = [];
     this.R.heroesVisible = HEROES.filter(d => (!d.reqPrestige || S.prestiges >= d.reqPrestige) && (S.heroes[d.id] || S.earned >= d.baseCost * 0.3)).length;
 
-    this.renderSynergyBar(c);
+    // ORDEM E DENSIDADE: primeiro o que o jogador FAZ (o campo de batalha, onde ele posiciona e sobe
+    // heróis), depois tudo que é consulta, recolhido atrás de um cabeçalho com o número que importa.
+    // Antes desta reorganização a aba tinha 1841px de altura numa tela de 800 — e os 452px logo acima
+    // dos heróis eram o painel de Sinergia, quase todo composto de linhas inativas.
     this.renderFieldGrid(c);
+    this.renderSynergyBar(c);
     this.renderBench(c);
     this.renderRecruit(c);
     this.renderBag(c);
@@ -250,11 +328,16 @@ const UI = {
   // Painel de sinergia de time: medidor 0–100% + faixas de bônus + Estado Perfeito (100%).
   renderSynergyBar(c) {
     Game.ensureSynergy();
+    // A sinergia vira uma SEÇÃO: fechada, é uma linha com a porcentagem e a próxima faixa a atingir —
+    // que é a única coisa que o jogador precisa saber de relance. Aberta, mostra a escada de faixas
+    // inteira, a contagem por classe e os 8 combos de composição. Fechada por padrão porque nada aqui
+    // é ação: é leitura, e ocupava um quarto da altura da tela.
+    const body = this.section(c, { id: 'heroes.synergy', title: '⚡ Sinergia de Time', summary: '—', open: false });
     const bar = this.el('div', 'synergy-panel');
 
     // cabeçalho: título + porcentagem grande
     const head = this.el('div', 'syn-head');
-    head.innerHTML = `<span class="syn-title">⚡ Sinergia de Time</span><span class="syn-pct">0%</span>`;
+    head.innerHTML = `<span class="syn-title">Medidor de equipe</span><span class="syn-pct">0%</span>`;
     bar.appendChild(head);
 
     // barra de progresso com marcadores de faixa
@@ -304,7 +387,7 @@ const UI = {
     comp.appendChild(compList);
     bar.appendChild(comp);
 
-    c.appendChild(bar);
+    body.appendChild(bar);
     this.R.synergy = { bar, fill, pctEl: head.querySelector('.syn-pct'), classRefs, hint, tierRefs, compList, compSig: null, lastPct: -1, lastMega: null };
     this.updateSynergyPanel();
   },
@@ -322,6 +405,11 @@ const UI = {
       R.lastPct = pct;
       R.fill.style.width = pct + '%';
       R.pctEl.textContent = pct + '%';
+      // Resumo da seção fechada: a porcentagem + quanto falta pra próxima faixa. É o suficiente pra
+      // o jogador decidir se vale abrir; sem isso, recolher a seção esconderia informação de verdade.
+      const next = SYNERGY_TIERS.find(t => pct < t.at);
+      this.setSectionSummary('heroes.synergy',
+        `<b class="sec-strong">${pct}%</b>` + (next ? `<span class="sec-next">→ ${next.at}% ${next.icon}</span>` : '<span class="sec-next">🌟 máximo</span>'));
       for (const tr of R.tierRefs) tr.row.classList.toggle('on', pct >= tr.at);
       // dica: o gargalo mais barato de resolver primeiro
       let how;
@@ -383,26 +471,36 @@ const UI = {
   renderBench(c) {
     const bench = Game.benchHeroes();
     const totalHired = Object.keys(S.heroes).length;
-    c.appendChild(this.el('h3', 'section-title', `🏕️ Reserva <span class="bag-count">${totalHired}/${HEROES.length}</span>`));
+    // Decisão pendente = existe slot de campo vago E alguém no banco pra ocupá-lo.
+    const canPlace = bench.length > 0 && Game.firstFreeFieldSlot() !== null;
+    const body = this.section(c, {
+      id: 'heroes.bench',
+      title: '🏕️ Reserva',
+      summary: canPlace
+        ? `<b class="sec-strong sec-ok">slot vago!</b><span class="sec-next">${bench.length} no banco</span>`
+        : `<b class="sec-strong">${bench.length}</b> no banco<span class="sec-next">${totalHired}/${HEROES.length} contratados</span>`,
+      open: canPlace,
+    });
     if (!bench.length) {
-      c.appendChild(this.el('div', 'empty-hint', `${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"Todo herói contratado está em campo agora. Contrate mais para formar uma reserva."</i>`));
+      body.appendChild(this.el('div', 'empty-hint', `${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"Todo herói contratado está em campo agora. Contrate mais para formar uma reserva."</i>`));
       return;
     }
     const grid = this.el('div', 'bench-grid');
     this.attachBenchDrop(grid);
     for (const id of bench) grid.appendChild(this.heroMini(id));
-    c.appendChild(grid);
+    body.appendChild(grid);
   },
 
   // heróis ainda não contratados
   renderRecruit(c) {
     const list = this.el('div', 'hero-list');
-    let any = false;
+    let any = false, affordable = 0, count = 0;
     for (const def of HEROES) {
       if (def.reqPrestige && S.prestiges < def.reqPrestige) continue;
       if (S.heroes[def.id]) continue;
       if (S.earned < def.baseCost * 0.3) continue;
-      any = true;
+      any = true; count++;
+      if (S.gold >= def.baseCost) affordable++;
       const row = this.el('div', 'hero-row hero-locked' + (this.isNewRow('recruit', def.id) ? ' row-enter' : ''));
       const portrait = this.el('div', 'hero-portrait');
       portrait.style.backgroundImage = `url("img/heroes/${def.id}.jpg")`;
@@ -421,22 +519,49 @@ const UI = {
       this.R.recruit.push({ id: def.id, btn, cost: def.baseCost });
       list.appendChild(row);
     }
-    if (any) {
-      c.appendChild(this.el('h3', 'section-title', '🤝 Recrutar'));
-      c.appendChild(list);
-    }
+    if (!any) return;
+    // Aberta só quando dá pra contratar alguém AGORA — que é quando ela é uma ação, e não um catálogo.
+    const body = this.section(c, {
+      id: 'heroes.recruit',
+      title: '🤝 Recrutar',
+      summary: affordable
+        ? `<b class="sec-strong sec-ok">${affordable}</b> disponível${affordable > 1 ? 'is' : ''} agora`
+        : `${count} no horizonte`,
+      open: affordable > 0,
+    });
+    body.appendChild(list);
+    this.R.recruitSummary = { count };
   },
 
   // bolsa: cartas forjadas acumuladas
   renderBag(c) {
-    c.appendChild(this.el('h3', 'section-title', `🎒 Bolsa <span class="bag-count">${S.forge.inventory.length}/${FORGE_INVENTORY_CAP}</span>`));
-    if (!S.forge.inventory.length) {
-      c.appendChild(this.el('div', 'empty-hint', `${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"Forje cartas na aba Forja — elas se acumulam aqui para você equipar quando quiser."</i>`));
+    const n = S.forge.inventory.length;
+    // Decisão pendente = alguma carta na bolsa é MELHOR que a que o herói dela já usa. Sem isso a
+    // bolsa é só um depósito, e um depósito não precisa estar aberto na cara do jogador.
+    const upgrades = S.forge.inventory.filter(item => {
+      const h = S.heroes[item.heroId];
+      if (!h) return false;
+      const cur = h.gear[item.slot];
+      return !cur || Game.itemScore(item) > Game.itemScore(cur);
+    }).length;
+    const best = n ? Math.max(...S.forge.inventory.map(i => i.rarity || 0)) : -1;
+    const bestRar = best >= 0 ? RARITIES[best] : null;
+    const body = this.section(c, {
+      id: 'heroes.bag',
+      title: '🎒 Bolsa',
+      summary: !n ? 'vazia'
+        : upgrades
+          ? `<b class="sec-strong sec-ok">${upgrades} melhoria${upgrades > 1 ? 's' : ''}!</b><span class="sec-next">${n}/${FORGE_INVENTORY_CAP}</span>`
+          : `<b class="sec-strong">${n}</b>/${FORGE_INVENTORY_CAP}<span class="sec-next" style="color:${bestRar.color}">melhor: ${bestRar.name}</span>`,
+      open: upgrades > 0,
+    });
+    if (!n) {
+      body.appendChild(this.el('div', 'empty-hint', `${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"Forje cartas na aba Forja — elas se acumulam aqui para você equipar quando quiser."</i>`));
       return;
     }
     const grid = this.el('div', 'bag-grid');
     for (const item of S.forge.inventory) grid.appendChild(this.bagCard(item));
-    c.appendChild(grid);
+    body.appendChild(grid);
   },
 
   // mini-card de herói (campo ou reserva): arrastável, selecionável, com nível e gear
@@ -454,10 +579,13 @@ const UI = {
     card.draggable = true;
     if (this._selected && this._selected.type === 'hero' && this._selected.id === heroId) card.classList.add('selected');
     if (cardSel) card.classList.add(delta > 0 ? 'eligible-up' : delta < 0 ? 'eligible-down' : 'eligible-eq');
+    // Papel e arquétipo dividiam DUAS linhas do card cada um, empilhadas — cinco linhas de texto por
+    // herói, num card de 130px. Viraram uma faixa só de etiquetas: o papel (que muda o combate) e o
+    // arquétipo (que diz qual arma forjar). O detalhe completo continua no tooltip (specTip).
     const archTag = arch
-      ? `<div class="hm-arch${matched ? ' matched' : ''}" title="${this.specTip(heroId)}">${arch.icon} ${arch.name}`
-        + (matched ? ` <span class="hm-spec-on">✦ ESPECIALIZADO</span>` : ` <span class="hm-ideal">ideal: ${wt.icon}${wt.name}</span>`)
-        + `</div>`
+      ? `<span class="hm-tag hm-arch${matched ? ' matched' : ''}" title="${this.specTip(heroId)}">${arch.icon} ${arch.name}`
+        + (matched ? ` <span class="hm-spec-on">✦</span>` : ` <span class="hm-ideal">→${wt.icon}</span>`)
+        + `</span>`
       : '';
     card.innerHTML = `
       <div class="hm-head">
@@ -466,8 +594,10 @@ const UI = {
         ${cardSel ? `<span class="hm-delta">${this.fmtScore(delta)}</span>` : ''}
       </div>
       <div class="hm-name">${this.heroIconHtml(def)} <b>${def.name}</b></div>
-      ${role ? `<div class="hm-role" style="border-color:${role.color};color:${role.color}" title="${this.esc(role.tagline)}">${role.icon} ${role.name}</div>` : ''}
-      ${archTag}
+      <div class="hm-tags">
+        ${role ? `<span class="hm-tag hm-role" style="border-color:${role.color};color:${role.color}" title="${this.esc(role.tagline)}">${role.icon} ${role.name}</span>` : ''}
+        ${archTag}
+      </div>
       <div class="hm-stats"></div>
       <div class="hero-gear hm-gear"></div>
       <button class="buy-btn hm-level"></button>`;
@@ -734,12 +864,36 @@ const UI = {
     return (pct > 0 ? '▲ +' : '▼ ') + pct + '%';
   },
 
+  // Chances de raridade de um tier da Forja.
+  // Antes isto era uma fileira de porcentagens cruas e sem rótulo ("58% 32% 9% 1%") — o jogador via
+  // quatro números sem saber do que eram nem qual tier era melhor. Agora é uma BARRA empilhada com a
+  // cor de cada raridade (lê-se de relance qual tier empurra a distribuição pra direita) mais a linha
+  // que carrega a decisão de verdade: a chance da melhor raridade possível ali. Os números exatos de
+  // todas as faixas continuam disponíveis no tooltip.
   forgeOddsHtml(tier) {
     let sum = 0;
     for (const w of tier.weights) sum += w;
-    return tier.weights.map((w, i) =>
-      w > 0 ? `<span style="color:${RARITIES[i].color}">${Math.round((w / sum) * 100)}%</span>` : null
-    ).filter(Boolean).join(' ');
+    const segs = tier.weights.map((w, i) =>
+      w > 0 ? `<span class="ft-seg" style="width:${(w / sum) * 100}%;background:${RARITIES[i].color}" title="${RARITIES[i].name}: ${Math.round((w / sum) * 100)}%"></span>` : ''
+    ).join('');
+    // melhor raridade alcançável neste tier + a chance dela
+    let bestIdx = -1;
+    tier.weights.forEach((w, i) => { if (w > 0) bestIdx = i; });
+    const bestPct = (tier.weights[bestIdx] / sum) * 100;
+    const best = RARITIES[bestIdx];
+    return `<div class="ft-bar">${segs}</div>` +
+      `<div class="ft-best">até <b style="color:${best.color}">${best.name}</b>` +
+      `<span class="ft-best-pct">${bestPct < 1 ? bestPct.toFixed(1) : Math.round(bestPct)}%</span></div>`;
+  },
+
+  // Tooltip do tier: a tabela completa de chances, que é referência e não precisa estar na tela.
+  forgeOddsTip(tier) {
+    let sum = 0;
+    for (const w of tier.weights) sum += w;
+    const lines = tier.weights.map((w, i) =>
+      w > 0 ? `${RARITIES[i].name}: ${Math.round((w / sum) * 100)}%` : null).filter(Boolean);
+    return `Chances de ${tier.name}\n` + lines.join('\n') +
+      (tier.affixMax ? `\nAté ${tier.affixMax} afixo(s) por carta.` : '');
   },
 
   renderForge(c) {
@@ -758,8 +912,9 @@ const UI = {
       const btn = this.el('button', 'forge-tier' + (unlocked ? '' : ' locked'));
       const npcName = t.unlockAt ? NPCS.find(n => n.id === t.unlockAt.npc).name : '';
       btn.innerHTML = `<div class="ft-head">${this.iconImgHtml(`img/forge-tiers/${t.id}.jpg`, t.icon, 'ft-ico')} ${t.name}</div>
-        <div class="ft-odds">${unlocked ? this.forgeOddsHtml(t) : `🔒 amizade nv ${t.unlockAt.lvl} com ${npcName}`}</div>
+        <div class="ft-odds">${unlocked ? this.forgeOddsHtml(t) : `<span class="ft-lock">🔒 amizade nv ${t.unlockAt.lvl} com ${npcName}</span>`}</div>
         <div class="ft-cost"></div>`;
+      if (unlocked) btn.title = this.forgeOddsTip(t);
       btn.onclick = () => { if (Game.forgeItem(t.id)) this.updateDynamic(); };
       tiers.appendChild(btn);
       this.R.forge.tiers.push({ id: t.id, btn, costEl: btn.querySelector('.ft-cost') });
@@ -813,8 +968,10 @@ const UI = {
       ref.btn.disabled = !ok;
       ref.btn.title = full ? 'Bolsa cheia — equipe ou desmanche cartas na aba Heróis' : '';
     }
-    this.R.forge.stat.innerHTML = `Itens forjados: <b>${S.forge.forged}</b> · Bolsa: <b>${S.forge.inventory.length}/${FORGE_INVENTORY_CAP}</b>`
-      + (full ? ' · <span class="forge-wait">bolsa cheia</span>' : '');
+    this.R.forge.stat.innerHTML =
+      `<span>Forjados: <b>${S.forge.forged}</b></span>` +
+      `<span>Bolsa: <b>${S.forge.inventory.length}/${FORGE_INVENTORY_CAP}</b></span>` +
+      (full ? '<span class="forge-wait">⚠️ bolsa cheia — equipe ou desmanche na aba Heróis</span>' : '');
   },
 
   forgeCostPart(label, have, need) {
@@ -831,16 +988,33 @@ const UI = {
     // ----- cena viva da Base (cresce com os níveis das salas) -----
     this.renderBaseScene(c);
 
-    c.appendChild(this.el('p', 'tab-intro',
-      'Sua sede é uma <b>grade</b>: arraste (ou toque para selecionar e toque em outra célula para trocar) as salas de lugar. ' +
-      'Salas <b>vizinhas</b> com afinidade formam <b>sinergias</b>. Cada <b>nível</b> faz o edifício crescer na cena acima.'));
+    // (O parágrafo de instruções que ficava aqui foi para dentro da seção "Afinidades", junto do que
+    // ele explica. Quem ainda não tem nenhuma sinergia ativa recebe a dica curta na própria barra de
+    // sinergias logo abaixo — a instrução aparece onde e quando é útil, não permanentemente.)
 
     // mapa célula → sinergias ativas em que ela participa (para destacar tiles e ligações)
     const syns = Game.activeSynergies();
+    const complexes = Game.activeComplexes();
     const cellSyn = {};
     for (const s of syns) {
       (cellSyn[s.i] = cellSyn[s.i] || []).push(s);
       (cellSyn[s.j] = cellSyn[s.j] || []).push(s);
+    }
+    // célula → string com os NÍVEIS presentes ('v' vizinhança, 'c' combinação, 'x' complexo).
+    // Vira um ponto colorido por nível no canto do tile: presença, não contagem.
+    const cellTiers = {};
+    const addTier = (idx, t) => { if (!cellTiers[idx]) cellTiers[idx] = ''; if (!cellTiers[idx].includes(t)) cellTiers[idx] += t; };
+    for (const p of Game.adjacencyPairs()) { addTier(p.i, 'v'); addTier(p.j, 'v'); }
+    for (const s of syns) { addTier(s.i, 'c'); addTier(s.j, 'c'); }
+    for (const cx of complexes) for (const idx of cx.cells) addTier(idx, 'x');
+
+    // conexões da sala SELECIONADA: célula → nível mais forte que a liga à seleção (para o realce)
+    const conn = this.baseSel !== null ? Game.roomConnections(this.baseSel) : null;
+    const linked = {};
+    if (conn) {
+      for (const v of conn.vizinhanca) linked[v.other] = 'v';
+      for (const cb of conn.combinacoes) linked[cb.other] = 'c';
+      for (const cx of conn.complexos) for (const idx of cx.cells) if (idx !== this.baseSel) linked[idx] = 'x';
     }
 
     // ----- painel de sinergias ativas -----
@@ -848,22 +1022,49 @@ const UI = {
     const anyBonus = Object.values(bonus).some(v => v > 0);
     const sbar = this.el('div', 'syn-bar');
     if (anyBonus) {
+      // contagem por NÍVEL à esquerda (o que você montou) e o efeito somado à direita (o que isso dá)
+      const nViz = Game.adjacencyPairs().length;
+      const counts = `<span class="syn-count sd-v" title="Pares de salas vizinhas">🟢 ${nViz}</span>` +
+        `<span class="syn-count sd-c" title="Combinações específicas ativas">🔵 ${syns.length}</span>` +
+        `<span class="syn-count sd-x" title="Complexos completos">🟣 ${complexes.length}</span>`;
       const tags = [];
       for (const k in bonus) if (bonus[k] > 0) tags.push(`<span class="syn-tag syn-${k}">+${Math.round(bonus[k] * 100)}% ${SYNERGY_LABELS[k]}</span>`);
-      sbar.innerHTML = `<span class="syn-bar-title">⚡ Sinergias ativas</span> ${tags.join('')}`;
+      sbar.innerHTML = `${counts}<span class="syn-sep"></span>${tags.join('')}`;
     } else {
-      sbar.innerHTML = `<span class="syn-bar-title">⚡ Sinergias</span> <span class="syn-empty">Aproxime salas com afinidade para ativar bônus.</span>`;
+      sbar.innerHTML = `<span class="syn-bar-title">⚡ Sinergias</span> <span class="syn-empty">Construa salas e deixe-as vizinhas — toque numa sala para ver com quem ela se conecta.</span>`;
     }
     c.appendChild(sbar);
 
+    // ----- layout: grade à esquerda, leitura à direita -----
+    // A grade tinha `max-width: 560px` num painel de 1280: sobravam 720px de vazio à direita, e as
+    // células ficavam pequenas demais para a arte aparecer. Agora a aba é uma coluna dupla — a grade
+    // cresce até 760px e o painel de ligações + o manual ocupam a lateral, que antes era só buraco.
+    // Abaixo de 1100px de largura o layout volta a ser uma coluna só (ver .base-layout no CSS).
+    const layout = this.el('div', 'base-layout');
+    const mainCol = this.el('div', 'base-main');
+    const sideCol = this.el('aside', 'base-side');
+
     // ----- a grade -----
+    // A grade vive dentro de um wrapper posicionado, porque um <svg> por cima dela desenha as
+    // LIGAÇÕES da sala selecionada. A regra visual da Base: limpa por padrão, e as conexões daquela
+    // peça aparecem só quando o jogador seleciona uma — em vez de todos os prédios exibindo os seus
+    // vínculos ao mesmo tempo, que é o que transformaria a Base numa tela de informação.
+    const gridWrap = this.el('div', 'base-grid-wrap');
+    const links = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    links.setAttribute('class', 'base-links');
+    gridWrap.appendChild(links);
+    this.R.baseLinks = links;
+
     const grid = this.el('div', 'base-grid');
     grid.style.gridTemplateColumns = `repeat(${BASE_GRID_COLS}, 1fr)`;
     this.R.rooms = [];
     for (let i = 0; i < cells.length; i++) {
       const id = cells[i];
-      const tile = this.el('div', 'base-cell' + (id ? '' : ' empty') + (this.baseSel === i ? ' selected' : '') + (cellSyn[i] ? ' syn-active' : ''));
+      const tile = this.el('div', 'base-cell' + (id ? '' : ' empty') + (this.baseSel === i ? ' selected' : ''));
       tile.dataset.index = i;
+      // realce das peças ligadas à selecionada (a própria seleção já tem .selected)
+      if (this.baseSel !== null && linked[i] && i !== this.baseSel) tile.classList.add('linked', 'link-' + linked[i]);
+      else if (this.baseSel !== null && i !== this.baseSel) tile.classList.add('dimmed');
 
       // drag & drop (desktop) — no mobile o toque cuida do movimento
       tile.draggable = !!id;
@@ -892,11 +1093,17 @@ const UI = {
         const lvl = Game.roomLvl(id);
         const tier = this.roomTier(lvl);
         if (lvl > 0) tile.classList.add('built', 'rt-' + tier);
-        const badge = cellSyn[i] ? `<span class="syn-badge" title="${cellSyn[i].map(s => s.def.name).join(', ')}">⚡${cellSyn[i].length}</span>` : '';
+        // Marcador discreto: um ponto por NÍVEL de sinergia em que a sala participa (verde/azul/roxo),
+        // sem número e sem texto. Diz "tem algo aqui" sem virar informação na tela — o detalhe só
+        // aparece ao selecionar. Substituiu o antigo selo "⚡3", que exibia contagem permanentemente.
+        const tiers = cellTiers[i] || '';
+        const badge = tiers
+          ? `<span class="syn-dots" title="Clique para ver as ligações desta sala">` +
+            tiers.split('').map(t => `<i class="syn-dot sd-${t}"></i>`).join('') + `</span>`
+          : '';
         const decor = this.roomDecor(tier);
         tile.innerHTML =
-          `${badge}<img class="base-art" src="img/rooms/${id}.jpg" alt="" draggable="false" ` +
-          `onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'base-icon',textContent:'${r.icon}'}))">` +
+          badge + this.iconImgHtml(`img/rooms/${id}.jpg`, r.icon, 'base-icon', 'span', 'base-art') +
           decor +
           `<span class="base-name">${r.name}</span>` +
           `<span class="room-lvl">Nv ${lvl}</span>`;
@@ -913,12 +1120,54 @@ const UI = {
       }
       grid.appendChild(tile);
     }
-    c.appendChild(grid);
+    gridWrap.appendChild(grid);
+    mainCol.appendChild(gridWrap);
+
+    // ----- painel de ligações da sala selecionada (coluna lateral) -----
+    this.renderBaseConnections(sideCol, conn);
+
+    layout.appendChild(mainCol);
+    layout.appendChild(sideCol);
+    c.appendChild(layout);
+    // o SVG precisa da grade já no layout pra medir os centros das células
+    requestAnimationFrame(() => this.drawBaseLinks());
 
     // ----- legenda de sinergias possíveis -----
-    const legend = this.el('div', 'syn-legend');
-    legend.appendChild(this.el('div', 'syn-legend-title', 'Afinidades (salas vizinhas):'));
+    // Eram 667px fixos de tabela — as 21 afinidades do jogo listadas o tempo todo, embaixo da grade,
+    // quase todas inativas. É a definição de referência: consulta-se ao planejar o arranjo, não a
+    // cada segundo. Vira seção fechada, e o resumo já diz quantas das 21 você descobriu.
     const activeKeys = new Set(syns.map(s => s.def.name));
+    const activeCx = new Set(complexes.map(cx => cx.def.id));
+    // o manual mora na coluna lateral, junto do painel de ligações: é a área de LEITURA da aba
+    const legendBody = this.section(sideCol, {
+      id: 'base.affinities',
+      title: '🧭 Manual de Adjacência',
+      summary: `<b class="sec-strong${activeCx.size ? ' sec-ok' : ''}">${activeCx.size}</b>/${ROOM_COMPLEXES.length} complexos` +
+        `<span class="sec-next">${activeKeys.size}/${ROOM_SYNERGIES.length} combinações</span>`,
+      open: false,
+    });
+    legendBody.appendChild(this.el('p', 'tab-intro',
+      'Só contam salas <b>construídas</b> e <b>ortogonalmente vizinhas</b> (lado a lado, nunca na diagonal). ' +
+      'Todo bônus escala com o <b>MENOR nível</b> entre as salas envolvidas — subir só uma não adianta. ' +
+      'Arraste (ou use <b>⇄ Mover</b>) para reposicionar.'));
+
+    // 🟣 Complexos primeiro: são o topo do sistema e o que dá o objetivo de arranjo.
+    legendBody.appendChild(this.el('div', 'syn-legend-title', '🟣 Complexos — 3 salas conectadas entre si'));
+    const cxList = this.el('div', 'syn-legend');
+    for (const d of ROOM_COMPLEXES) {
+      const on = activeCx.has(d.id);
+      const rooms = d.rooms.map(rid => { const r = ROOMS.find(x => x.id === rid); return `${r.icon} ${r.name}`; }).join(' + ');
+      const effs = Object.keys(d.per).map(k => `+${Math.round(d.per[k] * 100)}%/nv ${SYNERGY_LABELS[k]}`).join(' · ');
+      const row = this.el('div', 'syn-legend-row cx-row' + (on ? ' on' : ''));
+      row.innerHTML = `<b>${d.icon} ${d.name}</b><span class="syn-legend-rooms">${rooms}</span>` +
+        `<span class="syn-legend-eff">${effs}</span><span class="cx-desc">${d.desc}</span>`;
+      cxList.appendChild(row);
+    }
+    legendBody.appendChild(cxList);
+
+    // 🔵 Combinações
+    legendBody.appendChild(this.el('div', 'syn-legend-title', '🔵 Combinações — 2 salas específicas lado a lado'));
+    const legend = this.el('div', 'syn-legend');
     for (const d of ROOM_SYNERGIES) {
       const ra = ROOMS.find(x => x.id === d.a), rb = ROOMS.find(x => x.id === d.b);
       const on = activeKeys.has(d.name);
@@ -926,7 +1175,13 @@ const UI = {
       row.innerHTML = `<span class="syn-legend-pair">${ra.icon}${rb.icon}</span> <b>${d.icon} ${d.name}</b> <span class="syn-legend-eff">${d.short}</span>`;
       legend.appendChild(row);
     }
-    c.appendChild(legend);
+    legendBody.appendChild(legend);
+
+    // 🟢 Vizinhança
+    legendBody.appendChild(this.el('div', 'syn-legend-title', '🟢 Vizinhança — qualquer par de salas construídas'));
+    legendBody.appendChild(this.el('div', 'syn-legend-row on',
+      `<span class="syn-legend-pair">▪️▪️</span> <b>Adjacência</b> ` +
+      `<span class="syn-legend-eff">+${(ADJACENCY_BONUS * 100).toFixed(1)}%/nv de ouro por par — vale a pena não deixar buracos na grade</span>`));
   },
 
   // faixa visual de um edifício pelo nível (1..4) — dirige tamanho/decorações
@@ -1006,19 +1261,156 @@ const UI = {
     c.appendChild(scene);
   },
 
+  // Cores dos três níveis de sinergia da Base (usadas no SVG, nos pontos e no painel).
+  SYN_TIER: {
+    v: { key: 'v', icon: '🟢', name: 'Vizinhança', color: '#5fbf6b' },
+    c: { key: 'c', icon: '🔵', name: 'Combinação', color: '#4fa8d8' },
+    x: { key: 'x', icon: '🟣', name: 'Complexo',   color: '#a97ce8' },
+  },
+
+  // Desenha as ligações da sala selecionada por cima da grade. Só a selecionada — a Base fica limpa
+  // enquanto nada estiver selecionado, que é a diferença entre "entender a relação entre estruturas"
+  // e "olhar para todos os vínculos de todos os prédios ao mesmo tempo".
+  drawBaseLinks() {
+    const svg = this.R.baseLinks;
+    if (!svg || !svg.isConnected) return;
+    svg.innerHTML = '';
+    if (this.baseSel === null) return;
+
+    const wrap = svg.parentElement;
+    const wr = wrap.getBoundingClientRect();
+    if (!wr.width) return;
+    svg.setAttribute('viewBox', `0 0 ${wr.width} ${wr.height}`);
+    const center = (idx) => {
+      const el = wrap.querySelector(`.base-cell[data-index="${idx}"]`);
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left - wr.left + r.width / 2, y: r.top - wr.top + r.height / 2 };
+    };
+
+    const conn = Game.roomConnections(this.baseSel);
+    const from = center(this.baseSel);
+    if (!from) return;
+
+    // Um mesmo par de salas pode aparecer em mais de um nível ao mesmo tempo (vizinhas E numa
+    // combinação E dentro de um complexo). Os BÔNUS acumulam — e o painel os lista todos —, mas
+    // desenhar três traços sobrepostos entre as mesmas duas peças é ruído. Aqui fica só o traço do
+    // nível mais forte por par.
+    const RANK = { v: 0, c: 1, x: 2 };
+    const seg = new Map();
+    const add = (a, b, tier) => {
+      const key = Math.min(a, b) + ':' + Math.max(a, b);
+      const cur = seg.get(key);
+      if (!cur || RANK[tier] > RANK[cur]) seg.set(key, tier);
+    };
+
+    for (const v of conn.vizinhanca) add(this.baseSel, v.other, 'v');
+    for (const cb of conn.combinacoes) add(this.baseSel, cb.other, 'c');
+    for (const cx of conn.complexos) {
+      // um complexo é um grupo, não um par: liga cada membro aos membros VIZINHOS dele no grupo,
+      // desenhando o contorno real da peça em vez de um leque saindo da selecionada.
+      for (const a of cx.cells) for (const b of Game.cellAllNeighbors(a)) {
+        if (b > a && cx.cells.includes(b)) add(a, b, 'x');
+      }
+    }
+
+    // ordem de desenho: do nível mais fraco pro mais forte, pra linha roxa ficar por cima
+    for (const tier of ['v', 'c', 'x']) {
+      for (const [key, t] of seg) {
+        if (t !== tier) continue;
+        const [a, b] = key.split(':').map(Number);
+        const pa = center(a), pb = center(b);
+        if (!pa || !pb) continue;
+        const el = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        el.setAttribute('x1', pa.x); el.setAttribute('y1', pa.y);
+        el.setAttribute('x2', pb.x); el.setAttribute('y2', pb.y);
+        el.setAttribute('class', 'bl-line bl-' + tier);
+        if (tier === 'v') el.setAttribute('stroke-dasharray', '4 5');
+        svg.appendChild(el);
+      }
+    }
+  },
+
+  // Painel abaixo da grade: o que a sala selecionada ganha, nível a nível. É o "Selecionando o
+  // Quartel → ⚔️─🛡️ Sinergia Militar +20% Dano" do pedido, em forma de lista legível.
+  renderBaseConnections(c, conn) {
+    if (!conn) {
+      c.appendChild(this.el('div', 'base-conn base-conn-empty',
+        '👆 Toque numa sala para ver <b>com quem ela se conecta</b> — e toque em outra célula para trocá-las de lugar.'));
+      return;
+    }
+    const g = Game.ensureBaseGrid();
+    const selDef = ROOMS.find(r => r.id === g[this.baseSel]);
+    const panel = this.el('div', 'base-conn');
+    const roomName = (idx) => { const r = ROOMS.find(x => x.id === g[idx]); return r ? `${r.icon} ${r.name}` : '—'; };
+
+    let html = `<div class="bc-head">${selDef.icon} <b>${selDef.name}</b> <span class="bc-lvl">Nv ${Game.roomLvl(selDef.id)}</span>` +
+      `<button class="bc-move${this.baseMove ? ' armed' : ''}">${this.baseMove ? '⇄ toque no destino…' : '⇄ Mover'}</button></div>`;
+
+    if (conn.complexos.length) {
+      html += conn.complexos.map(cx => {
+        const effs = Object.keys(cx.def.per)
+          .map(k => `<span class="bc-eff">+${Math.round(cx.def.per[k] * cx.lvl * cx.mul * 100)}% ${SYNERGY_LABELS[k]}</span>`).join('');
+        return `<div class="bc-row bc-x"><span class="bc-tier">🟣 Complexo</span>` +
+          `<span class="bc-name">${cx.def.icon} ${cx.def.name}</span>` +
+          `<span class="bc-with">${cx.cells.map(roomName).join(' ─ ')}</span>${effs}</div>`;
+      }).join('');
+    }
+    if (conn.combinacoes.length) {
+      html += conn.combinacoes.map(cb =>
+        `<div class="bc-row bc-c"><span class="bc-tier">🔵 Combinação</span>` +
+        `<span class="bc-name">${cb.def.icon} ${cb.def.name}</span>` +
+        `<span class="bc-with">${roomName(cb.other)}</span>` +
+        `<span class="bc-eff">+${Math.round(cb.value * 100)}% ${SYNERGY_LABELS[cb.def.type]}</span></div>`).join('');
+    }
+    if (conn.vizinhanca.length) {
+      const total = conn.vizinhanca.reduce((a, v) => a + v.value, 0);
+      html += `<div class="bc-row bc-v"><span class="bc-tier">🟢 Vizinhança</span>` +
+        `<span class="bc-name">${conn.vizinhanca.length} sala${conn.vizinhanca.length > 1 ? 's' : ''} ao lado</span>` +
+        `<span class="bc-with">${conn.vizinhanca.map(v => roomName(v.other)).join(' · ')}</span>` +
+        `<span class="bc-eff">+${(total * 100).toFixed(1)}% ouro</span></div>`;
+    }
+    if (!conn.complexos.length && !conn.combinacoes.length && !conn.vizinhanca.length) {
+      html += `<div class="bc-row bc-none">Nenhuma ligação — esta sala está isolada. Arraste-a para junto de outra.</div>`;
+    }
+    // o que FALTA: o gancho de puzzle. Diz quais complexos esta sala poderia formar e com quem.
+    const potential = ROOM_COMPLEXES.filter(d => d.rooms.includes(selDef.id) && !conn.complexos.some(cx => cx.def.id === d.id));
+    if (potential.length) {
+      html += potential.map(d => {
+        const faltam = d.rooms.filter(rid => rid !== selDef.id).map(rid => { const r = ROOMS.find(x => x.id === rid); return `${r.icon} ${r.name}`; });
+        return `<div class="bc-row bc-todo"><span class="bc-tier">🟣 Possível</span>` +
+          `<span class="bc-name">${d.icon} ${d.name}</span>` +
+          `<span class="bc-with">junte com ${faltam.join(' + ')}</span></div>`;
+      }).join('');
+    }
+    panel.innerHTML = html;
+    panel.querySelector('.bc-move').onclick = () => {
+      this.baseMove = !this.baseMove;
+      this.dirty.base = true;
+      this.renderActive();
+    };
+    c.appendChild(panel);
+  },
+
   // toque numa célula da grade: seleciona / troca / cancela
+  // Selecionar passou a significar INSPECIONAR (ver as ligações da sala), então o toque seguinte não
+  // pode mais trocar as salas de lugar por padrão: o jogador explorando as conexões destruiria o
+  // próprio arranjo sem querer. Mover virou modo explícito, armado pelo botão "⇄ Mover" do painel.
+  // No desktop o arrastar continua funcionando direto, sem armar nada.
   baseTileTap(index) {
     const g = Game.ensureBaseGrid();
-    if (this.baseSel === null) {
-      if (g[index]) { this.baseSel = index; this.dirty.base = true; this.renderActive(); }
-    } else if (this.baseSel === index) {
-      this.baseSel = null; this.dirty.base = true; this.renderActive();
-    } else {
+    if (this.baseSel !== null && this.baseMove && this.baseSel !== index) {
       Game.swapCells(this.baseSel, index);
-      this.baseSel = null;
+      this.baseSel = null; this.baseMove = false;
       Sound.play('build');
       this.dirty.base = true; this.renderActive();
+      return;
     }
+    if (this.baseSel === index) { this.baseSel = null; this.baseMove = false; }
+    else if (g[index]) { this.baseSel = index; this.baseMove = false; }
+    else { this.baseSel = null; this.baseMove = false; }
+    this.dirty.base = true;
+    this.renderActive();
   },
 
   roomCostHtml(roomId) {
@@ -1383,6 +1775,7 @@ const UI = {
     if (this.R.resEls) for (const k in this.R.resEls) this.R.resEls[k].textContent = fmt(S.res[k]);
     this.updateBuffs();
     this.updateClosestAch();
+    this.ensureModalSanity();
 
     // elementos dinâmicos do tab ativo
     if (this.activeTab === 'prod' && this.R.gens) {
@@ -1404,7 +1797,14 @@ const UI = {
       if (this._lastProdCheck === undefined || Date.now() - this._lastProdCheck > 3000) {
         this._lastProdCheck = Date.now();
         const visible = GENERATORS.filter(g => (!g.reqPrestige || S.prestiges >= g.reqPrestige) && ((S.gens[g.id] || 0) > 0 || S.earned >= g.baseCost * 0.4)).length;
-        if (visible !== this.R.gens.length) { this.dirty.prod = true; this.renderActive(); }
+        // mesmo filtro do renderProd (linha ~238), senão a contagem nunca bateria e a aba
+        // re-renderizaria a cada 3s pra sempre
+        const upsVisible = UPGRADES.filter(u => !S.upgrades[u.id] && S.earned >= u.cost * 0.25
+          && (!u.gen || (S.gens[u.gen] || 0) > 0 || S.earned >= u.cost)).sort((a, b) => a.cost - b.cost).slice(0, 9).length;
+        if (visible !== this.R.gens.length || (this.R.ups && upsVisible !== this.R.ups.length)) {
+          this.dirty.prod = true;
+          this.renderActive();
+        }
       }
     }
 
@@ -1517,14 +1917,74 @@ const UI = {
 
   // ---------- Feedback visual ----------
 
+  // Ponto de origem de um número flutuante. Um clique de TECLADO (segurar espaço/Enter com o botão
+  // focado) dispara `click` com clientX/clientY = 0, o que mandava o número pro canto superior
+  // esquerdo da tela — e, com a repetição automática da tecla, dezenas deles piscando lá. Quando o
+  // evento não veio de um ponteiro (`ev.detail === 0`), usamos o centro do próprio botão.
+  floatOrigin(ev, fallbackEl) {
+    if (ev && ev.detail > 0 && (ev.clientX || ev.clientY)) return { x: ev.clientX, y: ev.clientY };
+    const el = fallbackEl || (ev && ev.currentTarget) || null;
+    if (el && el.getBoundingClientRect) {
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height * 0.35 };
+    }
+    return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+  },
+
+  _floats: {},          // key -> acumulador ativo (ver floatAccum)
+  FLOAT_MAX: 24,        // teto de números simultâneos na tela, qualquer que seja a origem
+
   floatText(x, y, text, color) {
     const layer = document.getElementById('float-layer');
+    // Sem teto, uma rajada de cliques (autoclique, teclado repetindo) enche a camada de elementos
+    // animando ao mesmo tempo — é o que fazia a tela "piscar".
+    while (layer.children.length >= this.FLOAT_MAX) layer.firstChild.remove();
     const e = this.el('div', 'float-num', text);
     e.style.left = (x + (Math.random() * 40 - 20)) + 'px';
     e.style.top = (y - 10) + 'px';
     if (color) e.style.color = color;
     layer.appendChild(e);
     setTimeout(() => e.remove(), 1400);
+    return e;
+  },
+
+  // Número flutuante que ACUMULA em vez de empilhar. Enquanto os cliques continuam chegando (janela
+  // de FLOAT_ACCUM_MS), o mesmo elemento fica parado somando o total e dá um "bump"; quando o jogador
+  // para, ele sobe e some. É o que torna o clique rápido legível: um "+412 Mi" crescendo, em vez de
+  // vinte "+20 Mi" sobrepostos piscando no mesmo pixel.
+  floatAccum(key, x, y, amount, color, fmtFn) {
+    const FLOAT_ACCUM_MS = 350;
+    const acc = this._floats[key];
+    const format = fmtFn || ((v) => '+' + fmt(v));
+    if (acc && document.body.contains(acc.el)) {
+      acc.value += amount;
+      acc.el.textContent = format(acc.value);
+      acc.el.classList.remove('float-bump');
+      void acc.el.offsetWidth;                 // reinicia a animação de bump
+      acc.el.classList.add('float-bump');
+      clearTimeout(acc.timer);
+      acc.timer = setTimeout(() => this.floatRelease(key), FLOAT_ACCUM_MS);
+      return;
+    }
+    const layer = document.getElementById('float-layer');
+    while (layer.children.length >= this.FLOAT_MAX) layer.firstChild.remove();
+    const el = this.el('div', 'float-num float-held', format(amount));
+    el.style.left = x + 'px';
+    el.style.top = (y - 10) + 'px';
+    if (color) el.style.color = color;
+    layer.appendChild(el);
+    this._floats[key] = { el, value: amount, timer: setTimeout(() => this.floatRelease(key), FLOAT_ACCUM_MS) };
+  },
+
+  floatRelease(key) {
+    const acc = this._floats[key];
+    if (!acc) return;
+    delete this._floats[key];
+    acc.el.classList.remove('float-held', 'float-bump');
+    acc.el.classList.add('float-num');        // (re)dispara a subida
+    void acc.el.offsetWidth;
+    acc.el.style.animation = 'floatUp 1.1s ease-out forwards';
+    setTimeout(() => acc.el.remove(), 1100);
   },
 
   toast(msg, color, big) {
@@ -1555,8 +2015,9 @@ const UI = {
     coin.style.top = (main.top + 60 + Math.random() * Math.max(50, main.height - 160)) + 'px';
     coin.onclick = (ev) => {
       const res = Game.clickGolden();
-      if (res.kind === 'gold') this.floatText(ev.clientX, ev.clientY, '+' + fmt(res.amount), '#ffd700');
-      else this.floatText(ev.clientX, ev.clientY, 'FRENESI ×7!', '#ffd700');
+      const o = this.floatOrigin(ev, coin);
+      if (res.kind === 'gold') this.floatText(o.x, o.y, '+' + fmt(res.amount), '#ffd700');
+      else this.floatText(o.x, o.y, 'FRENESI ×7!', '#ffd700');
       coin.remove();
     };
     document.body.appendChild(coin);
@@ -1611,24 +2072,56 @@ const UI = {
     const layer = document.getElementById('modal-layer');
     layer.className = '';
     layer.innerHTML = '';
+    // Este modal substitui o que estivesse aberto — inclusive um modal de lore. Sem zerar a marca, a
+    // fila de lore continuaria achando que há uma história aberta e passaria a ENFILEIRAR as próximas
+    // em vez de mostrá-las.
+    layer.dataset.loreOpen = '';
     const box = this.el('div', 'modal-box', html);
     if (closable) {
       const x = this.el('button', 'modal-close', '✕');
-      x.onclick = () => layer.classList.add('hidden');
+      x.onclick = () => this.closeModal();
       box.appendChild(x);
     }
     layer.appendChild(box);
-    layer.onclick = (e) => { if (e.target === layer && closable) layer.classList.add('hidden'); };
+    layer.onclick = (e) => { if (e.target === layer && closable) this.closeModal(); };
+    this._modalClosable = !!closable;
     return box;
+  },
+
+  // Fechamento centralizado: esconde a camada E limpa o conteúdo. Deixar conteúdo para trás numa
+  // camada só "escondida" é o que criava estados intermediários difíceis de depurar.
+  closeModal() {
+    const layer = document.getElementById('modal-layer');
+    layer.classList.add('hidden');
+    layer.dataset.loreOpen = '';
+    layer.innerHTML = '';
+  },
+
+  // REDE DE SEGURANÇA (chamada a cada tick por updateDynamic).
+  // `#modal-layer` é um elemento fixo, em tela cheia, com z-index 400 e pointer-events auto: a ÚNICA
+  // coisa que impede ele de engolir todos os cliques do jogo é a classe `hidden`. Qualquer caminho que
+  // esvazie o conteúdo sem repor a classe (ou que reponha a classe sem esvaziar) deixa uma placa de
+  // vidro invisível sobre a tela — o jogo continua rodando, os números continuam subindo, e NADA é
+  // clicável. Era exatamente o sintoma relatado como "o botão de compra fica congelado": não é o
+  // botão, é a tela inteira, e o botão de compra é só onde se percebe primeiro.
+  // Em vez de caçar cada caminho possível, a camada se conserta sozinha: sem caixa de modal dentro,
+  // ela não tem motivo para estar visível.
+  ensureModalSanity() {
+    const layer = document.getElementById('modal-layer');
+    if (layer.classList.contains('hidden')) return;
+    if (!layer.querySelector('.modal-box')) {
+      layer.classList.add('hidden');
+      layer.dataset.loreOpen = '';
+    }
   },
 
   confirmModal(html, onYes) {
     const box = this.showModal(`<div class="modal-text">${html}</div>`, true);
     const row = this.el('div', 'modal-row');
     const yes = this.el('button', 'cfg-btn danger', 'Confirmar');
-    yes.onclick = () => { document.getElementById('modal-layer').classList.add('hidden'); onYes(); };
+    yes.onclick = () => { this.closeModal(); onYes(); };
     const no = this.el('button', 'cfg-btn', 'Cancelar');
-    no.onclick = () => document.getElementById('modal-layer').classList.add('hidden');
+    no.onclick = () => this.closeModal();
     row.appendChild(yes); row.appendChild(no);
     box.appendChild(row);
   },
@@ -1674,10 +2167,8 @@ const UI = {
   },
 
   _closeLoreModal() {
-    const layer = document.getElementById('modal-layer');
-    layer.classList.add('hidden');
-    layer.dataset.loreOpen = '';
     const next = this._loreQueue.shift();
+    this.closeModal();
     if (next) this._openLoreModal(next);
   },
 
@@ -1748,7 +2239,7 @@ const UI = {
       Sua organização trabalhou sem você:<br><br>
       <b>+${fmt(off.gold)}</b> ouro${off.know > 0.5 ? `<br><b>+${fmt(off.know)}</b> 📘 conhecimento` : ''}${research}</div>`, true);
     const ok = this.el('button', 'cfg-btn', 'Coletar!');
-    ok.onclick = () => { document.getElementById('modal-layer').classList.add('hidden'); Sound.play('golden'); };
+    ok.onclick = () => { this.closeModal(); Sound.play('golden'); };
     box.appendChild(ok);
   },
 
@@ -1764,7 +2255,8 @@ const UI = {
       S.clicks++;
       S.lastClickAt = Date.now();
       Sound.play('click');
-      this.floatText(ev.clientX, ev.clientY, '+' + fmt(gain), '#ffd700');
+      const o = this.floatOrigin(ev, coin);
+      this.floatAccum('coin', o.x, o.y, gain, '#ffd700');
       coin.classList.remove('pulse');
       void coin.offsetWidth;
       coin.classList.add('pulse');
@@ -1783,6 +2275,16 @@ const UI = {
     };
 
     document.getElementById('codex-btn').onclick = () => this.showCodex();
+
+    // Esc fecha o modal aberto. Saída de emergência universal: nenhum modal deste jogo é obrigatório,
+    // e ficar preso atrás de um é o pior estado possível numa tela que continua rodando por baixo.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const layer = document.getElementById('modal-layer');
+      if (layer.classList.contains('hidden')) return;
+      if (layer.dataset.loreOpen === '1') this._closeLoreModal();
+      else this.closeModal();
+    });
 
     this.applyHand();
     if (this.initExt) this.initExt();   // expansão: widget do mundo, segredos, música

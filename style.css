@@ -172,6 +172,14 @@ body {
 
 #click-coin {
   width: 140px; height: 140px;
+  /* `#left-panel` é um flex COLUNA, então o flex-shrink padrão (1) come a ALTURA dos filhos quando o
+     conteúdo do painel passa da altura da janela. A moeda virava uma elipse (medido: 140×64) e, pior,
+     mudava de forma sozinha a cada vez que o painel crescia ou encolhia — um buff entrando, o log
+     ganhando linhas, um recurso novo aparecendo. Daí a impressão de que "a moeda fica se
+     redimensionando". `flex: 0 0 auto` tira a moeda da conta do encolhimento e `aspect-ratio` é a
+     rede de segurança para ela nunca deixar de ser um círculo. */
+  flex: 0 0 auto;
+  aspect-ratio: 1 / 1;
   margin: 18px auto 6px;
   border-radius: 50%;
   border: 3px solid rgba(232, 163, 61, 0.6);
@@ -729,10 +737,27 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 .syn-tag.syn-material { color: #7ec98a; }
 .syn-tag.syn-equip { color: #6fc3d8; }
 
+/* Aba Base em duas colunas nas telas largas: a grade cresce e a leitura (ligações + manual) ocupa a
+   lateral, que antes era 720px de vazio ao lado de uma grade travada em 560px. */
+.base-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 18px;
+  align-items: start;
+}
+.base-main { min-width: 0; }
+.base-side { min-width: 0; position: sticky; top: 8px; }
+/* O corte é 1250px de JANELA e não menos: abaixo disso o painel principal (já descontado o painel
+   esquerdo) não tem largura para uma grade decente E uma coluna de 330px ao lado — as células ficam
+   menores do que eram antes da mudança, que seria piorar tentando melhorar. */
+@media (max-width: 1250px) {
+  .base-layout { grid-template-columns: 1fr; }
+  .base-side { position: static; }
+}
+
 .base-grid {
   display: grid;
   gap: 8px;
-  max-width: 560px;
   margin-bottom: 16px;
 }
 .base-cell {
@@ -761,6 +786,21 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
   transform: translateY(-2px);
 }
 .base-cell.syn-active { border-color: rgba(232,163,61,0.55); background: rgba(232,163,61,0.05); }
+/* Sala ainda NÃO construída (nível 0) é uma PLANTA, não um card igual aos outros: sem isso a Base
+   parecia um catálogo de 13 prédios em vez da base que o jogador levantou. A arte fica dessaturada e
+   recuada, a borda tracejada, e só o botão Construir mantém contraste — o convite continua claro. */
+.base-cell:not(.built):not(.empty) {
+  border-style: dashed;
+  background: rgba(255,255,255,0.015);
+}
+.base-cell:not(.built):not(.empty) .base-art,
+.base-cell:not(.built):not(.empty) .base-icon {
+  filter: grayscale(0.85) brightness(0.55);
+  opacity: 0.55;
+}
+.base-cell:not(.built):not(.empty) .base-name { color: var(--text-dim); }
+.base-cell:not(.built):not(.empty):hover .base-art { filter: grayscale(0.3) brightness(0.8); opacity: 0.85; }
+
 .base-cell.empty {
   border-style: dashed;
   background: transparent;
@@ -780,22 +820,98 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 .base-cell.syn-active .base-art { border-color: rgba(232,163,61,0.5); }
 .base-name { font-size: 12.5px; font-weight: 600; line-height: 1.15; }
 .base-cell .room-lvl { float: none; }
-.syn-badge {
-  position: absolute; top: 5px; right: 6px;
-  font-family: var(--font-num); font-size: 10px; font-weight: 700;
-  color: #1a1408; background: var(--gold);
-  border-radius: 20px; padding: 1px 6px;
+/* ---------- Base: sinergias em três níveis ---------- */
+/* Marcador da célula: um ponto por NÍVEL em que a sala participa. Substituiu o selo "⚡3" — presença
+   em vez de contagem, para a grade continuar uma cena e não um painel de números. */
+.syn-dots {
+  position: absolute; top: 6px; right: 6px;
+  display: flex; gap: 3px; z-index: 2;
 }
+.syn-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  box-shadow: 0 0 5px currentColor, 0 0 0 1px rgba(0,0,0,0.5);
+  background: currentColor;
+}
+.sd-v { color: #5fbf6b; }   /* 🟢 vizinhança */
+.sd-c { color: #4fa8d8; }   /* 🔵 combinação */
+.sd-x { color: #a97ce8; }   /* 🟣 complexo   */
+
+/* SVG das ligações, por cima da grade e sem capturar cliques. Só desenha quando há sala selecionada. */
+.base-grid-wrap { position: relative; max-width: 760px; }
+.base-links {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 3; overflow: visible;
+}
+.bl-line { stroke-width: 3; stroke-linecap: round; opacity: 0.95; }
+.bl-v { stroke: #5fbf6b; stroke-width: 2; opacity: 0.8; }
+.bl-c { stroke: #4fa8d8; }
+.bl-x { stroke: #a97ce8; stroke-width: 5; opacity: 0.9; }
+
+/* Com uma sala selecionada, as não-relacionadas recuam para o fundo: a leitura das ligações fica
+   isolada do resto da base, que é o ponto de mostrar conexões só sob demanda. */
+.base-cell.dimmed { opacity: 0.34; }
+.base-cell.linked { border-color: currentColor; }
+.base-cell.link-v { color: #5fbf6b; box-shadow: 0 0 0 1px #5fbf6b; }
+.base-cell.link-c { color: #4fa8d8; box-shadow: 0 0 0 2px #4fa8d8; }
+.base-cell.link-x { color: #a97ce8; box-shadow: 0 0 0 2px #a97ce8, 0 0 16px rgba(169,124,232,0.45); }
+
+/* Painel de ligações da sala selecionada */
+.base-conn {
+  border: 1px solid var(--border-hi); border-radius: 10px;
+  background: var(--panel2); padding: 10px 12px; margin-bottom: 16px;
+  font-size: 12.5px;
+}
+.base-conn-empty { color: var(--text-dim); border-style: dashed; }
+.bc-head {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-display); font-size: 18px; color: var(--gold);
+  padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.bc-lvl { font-family: var(--font-num); font-size: 12px; color: var(--text-dim); }
+.bc-move {
+  margin-left: auto; font-family: var(--font-num); font-size: 11px;
+  background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border-hi); border-radius: 20px; padding: 3px 10px; cursor: pointer;
+}
+.bc-move:hover { color: var(--gold); border-color: var(--gold); }
+.bc-move.armed { color: #1a1408; background: var(--gold); border-color: var(--gold); }
+.bc-row {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 5px 0; border-top: 1px dashed rgba(255,255,255,0.06);
+}
+.bc-row:first-of-type { border-top: 0; }
+.bc-tier { font-family: var(--font-num); font-size: 10.5px; opacity: 0.9; flex: 0 0 auto; }
+.bc-v .bc-tier { color: #5fbf6b; }
+.bc-c .bc-tier { color: #4fa8d8; }
+.bc-x .bc-tier, .bc-todo .bc-tier { color: #a97ce8; }
+.bc-name { font-weight: 700; color: var(--text); }
+.bc-with { color: var(--text-dim); font-size: 11.5px; }
+.bc-eff {
+  margin-left: auto; font-family: var(--font-num); font-size: 11.5px; font-weight: 700;
+  color: var(--gold-hi); white-space: nowrap;
+}
+.bc-none { color: var(--text-dim); font-style: italic; }
+.bc-todo { opacity: 0.6; }
+.bc-todo .bc-name { font-weight: 400; }
+
+/* Contadores por nível na barra de sinergias ativas */
+.syn-count { font-family: var(--font-num); font-size: 12.5px; font-weight: 700; }
+.syn-sep { flex: 0 0 1px; align-self: stretch; background: var(--border-hi); margin: 0 4px; }
+
+.cx-row { flex-wrap: wrap; }
+.syn-legend-rooms { color: var(--text-dim); font-size: 11.5px; }
+.cx-desc { flex-basis: 100%; color: var(--text-dim); font-size: 11px; font-style: italic; opacity: 0.8; }
 .base-build {
   margin-top: auto; width: 100%;
   font-size: 11px; padding: 5px 4px; line-height: 1.25;
 }
 .base-build .btn-cost { font-size: 10px; }
 
-.syn-legend {
-  border-top: 1px dashed var(--border); padding-top: 12px;
+.syn-legend { padding-top: 4px; margin-bottom: 10px; }
+.syn-legend-title {
+  font-family: var(--font-display); font-size: 15px; color: var(--gold);
+  margin: 14px 0 6px; padding-top: 10px; border-top: 1px dashed var(--border);
 }
-.syn-legend-title { font-size: 12.5px; color: var(--text-dim); margin-bottom: 8px; }
 .syn-legend-row {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   font-size: 12.5px; padding: 4px 0; opacity: 0.5;
@@ -977,6 +1093,52 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 
 /* ===== Números flutuantes ===== */
 #float-layer { position: fixed; inset: 0; pointer-events: none; z-index: 200; }
+/* ---------- Seções recolhíveis (UI.section) ---------- */
+/* Cabeçalho de uma linha: título à esquerda, o número que importa à direita. Fechado, ocupa 38px em
+   vez das centenas de pixels do conteúdo — é o que mantém as telas densas legíveis sem tirar nada. */
+.sec { margin: 14px 0 0; }
+.sec-head {
+  width: 100%;
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--gold);
+  font-family: var(--font-display); font-size: 19px; letter-spacing: 0.3px;
+  cursor: pointer; text-align: left;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.sec-head:hover { background: rgba(255,255,255,0.06); border-color: var(--border-hi); }
+.sec-caret {
+  color: var(--text-dim); font-size: 11px; flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+.sec-open > .sec-head > .sec-caret { transform: rotate(90deg); }
+.sec-title { flex: 1 1 auto; min-width: 0; }
+/* Numa coluna estreita (a lateral da Base tem 330px) o resumo espremia o título até ele quebrar
+   palavra por palavra. Com wrap, o resumo desce inteiro para a linha de baixo. */
+.sec-head { flex-wrap: wrap; row-gap: 2px; }
+.sec-summary { margin-left: auto; }
+.sec-summary {
+  flex: 0 0 auto;
+  font-family: var(--font-num); font-size: 12px; color: var(--text-dim);
+  display: flex; align-items: center; gap: 6px;
+}
+.sec-strong { color: var(--gold-hi); font-weight: 700; }
+.sec-strong.sec-ok { color: var(--green); }
+.sec-next { color: var(--text-dim); opacity: 0.75; }
+.sec-body { display: none; padding-top: 4px; }
+.sec-open > .sec-body { display: block; }
+/* Uma seção aberta ganha um filete lateral: deixa claro onde o conteúdo dela começa e termina. */
+.sec-open > .sec-body {
+  border-left: 2px solid var(--border);
+  margin-left: 5px; padding-left: 10px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sec-caret, .sec-head { transition: none; }
+}
+
 .float-num {
   position: absolute;
   font-family: var(--font-num); font-weight: 700; font-size: 17px;
@@ -988,6 +1150,24 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 @keyframes floatUp {
   0% { opacity: 1; transform: translateY(0) scale(1); }
   100% { opacity: 0; transform: translateY(-70px) scale(1.25); }
+}
+/* Número que ACUMULA enquanto o jogador clica rápido (UI.floatAccum): fica parado somando, com um
+   "bump" a cada clique, e só sobe quando os cliques param. Sem `animation`, senão ele começa a subir
+   no primeiro clique da rajada. `translateX(-50%)` centraliza no ponto de origem — o acumulador não
+   usa o deslocamento aleatório do float comum, porque ficar pulando de lado enquanto soma é ruído. */
+.float-num.float-held {
+  animation: none;
+  opacity: 1;
+  transform: translateX(-50%);
+}
+.float-num.float-bump { animation: floatBump 0.14s ease-out; }
+@keyframes floatBump {
+  0%   { transform: translateX(-50%) scale(1); }
+  45%  { transform: translateX(-50%) scale(1.18); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .float-num.float-bump { animation: none; }
 }
 
 /* ===== Toasts ===== */
@@ -1088,6 +1268,11 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
   backdrop-filter: blur(3px);
 }
 #modal-layer.hidden { display: none; }
+/* Segunda trava, independente do JS: uma camada de modal SEM conteúdo nunca captura clique. Ela é
+   fixa, em tela cheia e com z-index 400 — se ficar visível e vazia, vira uma placa de vidro invisível
+   que engole todos os cliques do jogo (o sintoma que aparecia como "botão de compra congelado").
+   `:empty` cobre o caso de o conteúdo ter sido limpo sem repor a classe `hidden`. */
+#modal-layer:empty { pointer-events: none; background: none; backdrop-filter: none; }
 .modal-box {
   position: relative;
   background: var(--panel2);
@@ -1255,7 +1440,17 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 .forge-tier.locked .ft-odds { color: var(--text-dim); }
 .ft-head { font-size: 15px; color: var(--text); font-weight: 700; }
 .forge-tier.afford .ft-head { color: var(--gold-hi); }
-.ft-odds { font-family: var(--font-num); font-size: 11px; margin: 5px 0; display: flex; gap: 6px; flex-wrap: wrap; }
+.ft-odds { font-family: var(--font-num); font-size: 11px; margin: 6px 0 7px; }
+/* Barra empilhada de chances: substitui a fileira de porcentagens sem rótulo. Comparar dois tiers
+   vira comparar dois desenhos, não ler oito números. */
+.ft-bar {
+  display: flex; height: 7px; border-radius: 4px; overflow: hidden;
+  background: var(--bg2); border: 1px solid var(--border);
+}
+.ft-seg { display: block; height: 100%; }
+.ft-best { margin-top: 5px; font-size: 11px; color: var(--text-dim); display: flex; gap: 5px; align-items: baseline; }
+.ft-best-pct { margin-left: auto; color: var(--text); }
+.ft-lock { font-size: 11px; }
 .ft-cost { font-family: var(--font-num); font-size: 11.5px; color: var(--gold); }
 .ft-cost .cost-missing { color: var(--ember); }
 
@@ -1318,7 +1513,11 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 }
 .forge-scrap:hover { border-color: var(--border-hi); color: var(--text); }
 
-.forge-stat { margin-top: 12px; font-size: 12px; color: var(--text-dim); font-family: var(--font-num); }
+.forge-stat {
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--text-dim); font-family: var(--font-num);
+  display: flex; gap: 14px; flex-wrap: wrap;
+}
 .forge-stat b { color: var(--text); }
 .forge-wait { color: var(--gold); }
 
@@ -1408,6 +1607,48 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 .rq-fill { height: 100%; background: var(--green); border-radius: 3px; transition: width .3s linear; }
 .rq-time { font-family: var(--font-num); font-size: 11px; color: var(--text-dim); }
 .research-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-bottom: 8px; }
+
+/* Painéis de categoria da Pesquisa, lado a lado. A separação por ramo é o que orienta um jogador
+   novo ("existem nove áreas, e cada uma faz isto"); o que estava errado antes era empilhar nove
+   cabeçalhos na vertical numa tela larga. Cada ramo agora tem moldura própria e eles fluem. */
+.research-cats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+  gap: 14px; align-items: start;
+}
+.rcat {
+  border: 1px solid var(--border); border-radius: 12px;
+  background: linear-gradient(180deg, var(--panel2), var(--panel));
+  overflow: hidden;
+}
+.rcat-full { border-color: rgba(232,163,61,0.4); }
+.rcat-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px; border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.03);
+}
+.rcat-ico { font-size: 16px; }
+.rcat-name { font-family: var(--font-display); font-size: 17px; color: var(--gold); flex: 1 1 auto; }
+.rcat-prog { font-family: var(--font-num); font-size: 12px; color: var(--text-dim); }
+.rcat-full .rcat-prog { color: var(--gold-hi); }
+.rcat-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.rcat-body .research-card { background: var(--bg2); }
+
+/* Bloqueadas / concluídas / na fila: uma linha de altura. Continuam visíveis porque é o que mostra
+   que o ramo tem continuação — mas sem competir com o card da tecnologia que dá pra pesquisar AGORA. */
+.rrow {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12px; padding: 3px 4px; border-radius: 6px;
+}
+.rrow-ico { flex: 0 0 auto; font-size: 11px; }
+.rrow-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rrow-tag {
+  flex: 0 1 auto; min-width: 0; font-family: var(--font-num); font-size: 10px;
+  color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rrow-locked { color: var(--text-dim); opacity: 0.75; }
+.rrow-done { color: var(--green); opacity: 0.7; }
+.rrow-queue { color: var(--gold); background: rgba(232,163,61,0.07); }
 .research-card {
   background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
   display: flex; flex-direction: column; gap: 5px;
@@ -1591,17 +1832,19 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 /* ===================================================================== */
 /* Especialização de classe (Arquétipo + Arma ideal)                     */
 /* ===================================================================== */
-.hm-role {
-  display: inline-flex; align-items: center; gap: 3px; align-self: flex-start;
+/* Papel e arquétipo numa faixa só de etiquetas — antes eram duas linhas empilhadas por herói. */
+.hm-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 1px 0 2px; }
+.hm-tag {
+  display: inline-flex; align-items: center; gap: 3px;
   font-size: 10px; font-family: var(--font-num); font-weight: 700;
   border: 1px solid currentColor; border-radius: 20px; padding: 1px 7px;
-  margin: 1px 0 2px; letter-spacing: .3px; opacity: .95;
+  letter-spacing: .3px; opacity: .95; white-space: nowrap;
 }
-.hm-arch {
-  font-size: 10.5px; color: var(--text-dim); font-family: var(--font-num);
-  display: flex; align-items: center; gap: 4px; flex-wrap: wrap; line-height: 1.2;
-}
-.hm-ideal { opacity: 0.85; }
+.hm-arch { color: var(--text-dim); border-color: var(--border-hi); font-weight: 400; }
+.hm-arch.matched { color: var(--gold); border-color: var(--gold); }
+/* "→🔨" = a arma ideal ainda não está equipada. É dica acionável, por isso fica no card;
+   o nome da arma por extenso vive no tooltip (specTip), que é onde referência deve morar. */
+.hm-ideal { opacity: 0.9; }
 .hm-spec-on {
   color: #1a1408; background: linear-gradient(90deg, var(--gold), var(--gold-hi));
   border-radius: 20px; padding: 0 6px; font-weight: 700; font-size: 9.5px;
@@ -1632,14 +1875,18 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 .base-scene[data-tier="0"] { background: linear-gradient(180deg, #14111f 0%, #1c1830 60%, #24201a 100%); }
 .base-scene[data-tier="3"] { background: linear-gradient(180deg, #241a3a 0%, #3a2b52 55%, #4a3a2a 100%); }
 .base-scene[data-tier="4"] { background: linear-gradient(180deg, #2e1f46 0%, #4a3566 50%, #5c4630 100%); }
+/* O horizonte tinha prédios de 30px fixos centralizados num banner de mais de mil pixels: com poucas
+   salas construídas, virava um punhado de coisinhas espremidas no meio de um vazio roxo. Agora os
+   prédios CRESCEM para dividir a largura disponível (até 68px) e se distribuem — a cena fica cheia
+   com 3 salas e continua legível com 13. */
 .bs-skyline {
   position: absolute; left: 0; right: 0; bottom: 22px;
-  display: flex; align-items: flex-end; justify-content: center; gap: 5px;
-  height: 108px; padding: 0 12px;
+  display: flex; align-items: flex-end; justify-content: center; gap: 10px;
+  height: 108px; padding: 0 18px;
 }
 .bs-empty { color: var(--text-dim); font-size: 13px; align-self: center; margin-bottom: 30px; }
 .bs-building {
-  width: 30px; min-height: 30px;
+  flex: 1 1 0; min-width: 26px; max-width: 68px; min-height: 30px;
   background: linear-gradient(180deg, rgba(143,111,216,0.32), rgba(20,16,32,0.6));
   border: 1px solid var(--border-hi); border-bottom: none;
   border-radius: 6px 6px 0 0;

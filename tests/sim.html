@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Project Infinity Idle — Simulador de balanceamento</title>
+<style>
+  body { font-family: 'JetBrains Mono', monospace; background: #0b0a10; color: #d8d2c4; padding: 24px; }
+  h1 { font-size: 18px; }
+  pre { white-space: pre-wrap; font-size: 12px; line-height: 1.5; }
+  .hint { color: #8d8579; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>⚖️ Simulador de balanceamento (headless)</h1>
+<p class="hint">
+  Carrega só o motor (sem <code>ui.js</code>/<code>main.js</code>) com stubs de <code>UI</code>/<code>Sound</code>,
+  então NUNCA toca no save do jogo (não há autosave nesta página) e não abre áudio.
+  Rode <code>Sim.run({minutes: 60})</code> no console.
+</p>
+<pre id="out">Pronto. Use Sim.run(...) no console.</pre>
+
+<script>
+// ---- Stubs: o motor chama UI.* e Sound.* livremente; aqui tudo é no-op silencioso. ----
+window.UI = new Proxy({ dirty: {}, R: {} }, {
+  get(t, k) {
+    if (k in t) return t[k];
+    if (k === 'esc') return (s) => String(s);
+    return () => {};
+  },
+  set(t, k, v) { t[k] = v; return true; },
+});
+</script>
+<script src="/js/format.js"></script>
+<script src="/js/data.js"></script>
+<script src="/js/state.js"></script>
+<script src="/js/game.js"></script>
+<script src="/js/expansion.js"></script>
+<script src="/js/relics.js"></script>
+<script src="/js/bosses.js"></script>
+<script src="/js/gearsets.js"></script>
+<script src="/js/layers.js"></script>
+<script src="/js/worldtree.js"></script>
+<script>
+// Sound é definido em game.js — neutraliza depois de carregado (sem WebAudio no simulador).
+Sound.play = () => {};
+Sound.ensure = () => {};
+Sound.tone = () => {};
+if (typeof Sound.startMusic === 'function') Sound.startMusic = () => {};
+</script>
+<script src="/tests/sim.js"></script>
+</body>
+</html>

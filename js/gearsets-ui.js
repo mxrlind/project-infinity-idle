@@ -11,7 +11,16 @@ Object.assign(UI, {
       Object.values(S.heroes).some(h => (h.gear.arma && h.gear.arma.set) || (h.gear.amuleto && h.gear.amuleto.set));
     if (!everSeen) return;
 
-    c.appendChild(this.el('h3', 'section-title', '🧩 Conjuntos'));
+    // Seção recolhida: o resumo já diz quantos conjuntos estão ATIVOS, que é a única coisa acionável.
+    const active = GEAR_SETS.filter(sd => (counts[sd.id] || 0) >= 2).length;
+    const body = this.section(c, {
+      id: 'heroes.gearsets',
+      title: '🧩 Conjuntos',
+      summary: active
+        ? `<b class="sec-strong sec-ok">${active}</b> ativo${active > 1 ? 's' : ''}`
+        : `nenhum ativo`,
+      open: false,
+    });
     const grid = this.el('div', 'gearset-grid');
     for (const setDef of GEAR_SETS) {
       const n = counts[setDef.id] || 0;
@@ -28,7 +37,7 @@ Object.assign(UI, {
       card.title = `${setDef.name}: ${n} peça(s) equipada(s) entre seus heróis.`;
       grid.appendChild(card);
     }
-    c.appendChild(grid);
+    body.appendChild(grid);
   },
 
   gearSetBonusText(obj) {

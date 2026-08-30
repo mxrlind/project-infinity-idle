@@ -22,8 +22,20 @@
 <ul id="results"></ul>
 
 <!-- Só o "motor" (sem UI/main.js): as fórmulas testadas aqui não tocam DOM, então a página nunca
-     inicia o loop do jogo nem precisa de UI.* — carregar ui.js/main.js só adicionaria uma tela de
-     jogo real por trás dos testes, sem nenhum benefício. -->
+     inicia o loop do jogo nem precisa da UI real — carregar ui.js/main.js só adicionaria uma tela de
+     jogo por trás dos testes (e um autosave capaz de sobrescrever o save de verdade do preview).
+     O stub abaixo existe porque partes do MOTOR chamam UI.log/UI.toast/Sound.play no meio da lógica
+     (spawnEnemy, buyGen, killEnemy...): sem ele, testar essas funções morre num ReferenceError. -->
+<script>
+window.UI = new Proxy({ dirty: {}, R: {} }, {
+  get(t, k) {
+    if (k in t) return t[k];
+    if (k === 'esc') return (s) => String(s);
+    return () => {};
+  },
+  set(t, k, v) { t[k] = v; return true; },
+});
+</script>
 <script src="/js/format.js"></script>
 <script src="/js/data.js"></script>
 <script src="/js/state.js"></script>
@@ -34,6 +46,7 @@
 <script src="/js/gearsets.js"></script>
 <script src="/js/layers.js"></script>
 <script src="/js/worldtree.js"></script>
+<script>Sound.play = () => {}; Sound.ensure = () => {}; Sound.tone = () => {};</script>
 <script src="/tests/framework.js"></script>
 <script src="/tests/formulas.test.js"></script>
 </body>

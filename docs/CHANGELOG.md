@@ -2,6 +2,225 @@
 
 ## Não lançado
 
+### O "botão de compra congelado" e a aba Pesquisa
+
+- **🐛 A camada de modal invisível travava a tela inteira (`js/ui.js`, `style.css`)** — a causa real do
+  relato de que "às vezes o botão de compra fica congelado". `#modal-layer` é um elemento `fixed`, em
+  tela cheia, com `z-index: 400` e `pointer-events: auto`: a **única** coisa que o impede de engolir
+  todos os cliques do jogo é a classe `hidden`. Qualquer caminho que esvazie o conteúdo sem repor a
+  classe deixa uma **placa de vidro invisível** sobre a tela — o jogo continua rodando, os números
+  continuam subindo, e nada é clicável. Confirmado medindo `document.elementFromPoint()` no centro do
+  botão de compra: voltava a camada, não o botão. Não é o botão que congela, é a tela; o botão de
+  compra é só onde se percebe primeiro. Em vez de caçar cada caminho possível, três travas
+  independentes: `#modal-layer:empty { pointer-events: none }` no CSS (uma camada sem conteúdo nunca
+  bloqueia); `UI.ensureModalSanity()` rodando a cada tick (camada visível sem `.modal-box` dentro se
+  esconde sozinha); e **Esc fecha o modal aberto**, saída de emergência universal. O fechamento também
+  foi centralizado em `UI.closeModal()`, que esconde E limpa — deixar conteúdo para trás numa camada
+  só "escondida" era o que criava os estados intermediários.
+- **🐛 Cada compra reconstruía a aba inteira (`js/game.js`, `js/ui.js`)**: `buyGen` e `levelHero`
+  marcavam a aba como suja, e `renderActive` responde a isso com `innerHTML = ''` — ou seja, **o botão
+  sob o cursor era destruído e recriado a cada clique**. Verificado: a identidade do nó do botão não
+  sobrevivia a uma única compra. Isso mata o `:active`, corta a animação de clique e faz um segundo
+  clique rápido cair no vazio do rebuild. `updateDynamic` já atualiza custo, quantidade, produção,
+  DPS e afford de cada linha a cada tick, então o re-render era puro desperdício. Agora o nó sobrevive
+  a compras repetidas (verificado com 8 seguidas) e só a APARIÇÃO de uma linha nova re-renderiza —
+  via `UI.invalidateProdVisibility()`, que a compra dispara para a checagem rodar no tick seguinte em
+  vez de esperar os 3s do intervalo. A checagem também passou a considerar os upgrades, não só os
+  geradores.
+- **🔬 Aba Pesquisa: painéis de categoria lado a lado (`js/ui-ext.js`, `style.css`)**. A separação por
+  categoria sempre foi certa — um jogador novo precisa ver que existem **nove ramos** de pesquisa e o
+  que cada um faz. O que estava errado era a **distribuição**: nove cabeçalhos `<h3>` empilhados na
+  vertical, cada um seguido de uma grade que quase sempre continha **um card só**, porque só aparece a
+  tecnologia cujos pré-requisitos já foram cumpridos. Dava **1710px** de rolagem para mostrar 8 cartas
+  numa coluna estreita, com a tela larga vazia à direita.
+  Agora cada categoria é um **painel com moldura própria** (ícone, nome e progresso `2/3` no
+  cabeçalho), e os painéis fluem numa grade responsiva: 4 colunas a 1750px, 2 a 1300px, 1 no celular.
+  A separação ficou **mais** forte, não menor — e dá para ver vários ramos de uma vez em vez de rolar
+  por eles. Dentro de cada painel, hierarquia por peso visual:
+  - a tecnologia **disponível agora** é a única com card completo e botão — é a única que tem ação;
+  - **na fila**, **🔒 bloqueadas** (com o que falta: "após Táticas de Guerra") e **✔ concluídas** são
+    linhas de uma altura só. As bloqueadas ficam visíveis de propósito: é o que mostra ao jogador novo
+    que o ramo continua e para onde vai.
+
+### Correções visuais: a moeda deformada e a Base com 720px de vazio
+
+- **🐛 A moeda encolhia sozinha e virava elipse (`style.css`)**: `#left-panel` é um flex **coluna**, e o
+  `flex-shrink: 1` padrão come a ALTURA dos filhos quando o conteúdo do painel passa da altura da
+  janela. A moeda saía de 140×140 para **140×64** — medido — e, pior, mudava de forma a cada vez que o
+  painel crescia ou encolhia: um buff entrando, o log ganhando linhas, um recurso novo aparecendo.
+  Daí a sensação de que ela "ficava se redimensionando". Fix: `flex: 0 0 auto` para tirá-la da conta do
+  encolhimento, mais `aspect-ratio: 1` como rede de segurança. Auditado o painel inteiro: nenhum outro
+  filho estava sendo esmagado.
+- **📐 A Base desperdiçava 720px de tela (`js/ui.js`, `style.css`)**: a grade tinha `max-width: 560px`
+  dentro de um painel de 1280 — sobrava dois terços da largura em vazio, e as células ficavam com
+  130px, pequenas demais para a arte das salas aparecer. A aba virou **duas colunas** acima de 1250px
+  de janela: a grade cresce até 760px (células de **184px**) e a lateral, que antes era buraco, recebe
+  o painel de ligações e o Manual de Adjacência. Abaixo desse corte volta a ser uma coluna só — o
+  limite é 1250 e não menos porque, mais estreito que isso, uma coluna de 330px ao lado deixaria as
+  células MENORES do que eram antes.
+- **🏚️ Salas não construídas pareciam iguais às construídas**: as 13 salas apareciam como cards de arte
+  completa mesmo no nível 0, então a Base lia como um catálogo de prédios à venda em vez da base que o
+  jogador levantou. Agora nível 0 é uma **planta**: arte dessaturada e recuada, borda tracejada, só o
+  botão Construir mantendo contraste. Passar o mouse revela a arte.
+- **🌆 O horizonte da cena**: prédios de 30px fixos e centralizados num banner de mais de mil pixels —
+  com poucas salas, um punhado de coisinhas espremidas no meio do vazio. Agora eles crescem para
+  dividir a largura (até 68px) e se distribuem.
+
+### Base: adjacência em três níveis e conexões sob demanda
+Redesenho do sistema de Base a pedido do usuário, com referências declaradas: **Dorfromantik** (o
+jogador pensa em quais estruturas devem ficar próximas), **Kingdom Two Crowns** (leitura visual das
+relações entre estruturas) e **Melvor Idle** (organizar muitos sistemas sem poluir a tela). O objetivo
+é transformar a Base num mini-puzzle: a pergunta deixa de ser só "qual sala dá mais produção?" e passa
+a ser **"onde eu ponho essa sala para formar a melhor combinação?"**.
+
+- **🟢🔵🟣 Três níveis de sinergia (`js/data.js`, `js/game.js`)**, do genérico ao específico — e é a
+  especificidade que paga:
+  - **Vizinhança** (`ADJACENCY_BONUS`, novo): qualquer par de salas construídas lado a lado rende
+    +0,4%/nível de ouro. É o piso do sistema — recompensa ocupar a grade de forma compacta, sem
+    buracos, mesmo sem afinidade nenhuma entre as salas.
+  - **Combinação** (`ROOM_SYNERGIES`, já existia): duas salas *específicas* lado a lado. 21 pares.
+  - **Complexo** (`ROOM_COMPLEXES`, novo): **3 salas específicas formando um grupo conectado entre
+    si** — não basta estarem na grade, elas têm que formar uma peça só (linha, L ou bloco). Seis
+    complexos: Centro Militar, Distrito Arcano, Complexo Industrial, Distrito Financeiro, Cidadela
+    Sagrada e Academia de Guerra. Eles **compartilham salas de propósito** (o Quartel está no Centro
+    Militar e na Academia de Guerra; o Castelo, no Distrito Financeiro e na Cidadela Sagrada): em 16
+    células não dá para ter todos, então montar a Base é escolher quais combinações valem mais para
+    a sua run. É aqui que mora o puzzle.
+- **🔗 Conexões só quando você pede (`js/ui.js`, `style.css`)**: o risco de um sistema de adjacência é
+  todo prédio exibir seus vínculos ao mesmo tempo e a base virar uma tela de informação. A Base fica
+  **limpa por padrão**; ao selecionar uma sala, um `<svg>` sobre a grade desenha as ligações **daquela
+  peça** — verde tracejado para vizinhança, azul para combinação, roxo grosso para o contorno do
+  complexo — as salas ligadas ganham borda colorida e **todo o resto recua** (`.dimmed`). Um par que
+  aparece em mais de um nível é desenhado **uma vez só**, no nível mais forte (os bônus continuam
+  cumulativos; a dedupe é só visual).
+- **🔎 Painel de ligações**: abaixo da grade, o que a sala selecionada ganha, nível a nível —
+  `🟣 Complexo · Academia de Guerra · 🏰 Quartel ─ 📚 Biblioteca ─ 🔧 Oficina · +14% DPS +14% equipamento`.
+  E o gancho de puzzle: uma linha **🟣 Possível** listando os complexos que aquela sala *poderia*
+  formar e com quem (`junte com 🔧 Oficina + 🏟️ Arena`).
+- **⚫ O selo "⚡3" saiu**: cada célula agora tem só **pontos coloridos** — um por nível em que a sala
+  participa. Presença em vez de contagem, para a grade continuar uma cena e não um painel de números.
+- **⇄ Mover virou modo explícito**: selecionar passou a significar *inspecionar*, então o toque
+  seguinte não pode mais trocar as salas de lugar por padrão — quem estivesse explorando as conexões
+  destruiria o próprio arranjo sem querer. Agora existe um botão `⇄ Mover` no painel que arma a troca.
+  No desktop, arrastar continua funcionando direto.
+- **🧭 Manual de Adjacência**: a antiga legenda virou uma referência organizada pelos três níveis, com
+  os complexos primeiro (são o objetivo de arranjo), e resumo `2/6 complexos · 6/21 combinações`.
+- **🧪 Testes**: 27 → **35**. Cobrem a conectividade (linha, L, buraco no meio, diagonal que *não*
+  conecta), a exigência de sala construída, o escalonamento pelo menor nível, a contagem de pares sem
+  duplicar e a soma cumulativa dos três níveis.
+
+Impacto no ritmo, medido no simulador (`tests/sim.html`, 90 min): as fases saem em 0/3/9/21/40/43/46/50
+min contra 0/3/11/25/46/49/51/55 antes — cerca de 10% mais rápido, com as mesmas paredes de chefe. O
+sistema adiciona profundidade sem desfazer o balanceamento.
+
+### Usabilidade: número do clique, e telas densas que respiram
+Passe de usabilidade a pedido do usuário, com uma regra só: a tela mostra o que o jogador FAZ, e tudo
+que é referência fica a um clique de distância. Nada foi removido do jogo — só reorganizado, para o
+conteúdo impressionar por profundidade em vez de assustar por volume.
+
+- **🐛 O número do clique piscava, e com a barra de espaço ia para o canto superior esquerdo
+  (`js/ui.js`, `style.css`)**: `#click-coin` é um `<button>`, então segurar espaço/Enter com ele focado
+  dispara `click` por TECLADO — e um clique de teclado tem `clientX/clientY = 0`. O número flutuante ia
+  parar em (0,0), e a repetição automática da tecla empilhava dezenas deles no mesmo pixel, piscando.
+  Duas correções: `UI.floatOrigin()` detecta ativação por teclado (`ev.detail === 0`) e usa o centro do
+  próprio botão; e o número agora **acumula** em vez de empilhar (`UI.floatAccum`) — enquanto os cliques
+  chegam, o mesmo elemento fica parado somando o total com um "bump" a cada clique, e só sobe quando o
+  jogador para. Clicar rápido virou um "+412 Mi" crescendo e legível. Vale também para o clique de
+  ataque no inimigo (crítico e ataque duplo seguem com número próprio — são o evento raro que merece
+  destaque). Somado a isso, um teto de 24 números simultâneos na camada, para nenhuma outra fonte de
+  clique conseguir encher a tela de novo.
+- **📐 Seções recolhíveis (`UI.section`, `js/ui.js`, `style.css`, `js/state.js`)**: componente novo —
+  cabeçalho de uma linha com o título à esquerda e **o número que importa** à direita, expansível. O
+  padrão de abertura segue uma regra explícita: **uma seção só nasce aberta quando tem uma decisão
+  pendente** (existe slot de campo vago E alguém no banco; existe herói contratável agora; existe carta
+  na bolsa melhor que a equipada; existe relíquia achada e slot livre). Seção que é só consulta nasce
+  fechada. A escolha do jogador fica salva em `S.ui.sections`.
+- **🦸 Aba Heróis: de 1841px para ~1050px** numa tela de 800. O painel de Sinergia sozinho ocupava
+  **452px** — um quarto da página inteira — logo acima dos heróis, quase todo composto de linhas
+  inativas (as 8 composições de time, a escada de faixas, a contagem por classe). Virou uma linha:
+  `⚡ Sinergia de Time · 65% → 80% 📘`. O Campo de Batalha subiu para logo abaixo do combate, que é
+  onde o jogador age. Reserva, Recrutar, Bolsa, Conjuntos e Relíquias viraram seções com resumo
+  próprio ("3 melhorias!", "slot vago!", "2/3 equipadas"). Os mini-cards de herói gastavam **duas
+  linhas empilhadas** com papel e arquétipo por herói; viraram uma faixa de etiquetas, com o nome da
+  arma ideal indo para o tooltip e ficando no card só o ícone (`→🔨`) enquanto a arma não estiver
+  equipada — dica acionável fica, referência sai.
+- **🏰 Aba Base: de 1960px para ~1290px.** A legenda de afinidades era uma tabela **fixa de 667px** com
+  as 21 sinergias possíveis do jogo listadas permanentemente embaixo da grade, quase todas inativas —
+  a definição de conteúdo de consulta. Virou a seção `🧭 Afinidades`, com resumo `3/21 ativas`. O
+  parágrafo de instruções que ficava no topo foi para dentro dessa seção, junto do que ele explica;
+  quem ainda não tem nenhuma sinergia recebe a dica curta na própria barra de sinergias.
+- **🔨 Aba Forja: as chances viraram legíveis.** Cada tier mostrava uma fileira de porcentagens cruas e
+  **sem nenhum rótulo** — "58% 32% 9% 1%" — sem dizer do que eram nem qual tier compensava. Agora cada
+  tier tem uma **barra empilhada** colorida por raridade (comparar dois tiers virou comparar dois
+  desenhos) mais a linha que carrega a decisão: `até Lendário · 18%`. A tabela completa de chances foi
+  para o tooltip. O rodapé de estatísticas ganhou separador e o aviso de bolsa cheia virou explícito
+  ("equipe ou desmanche na aba Heróis").
+- **🐛 `Game.npcLevel` derrubava o tick com estado incompleto (`js/expansion.js`)**: lia
+  `S.npcs.rep[npcId]` sem verificar `S.npcs.rep`, e é chamado de `forgeTierUnlocked`, que a UI consulta
+  a cada render — uma exceção por segundo, no laço principal. Agora um estado incompleto vale nível 0.
+
+### Jogabilidade: combate viável, paredes com saída e compras que valem a pena
+Passe focado em jogabilidade a pedido do usuário ("remover todos os erros, atualizar a dinâmica do
+jogo e o equilíbrio das compras"). Todo diagnóstico saiu de medição, não de sensação: foi criado um
+**simulador headless** (`tests/sim.html` + `tests/sim.js`) que roda um jogador automático sobre o
+motor real e reporta ritmo de fase, curva de ouro/s, evolução da onda e onde a run trava.
+
+- **⚔️ O combate era matematicamente impossível de sustentar (`js/data.js`, `HERO_MILESTONE`)**: o HP
+  do inimigo cresce ×1,45/onda (×41 a cada 10 ondas), mas com o marco de DPS a cada 25 níveis subir o
+  DPS ×41 exigia ~111 níveis, ou **×2200 de ouro** — contra uma renda que cresce só ×33 nas mesmas 10
+  ondas. A divergência era permanente e crescente: medindo com o time INTEIRO no nível 80, todas as
+  salas, todas as pesquisas, 12 prestígios e 500 de essência, o chefe da onda 75 ainda pedia
+  **50.000× mais DPS** do que qualquer investimento entregava. Marco 25 → **18**: as mesmas ×41
+  passam a custar ~×490, então o combate anda atrás da economia (que é o que mantém os geradores como
+  espinha dorsal) mas dentro do alcance dela. Medido no simulador: a onda máxima em 90 min foi de 70
+  para 91, e a pior parede caiu de **28 minutos para 14**.
+- **🔍 Estudo do Inimigo, mecânica nova (`js/game.js`, `js/data.js`, `js/state.js`)**: cada tentativa
+  falha no chefe atual dá **+15% de dano contra ele**, acumulativo até ×3, zerando quando ele cai.
+  Falhar num chefe congela a onda — e, com ela, quase toda a progressão de combate —, então sem isso
+  o jogador ficava parado por tempo indeterminado sem nenhum sinal de avanço. Agora a parede é uma
+  contagem regressiva. O teto de ×3 é deliberado: não trivializa uma parede grande, só elimina o
+  bloqueio infinito. Junto: ao falhar, o log passa a dizer **quanto DPS faltou** (`×2,3`), virando
+  meta concreta em vez de "resistiu".
+- **💠 Cristal tinha UMA fonte no jogo inteiro (`js/game.js`)**: 40% de chance de 1 unidade ao abater
+  um chefe de onda ≥ 30 — exatamente o ponto onde o jogador mais empacava — contra cinco consumidores
+  (Forja, Árvore do Mundo, salas avançadas, poções, ofertas de NPC). Numa run de 2h medida no
+  simulador o jogador terminava com **2 cristais**, com a Árvore do Mundo travada no nível 0 por falta
+  de 25. Agora a **Mina Profunda rende +0,02 cristal/s a partir do nível 5** (fluxo previsível) e os
+  chefes soltam a partir da onda 20, com quantidade acompanhando a onda (`1 + ⌊onda/25⌋`, 50%). Mesma
+  run agora termina com ~19 mil.
+- **🏰 A Base travava de vez por volta do nível 10 (`js/game.js`, `Game.roomYield`)**: o custo de uma
+  sala cresce ×1,7–2,0 por nível (exponencial) contra uma produção de materiais que crescia só
+  LINEARMENTE com o nível — a partir de certo ponto nenhuma quantidade de tempo alcançava o próximo
+  nível de Castelo/Torre/Arena (o Castelo empacava no nível 2). Novo **marco de extração**
+  (`ROOM_MILESTONE = 10`): a cada 10 níveis a sala produtora dobra o que rende. Na mesma run medida,
+  o Castelo passou de nível 2 para 7.
+- **🏭 Os geradores de topo eram armadilha (`js/data.js`)**: o custo por ouro/s crescia ×1,53 por tier
+  e um gerador recém-desbloqueado começa sem nenhum marco de ×2 enquanto os antigos já acumulam
+  vários — o payback do Portal/Santuário/Motor era de 175s/259s/392s contra ~120s dos iniciais. Ou
+  seja: comprar o gerador que você acabou de desbloquear era **sempre a pior compra do jogo**, e o
+  jogador ótimo ignorava metade da aba Produção. Produção dos quatro últimos tiers elevada para que o
+  ratio cresça ×1,25 no topo: continuam progressivamente mais caros por ouro/s, mas entram na disputa.
+- **🦸 A escada de contratação de heróis tinha um degrau que criava a pior parede da run
+  (`js/data.js`)**: os saltos iam de 27× a 44×, e o pulo Thora (2,2 Mi) → Vex (60 Mi) deixava o time
+  no teto dos 3 heróis disponíveis por **~25 minutos sem nenhuma compra de combate possível**. Os seis
+  últimos heróis foram barateados para degraus de ~20–30×.
+- **🖼️ ~90 requisições 404 por carregamento de página (`js/art-manifest.js`, `js/ui.js`,
+  `js/ui-ext.js`, `tools/gen-art-manifest.py`)**: o sistema de "arte com fallback pro emoji" emitia um
+  `<img>` para TODO ícone, então cada área ainda sem arte — conquistas, talentos, tiers da Forja,
+  eventos, energia/conhecimento — disparava um 404 por item. Visualmente funcionava (o `onerror` cai
+  no emoji), mas o console ficava vermelho de erro, escondendo erros de verdade. Novo manifesto
+  gerado do disco (`python tools/gen-art-manifest.py`) que a UI consulta antes de emitir o `<img>`;
+  quando não há arte, sai o emoji direto, sem requisição. Console limpo, zero 404.
+- **🔧 Fórmula de materiais duplicada (`js/game.js`, `Game.matPerSec`)**: `tick()` e `offlineGains()`
+  mantinham cópias separadas do mesmo cálculo, e já haviam divergido — o tick aplicava
+  `extEnergyMult` (tempestade turbina a energia), o offline não. Unificadas numa função só.
+- **🧪 Testes (`tests/`)**: 19 → **27 casos**. Cobrem `roomYield`, o portão de cristal em `matPerSec`,
+  `bossStudyMult` (inclusive o teto e o fato de não valer contra inimigo comum) e duas travas de
+  balanceamento que impedem reintroduzir os problemas acima — nenhum tier de gerador pode custar mais
+  que ×1,6 por ouro/s que o anterior, e nenhum degrau da escada de heróis pode passar de 32×. O
+  harness ganhou stubs de `UI`/`Sound`, porque partes do motor chamam `UI.log`/`Sound.play` no meio da
+  lógica e sem eles era impossível testá-las.
+
 ### Responsividade mobile: modais roláveis + alvos de toque
 Validação ponta a ponta da experiência no celular (medição de layout via DOM em 375px, 320px e
 paisagem 812×375 — as 13 abas), a pedido do usuário. Zero overflow horizontal em todas as abas nas

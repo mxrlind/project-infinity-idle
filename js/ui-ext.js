@@ -36,8 +36,7 @@ Object.assign(UI, {
       }).join('');
       card.innerHTML = `
         <div class="pet-head">
-          <img class="pet-portrait" src="img/pets/${def.id}.jpg" alt="" draggable="false"
-            onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'pet-icon',textContent:'${def.icon}'}))">
+          ${this.iconImgHtml(`img/pets/${def.id}.jpg`, def.icon, 'pet-icon', 'span', 'pet-portrait')}
           <div>
             <div class="pet-name" style="color:${rar.color}">${def.evo[stage]}</div>
             <div class="pet-rar" style="color:${rar.color}">${rar.name}${active ? ' · <b>ATIVO</b>' : ''}</div>
@@ -101,36 +100,87 @@ Object.assign(UI, {
     });
     c.appendChild(queueBox);
 
-    // disponíveis, por categoria
-    const avail = Game.researchAvailable();
+    // ----- as categorias, lado a lado -----
+    // A aba SEMPRE foi separada por categoria, e isso é bom: um jogador novo precisa ver que existem
+    // nove ramos de pesquisa e o que cada um faz. O que estava errado era a DISTRIBUIÇÃO — nove
+    // cabeçalhos `<h3>` empilhados na vertical, cada um seguido de uma grade que quase sempre continha
+    // um card só (porque só aparece a tecnologia cujos pré-requisitos já foram cumpridos). Dava 1710px
+    // de rolagem para mostrar 8 cartas numa coluna estreita, com a tela larga vazia à direita.
+    // Agora cada categoria é um PAINEL, e os painéis fluem numa grade que ocupa a largura toda: a
+    // separação continua (mais forte, inclusive — cada ramo tem moldura própria), mas você vê vários
+    // ramos de uma vez em vez de rolar por eles.
+    const wrap = this.el('div', 'research-cats');
+    const queuedIds = new Set(S.research.queue.map(q => q.id));
+
     for (const catId in RESEARCH_CATS) {
       const cat = RESEARCH_CATS[catId];
-      const list = avail.filter(r => r.cat === catId);
-      const doneN = RESEARCH.filter(r => r.cat === catId && S.research.done[r.id]).length;
-      const totalN = RESEARCH.filter(r => r.cat === catId).length;
-      if (!list.length && !doneN) continue;
-      c.appendChild(this.el('h3', 'section-title', `${cat.icon} ${cat.name} <span class="bag-count">${doneN}/${totalN}</span>`));
-      if (!list.length) continue;
-      const grid = this.el('div', 'research-grid');
-      for (const def of list) {
-        // Pesquisa 2.0 (#5): ramo exclusivo — mostra o galho travado em vez de escondê-lo
-        const blocker = Game.researchExclusionBlocker(def);
-        const card = this.el('div', 'research-card' + (blocker ? ' rc-locked' : '') + (def.exclusiveWith ? ' rc-branch' : '') + (this.isNewRow('research', def.id) ? ' row-enter' : ''));
-        card.innerHTML = `
-          ${def.exclusiveWith ? `<div class="rc-branch-tag">⚔️ Ramo exclusivo — só um dos dois</div>` : ''}
-          <div class="rc-head">${def.icon} <b>${def.name}</b> <span class="rc-time">⏱️ ${fmtTime(def.time)}</span></div>
-          <div class="rc-desc">${def.desc}</div>
-          ${blocker ? `<div class="rc-lock-note">🔒 Bloqueado — você já escolheu <b>${this.esc(Game.researchDef(blocker).name)}</b> neste ramo.</div>` : ''}
-          <div class="rc-cost"></div>`;
-        const btn = this.el('button', 'buy-btn rc-start', blocker ? 'Bloqueado' : 'Pesquisar');
-        if (blocker) btn.disabled = true;
-        btn.onclick = () => { if (Game.startResearch(def.id)) { this.dirty.research = true; this.renderActive(); } else Sound.play('error'); };
-        card.appendChild(btn);
-        grid.appendChild(card);
-        this.R.research.cards.push({ def, btn, costEl: card.querySelector('.rc-cost') });
+      const all = RESEARCH.filter(r => r.cat === catId);
+      const done = all.filter(r => S.research.done[r.id]);
+      const avail = all.filter(r => !S.research.done[r.id] && !queuedIds.has(r.id) && Game.researchReqMet(r));
+      const locked = all.filter(r => !S.research.done[r.id] && !queuedIds.has(r.id) && !Game.researchReqMet(r));
+      const inQueue = all.filter(r => queuedIds.has(r.id));
+
+      const panel = this.el('section', 'rcat' + (done.length === all.length ? ' rcat-full' : ''));
+      const head = this.el('header', 'rcat-head');
+      head.innerHTML = `<span class="rcat-ico">${cat.icon}</span><span class="rcat-name">${cat.name}</span>` +
+        `<span class="rcat-prog"><b>${done.length}</b>/${all.length}</span>`;
+      panel.appendChild(head);
+
+      const body = this.el('div', 'rcat-body');
+
+      // 1) o que dá pra começar agora — card completo, com botão
+      for (const def of avail) body.appendChild(this.researchCard(def));
+
+      // 2) o que está na fila
+      for (const def of inQueue) {
+        body.appendChild(this.el('div', 'rrow rrow-queue',
+          `<span class="rrow-ico">⏳</span><span class="rrow-name">${def.name}</span><span class="rrow-tag">na fila</span>`));
       }
-      c.appendChild(grid);
+
+      // 3) o que ainda vem — fica VISÍVEL de propósito: é o que mostra ao jogador novo que o ramo
+      //    continua, e o que cada passo exige. Compacto, para informar sem competir com o que é ação.
+      for (const def of locked) {
+        const faltam = (def.req || []).filter(id => !S.research.done[id]).map(id => Game.researchDef(id).name).join(' + ');
+        const row = this.el('div', 'rrow rrow-locked',
+          `<span class="rrow-ico">🔒</span><span class="rrow-name">${def.name}</span>` +
+          `<span class="rrow-tag">após ${this.esc(faltam || '—')}</span>`);
+        row.title = `${def.name} — ${def.desc}
+⏱️ ${fmtTime(def.time)}`;
+        body.appendChild(row);
+      }
+
+      // 4) o que já foi feito
+      for (const def of done) {
+        const row = this.el('div', 'rrow rrow-done',
+          `<span class="rrow-ico">✔</span><span class="rrow-name">${def.name}</span>`);
+        row.title = def.desc;
+        body.appendChild(row);
+      }
+
+      panel.appendChild(body);
+      wrap.appendChild(panel);
     }
+    c.appendChild(wrap);
+  },
+
+  // Card completo de uma tecnologia disponível: é o único item da aba que tem AÇÃO, então é o único
+  // que ganha peso visual. Bloqueadas e concluídas são linhas de uma altura só.
+  researchCard(def) {
+    // Pesquisa 2.0 (#5): ramo exclusivo — mostra o galho travado em vez de escondê-lo
+    const blocker = Game.researchExclusionBlocker(def);
+    const card = this.el('div', 'research-card' + (blocker ? ' rc-locked' : '') + (def.exclusiveWith ? ' rc-branch' : '') + (this.isNewRow('research', def.id) ? ' row-enter' : ''));
+    card.innerHTML = `
+      ${def.exclusiveWith ? `<div class="rc-branch-tag">⚔️ Ramo exclusivo — só um dos dois</div>` : ''}
+      <div class="rc-head"><b>${def.name}</b> <span class="rc-time">⏱️ ${fmtTime(def.time)}</span></div>
+      <div class="rc-desc">${def.desc}</div>
+      ${blocker ? `<div class="rc-lock-note">🔒 Bloqueado — você já escolheu <b>${this.esc(Game.researchDef(blocker).name)}</b> neste ramo.</div>` : ''}
+      <div class="rc-cost"></div>`;
+    const btn = this.el('button', 'buy-btn rc-start', blocker ? 'Bloqueado' : 'Pesquisar');
+    if (blocker) btn.disabled = true;
+    btn.onclick = () => { if (Game.startResearch(def.id)) { this.dirty.research = true; this.renderActive(); } else Sound.play('error'); };
+    card.appendChild(btn);
+    this.R.research.cards.push({ def, btn, costEl: card.querySelector('.rc-cost') });
+    return card;
   },
 
   researchCostHtml(def) {
@@ -190,8 +240,7 @@ Object.assign(UI, {
 
       const row = this.el('div', 'market-row');
       row.innerHTML = `
-        <div class="mkt-good"><img class="mkt-thumb" src="img/materials/${g.id}.jpg" alt="" draggable="false"
-            onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'mkt-icon',textContent:'${g.icon}'}))"><div><b>${g.name}</b><div class="mkt-owned">você tem <b class="mo-num">${fmt(S.res[g.id] || 0)}</b></div></div></div>
+        <div class="mkt-good">${this.iconImgHtml(`img/materials/${g.id}.jpg`, g.icon, 'mkt-icon', 'span', 'mkt-thumb')}<div><b>${g.name}</b><div class="mkt-owned">você tem <b class="mo-num">${fmt(S.res[g.id] || 0)}</b></div></div></div>
         <div class="mkt-chart">${this.marketSpark(g.id)}
           <div class="mkt-idx">índice <b>${idx.toFixed(2)}</b> <span class="${delta >= 0 ? 'mkt-up' : 'mkt-down'}">${delta >= 0 ? '▲' : '▼'} ${Math.abs(delta).toFixed(1)}%</span></div>
           <div class="mkt-badges">${badges.join(' ')}</div>
@@ -232,8 +281,7 @@ Object.assign(UI, {
       const card = this.el('div', 'npc-card' + (this.isNewRow('npc', def.id) ? ' row-enter' : ''));
       card.innerHTML = `
         <div class="npc-head">
-          <img class="npc-portrait" src="img/npcs/${def.id}.jpg" alt="" draggable="false"
-            onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'npc-icon',textContent:'${def.icon}'}))">
+          ${this.iconImgHtml(`img/npcs/${def.id}.jpg`, def.icon, 'npc-icon', 'span', 'npc-portrait')}
           <div>
             <div class="npc-name"><b>${def.name}</b> <span class="hero-title">${def.title}</span></div>
             <div class="npc-line">"${line}"</div>
