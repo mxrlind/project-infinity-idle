@@ -29,6 +29,10 @@ Object.assign(Game, {
   worldTreeMult() { return 1 + WORLD_TREE.bonusPerLevel * S.worldTree.level; },
 
   canGrowWorldTree() {
+    // o gate de desbloqueio vive AQUI, não só na UI: hoje o custo em essência já barra quem nunca
+    // prestigiou, mas isso é acidente de balanceamento — se o nível 0 um dia custar 0 de essência,
+    // a única trava viraria a aba não renderizar (o mesmo erro que reqPrestige tinha em buyGen)
+    if (!this.worldTreeUnlocked()) return false;
     if (this.worldTreeMaxed()) return false;
     const cost = this.worldTreeCost();
     return S.essence >= cost.essence && S.res.conhecimento >= cost.conhecimento &&

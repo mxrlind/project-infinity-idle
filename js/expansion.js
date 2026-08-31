@@ -262,7 +262,7 @@ Object.assign(Game, {
     const def = this.researchDef(q.id);
     const c = this.researchCost(def);
     S.res.conhecimento += c.know * RESEARCH_CANCEL_REFUND;
-    this.gainGold(c.gold * RESEARCH_CANCEL_REFUND);
+    this.refundGold(c.gold * RESEARCH_CANCEL_REFUND);   // devolução, não geração — ver Game.refundGold
     for (const k in c.mats) S.res[k] += c.mats[k] * RESEARCH_CANCEL_REFUND;
     S.research.queue.splice(index, 1);
     UI.log(`${def.icon} Pesquisa <b>${def.name}</b> cancelada (50% reembolsado).`);
@@ -396,7 +396,7 @@ Object.assign(Game, {
     n = Math.floor(n);
     if (n <= 0 || (S.res[goodId] || 0) < n) return false;
     S.res[goodId] -= n;
-    this.gainGold(this.marketSellPrice(goodId) * n);
+    this.refundGold(this.marketSellPrice(goodId) * n);  // troca recurso por ouro, não gera progressão — ver Game.refundGold
     S.market.stats.trades++;
     S.market.stats.sold += n;
     if (S.market.idx[goodId] >= 2.2) S.secrets.highSell = true;   // segredo "Timing Perfeito"

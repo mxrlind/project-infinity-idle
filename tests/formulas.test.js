@@ -361,4 +361,133 @@ test('roomConnections: lista a vizinhança de TODO vizinho, inclusive quem tamb�
   assertEqual(conn.vizinhanca.length, 1, 'e a MESMA sala continua contando como vizinha');
 });
 
+// ===== Integridade de `earned`: devolução não é geração =====
+// `S.earned` destrava fases e é a base de essenceGain(). Como comprar/gastar NÃO desconta `earned`,
+// qualquer caminho que devolva ouro via gainGold() conta o mesmo ouro duas vezes. O ciclo
+// comprar/vender no mercado (dois botões da UI, sem console) inflava `earned` ~8x o ouro em caixa.
+
+test('marketSell: vender não infla earned (ciclo comprar/vender não gera progressão)', () => {
+  S = defaultState();
+  Game.ensureMarket();
+  S.gold = 1e6; S.earned = 1e6; S.allEarned = 1e6;
+  const earned0 = S.earned, all0 = S.allEarned;
+  for (let i = 0; i < 200; i++) { Game.marketBuy('madeira', 'max'); Game.marketSell('madeira', 'max'); }
+  assertEqual(S.earned, earned0, 'earned não pode subir só por comprar e vender');
+  assertEqual(S.allEarned, all0, 'allEarned idem');
+  assertTrue(S.gold < 1e6, 'e o ciclo continua custando a taxa do mercador');
+});
+
+test('marketSell: o ouro da venda entra mesmo no bolso', () => {
+  S = defaultState();
+  Game.ensureMarket();
+  S.gold = 0; S.res.madeira = 100;
+  const esperado = Game.marketSellPrice('madeira') * 100;
+  assertTrue(Game.marketSell('madeira', 'max'), 'a venda acontece');
+  assertClose(S.gold, esperado, 1e-9, 'o jogador recebe o preço de venda');
+  assertEqual(S.res.madeira, 0, 'e o recurso sai do estoque');
+});
+
+test('cancelResearch: reembolso não infla earned', () => {
+  S = defaultState();
+  S.combat.maxWave = 100;
+  S.res.conhecimento = 1e12;
+  for (const k in S.res) S.res[k] = 1e12;
+  S.gold = 1e15; S.earned = 0; S.allEarned = 0;
+  const alvo = RESEARCH.find(r => Game.canStartResearch(r.id));
+  assertTrue(!!alvo, 'existe alguma pesquisa iniciável no estado de teste');
+  Game.startResearch(alvo.id);
+  Game.cancelResearch(0);
+  assertEqual(S.earned, 0, 'reembolso de pesquisa não conta como ouro ganho');
+  assertEqual(S.allEarned, 0, 'allEarned idem');
+});
+
+test('scrapItem: desmanche não infla earned', () => {
+  S = defaultState();
+  S.combat.maxWave = 200;
+  S.gold = 0; S.earned = 0; S.allEarned = 0;
+  S.forge.inventory = [{ uid: 1, rarity: 0, slot: 'arma', mult: 0.1, affixes: [] }];
+  assertTrue(Game.scrapItem(1), 'a carta é desmanchada');
+  assertEqual(S.earned, 0, 'desmanchar não conta como ouro ganho');
+  assertTrue(S.gold > 0, 'mas o ouro do desmanche entra no bolso');
+});
+
+test('gainGold segue contando progressão (produção/abate/clique)', () => {
+  S = defaultState();
+  S.gold = 0; S.earned = 0; S.allEarned = 0;
+  Game.gainGold(1000);
+  assertEqual(S.gold, 1000, 'o ouro entra');
+  assertEqual(S.earned, 1000, 'e conta como ganho da run');
+  assertEqual(S.allEarned, 1000, 'e no acumulado de todas as runs');
+});
+
+// ===== Persistência do progresso permanente =====
+// Perda de progresso é o bug mais caro num idle game (o jogador não volta). Os sistemas novos
+// (relíquias, camadas, árvore, pesquisa, NPCs, códex) guardam estado que tem que sobreviver a
+// prestígio, ascensão E round-trip de save. Estes testes travam essa garantia.
+
+// jogador veterano com progresso em todos os sistemas permanentes
+function _veterano() {
+  S = defaultState();
+  S.prestiges = 12; S.essence = 500; S.earned = 1e12; S.gold = 1e12;
+  S.combat.maxWave = 300; S.combat.wave = 300;
+  Game.grantRelic(RELICS[0].id);
+  Game.equipRelic(RELICS[0].id, 0);
+  S.worldTree.level = 25;
+  S.layers.ascPoints = 7; S.layers.ascensions = 2;
+  S.ach = { a1: true, a2: true };
+  S.research.done = { r1: true };
+  S.npcs.rep = { ferreiro: 300 };
+  S.codex.lore = { l1: true };
+  S.secrets.highSell = true;
+}
+
+// só o que é permanente por design (essência/prestígios são resetados de propósito por camada)
+function _permanentes() {
+  return JSON.stringify({
+    relics: S.relics, worldTree: S.worldTree, ach: S.ach,
+    research: S.research.done, npcRep: S.npcs.rep, lore: S.codex.lore,
+    secrets: S.secrets.highSell, ascPoints: S.layers.ascPoints,
+  });
+}
+
+test('doPrestige preserva todo o progresso permanente', () => {
+  _veterano();
+  const antes = _permanentes();
+  Game.doPrestige();
+  assertEqual(_permanentes(), antes, 'prestígio não pode apagar relíquia/árvore/pesquisa/NPC/códex');
+});
+
+test('doAscend preserva permanentes e zera só o que é da camada', () => {
+  _veterano();
+  const relics = JSON.stringify(S.relics), wt = S.worldTree.level, pontos = S.layers.ascPoints;
+  assertTrue(Game.doAscend(), 'a ascensão acontece');
+  assertEqual(JSON.stringify(S.relics), relics, 'relíquias sobrevivem à ascensão');
+  assertEqual(S.worldTree.level, wt, 'a Árvore do Mundo sobrevive à ascensão');
+  assertTrue(S.layers.ascPoints > pontos, 'e o jogador ganha pontos');
+  assertEqual(S.essence, 0, 'essência zera por design');
+  assertEqual(S.prestiges, 0, 'prestígios zeram por design');
+});
+
+test('export/import faz round-trip de todos os sistemas permanentes', () => {
+  _veterano();
+  const antes = _permanentes();
+  const blob = exportSave();
+  S = defaultState();
+  assertTrue(importSave(blob), 'o save é aceito pela validação de schema');
+  S = loadGame();
+  assertTrue(!!S, 'e carrega');
+  assertEqual(_permanentes(), antes, 'nada se perde no round-trip');
+});
+
+test('importSave descarta chave desconhecida sem derrubar o resto', () => {
+  _veterano();
+  S.chaveQueNaoExiste = { lixo: true };
+  const blob = exportSave();
+  S = defaultState();
+  assertTrue(importSave(blob), 'o save ainda é aceito');
+  S = loadGame();
+  assertEqual(S.chaveQueNaoExiste, undefined, 'a chave desconhecida não entra no estado');
+  assertEqual(S.worldTree.level, 25, 'e o progresso conhecido sobrevive');
+});
+
 runTests();

@@ -802,7 +802,7 @@ const Game = {
     const ferroBack = Math.ceil((1 + item.rarity) * 4 * FORGE_SCRAP_FERRO * (1 + 0.10 * this.npcLevel('ferreiro')));
     const goldBack = Math.ceil(this.enemyGold(S.combat.maxWave, false) * 3);
     S.res.ferro += ferroBack;
-    this.gainGold(goldBack);
+    this.refundGold(goldBack);   // devolução do item, não geração — ver Game.refundGold
     S.forge.inventory.splice(idx, 1);
     UI.log(`♻️ Carta desmanchada: <b>+${fmt(ferroBack)}</b> ⛓️ ferro e <b>+${fmt(goldBack)}</b> ouro.`);
     Sound.play('buy');
@@ -845,10 +845,20 @@ const Game = {
 
   // ---------- Economia ----------
 
+  // Ouro GERADO (clique, produção, abates, recompensas): conta em `earned`/`allEarned`, que medem a
+  // progressão da run — são o gatilho de desbloqueio de fase e a base de essenceGain().
   gainGold(amount) {
     S.gold += amount;
     S.earned += amount;
     S.allEarned += amount;
+  },
+
+  // Ouro DEVOLVIDO (venda no mercado, reembolso de pesquisa, desmanche de carta): entra no bolso mas
+  // NÃO conta como progressão. Usar gainGold aqui contava o mesmo ouro duas vezes — como comprar não
+  // desconta `earned`, um ciclo comprar/vender no mercado inflava `earned` ~8x o ouro em caixa
+  // (só com os botões da UI, sem console), destravando fases e essência de graça.
+  refundGold(amount) {
+    S.gold += amount;
   },
 
   buyGen(genId, count) {
