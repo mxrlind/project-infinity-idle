@@ -490,4 +490,98 @@ test('importSave descarta chave desconhecida sem derrubar o resto', () => {
   assertEqual(S.worldTree.level, 25, 'e o progresso conhecido sobrevive');
 });
 
+// ===== Robustez: estado parcial, extremo e corrompido =====
+// Cenários que acontecem em produção e não em desenvolvimento: save de antes da expansão, jogador
+// que some por meses, aba em background entregando um tick gigante, relógio do sistema mexido,
+// localStorage corrompido. Cada um destes já derrubou algum idle game no dia do lançamento.
+
+// sondas do motor que precisam continuar sendo número finito em qualquer cenário
+function _sondas() {
+  return {
+    gold: S.gold, prod: Game.globalProdMult(), dps: Game.teamDps(),
+    know: Game.knowledgePerSec(), essence: Game.essenceGain(),
+    clickP: Game.clickPower(), drop: Game.dropChance(),
+  };
+}
+function _naoFinitas(o) {
+  return Object.keys(o).filter(k => typeof o[k] !== 'number' || !isFinite(o[k]));
+}
+
+function _veteranoCompleto() {
+  S = defaultState();
+  S.prestiges = 20; S.essence = 5000; S.earned = 1e30; S.gold = 1e30;
+  S.combat.wave = 400; S.combat.maxWave = 400;
+  S.layers.ascPoints = 50; S.worldTree.level = 200;
+  S.unlocked = { heroes: true, base: true, talents: true, prestige: true, events: true };
+  for (const g of GENERATORS) S.gens[g.id] = 300;
+  for (const h of HEROES) S.heroes[h.id] = { lvl: 500, gear: { arma: null, amuleto: null }, fieldSlot: null };
+  HEROES.slice(0, 4).forEach((h, i) => { S.heroes[h.id].fieldSlot = i; });
+  for (const u of UPGRADES) S.upgrades[u.id] = true;
+  Game._gearDirty = true; Game._fieldDirty = true;
+}
+
+test('save sem as chaves dos sistemas novos carrega e roda (jogador anterior à expansão)', () => {
+  // deepMerge tem que reconstruir cada sub-objeto ausente a partir do defaultState
+  const chaves = ['relics','layers','worldTree','npcs','codex','research','market','pets','world','secrets','ui','audio','forge'];
+  for (const chave of chaves) {
+    S = defaultState();
+    S.prestiges = 3; S.essence = 40; S.earned = 1e10; S.combat.maxWave = 60;
+    const raw = JSON.parse(JSON.stringify(S));
+    delete raw[chave];
+    localStorage.setItem(SAVE_KEY, JSON.stringify(raw));
+    S = loadGame();
+    assertTrue(!!S, `save sem "${chave}" tem que carregar`);
+    for (let i = 0; i < 20; i++) Game.tick(0.1);
+    assertEqual(_naoFinitas(_sondas()).join(','), '', `save sem "${chave}" produziu NaN/Infinity`);
+  }
+  localStorage.removeItem(SAVE_KEY);
+});
+
+test('tick aguenta dt gigante (aba em background)', () => {
+  for (const dt of [1, 60, 3600, 86400]) {
+    _veteranoCompleto();
+    Game.tick(dt);
+    assertEqual(_naoFinitas(_sondas()).join(','), '', `dt=${dt}s produziu NaN/Infinity`);
+  }
+});
+
+test('offline é capado em 12h por mais tempo que o jogador some', () => {
+  const doze = 12 * 3600;
+  for (const seg of [86400, 2592000, 31536000, 315360000]) {   // 1 dia, 1 mês, 1 ano, 10 anos
+    _veteranoCompleto();
+    S.last = Date.now() - seg * 1000;
+    const r = Game.computeOffline();
+    assertTrue(!!r, 'com esse tempo parado tem que haver ganho offline');
+    assertClose(r.seconds, doze, 1e-3, 'o crédito nunca passa de 12h');
+    assertEqual(_naoFinitas(_sondas()).join(','), '', 'e o estado continua finito');
+  }
+});
+
+test('relógio para trás não credita tempo negativo', () => {
+  _veteranoCompleto();
+  const ouroAntes = S.gold;
+  S.last = Date.now() + 86400 * 1000;      // save "do futuro" (fuso, viagem, data alterada)
+  assertEqual(Game.computeOffline(), null, 'dt negativo não vira ganho offline');
+  assertEqual(S.gold, ouroAntes, 'e o ouro não muda');
+});
+
+test('save corrompido não vira estado inválido', () => {
+  // JSON.stringify(NaN) === 'null', então é assim que um NaN chega de volta do localStorage
+  const base = JSON.parse(JSON.stringify(defaultState()));
+  localStorage.setItem(SAVE_KEY, JSON.stringify({ ...base, gold: null, earned: null }));
+  S = loadGame();
+  assertTrue(!!S, 'carrega mesmo com campo nulo');
+  assertTrue(isFinite(S.gold), 'e o campo nulo cai no default numérico');
+  Game.tick(0.1);
+  assertEqual(_naoFinitas(_sondas()).join(','), '', 'sem NaN depois do tick');
+  localStorage.removeItem(SAVE_KEY);
+});
+
+test('importSave rejeita save com número inválido', () => {
+  S = defaultState();
+  S.gold = NaN;
+  assertEqual(importSave(exportSave()), false, 'NaN vira null no JSON e não passa na validação');
+  localStorage.removeItem(SAVE_KEY);
+});
+
 runTests();

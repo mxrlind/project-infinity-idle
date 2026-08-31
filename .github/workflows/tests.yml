@@ -1,0 +1,24 @@
+# Roda a suíte de fórmulas a cada push/PR.
+#
+# Importa porque `master` publica direto em produção via GitHub Pages: sem este passo, um push que
+# quebre uma fórmula de economia ou de save vai ao ar em ~1 minuto sem ninguém perceber.
+#
+# Sem `npm install`: o runner usa só a biblioteca padrão do Node (ver tests/run.js), na mesma
+# filosofia zero-dependência do projeto. Por isso não há passo de cache nem package.json.
+name: testes
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  formulas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Rodar a suíte de fórmulas
+        run: node tests/run.js

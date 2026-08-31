@@ -28,6 +28,25 @@ python -m http.server --directory project-infinity-idle 8000
 
 O save é feito em `localStorage`, então ele persiste no mesmo navegador/origem entre sessões.
 
+## Testes
+
+A suíte cobre as fórmulas puras do motor (custos, produção, combate, economia, save) e não precisa de
+browser nem de `npm install` — só do Node:
+
+```bash
+node tests/run.js
+```
+
+Sai com código 1 se algum teste falhar, e roda automaticamente a cada push
+(`.github/workflows/tests.yml`). Como `master` publica em produção, **rode antes de qualquer push**.
+
+A mesma suíte também abre no browser em `tests/index.html` (útil pra inspecionar o estado no console),
+e `tests/sim.html` roda o simulador de balanceamento — use-o antes de mexer em qualquer número de
+`js/data.js`.
+
+> Ao adicionar um arquivo novo ao motor, inclua-o **nos dois** carregadores: `tests/index.html` e a
+> lista `ENGINE` de `tests/run.js`. Senão as duas suítes divergem em silêncio.
+
 ## Documentação
 
 | Documento | Conteúdo |
