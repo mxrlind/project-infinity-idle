@@ -1022,3 +1022,33 @@ const PHASE_LORE = {
     tip: 'As Guildas ainda estão por vir — esta fase é só um aviso do que está guardado para o futuro.',
   },
 };
+
+// ===== Metas do Dia (AUDIT item 10) — retenção diária =====
+// Rotacionam por DATA REAL, não pelo dia do mundo (que dura 20min de jogo e giraria durante a mesma
+// sessão, sem dar motivo pra voltar amanhã). A escolha é determinística pela data: todo mundo pega
+// as mesmas metas no mesmo dia, sem servidor e sem gravar nada além do progresso local.
+const DAILY_COUNT = 3;                 // metas por dia
+const DAILY_STREAK_BONUS = 0.10;       // +10% de recompensa por dia consecutivo...
+const DAILY_STREAK_MAX = 10;           // ...com teto em 10 dias (+100%)
+const DAILY_COMPLETE_BONUS = 2.0;      // multiplicador do bônus por fechar as 3 do dia
+
+// `req(S)` filtra metas que o jogador ainda não tem como cumprir — meta impossível é pior que meta
+// nenhuma. `reward` é multiplicador sobre enemyGold(maxWave), então escala junto com o progresso.
+const DAILY_GOALS = [
+  { id: 'click',    icon: '👆', type: 'click',    n: [80, 200],  reward: 25,
+    label: (n) => `Clicar ${fmt(n)} vezes na moeda`, req: () => true },
+  { id: 'gen',      icon: '🏭', type: 'gen',      n: [15, 40],   reward: 30,
+    label: (n) => `Comprar ${fmt(n)} geradores`, req: () => true },
+  { id: 'kill',     icon: '⚔️', type: 'kill',     n: [40, 120],  reward: 30,
+    label: (n) => `Abater ${fmt(n)} inimigos`, req: (S) => S.unlocked.heroes },
+  { id: 'boss',     icon: '👑', type: 'boss',     n: [3, 8],     reward: 45,
+    label: (n) => `Derrotar ${fmt(n)} chefes`, req: (S) => S.unlocked.heroes },
+  { id: 'forge',    icon: '🔨', type: 'forge',    n: [3, 8],     reward: 40,
+    label: (n) => `Forjar ${fmt(n)} equipamentos`, req: (S) => S.unlocked.base },
+  { id: 'sell',     icon: '💱', type: 'sell',     n: [200, 600], reward: 35,
+    label: (n) => `Vender ${fmt(n)} unidades no Mercado`, req: (S) => !!(S.research.done && S.research.done.mercado) },
+  { id: 'research', icon: '🔬', type: 'research', n: [1, 3],     reward: 50,
+    label: (n) => `Concluir ${fmt(n)} pesquisa${n > 1 ? 's' : ''}`, req: (S) => S.unlocked.talents },
+  { id: 'feed',     icon: '🐾', type: 'feed',     n: [2, 5],     reward: 35,
+    label: (n) => `Alimentar o mascote ${fmt(n)} vezes`, req: (S) => Object.keys(S.pets.owned || {}).length > 0 },
+];

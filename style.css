@@ -1951,3 +1951,50 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
   .bs-building { width: 24px; }
   .syn-pct { font-size: 18px; }
 }
+
+/* ===== Metas do Dia (AUDIT item 10) ===== */
+/* Mora no painel esquerdo pra ficar sempre à vista; segue os tokens do "mais perto de desbloquear"
+   logo abaixo, pra ler como parte do painel e não como widget colado. */
+#daily-box { margin: 6px 0 2px; }
+.daily-title {
+  font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;
+  margin: 10px 0 6px; border-top: 1px solid var(--border); padding-top: 8px;
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+}
+.daily-streak {
+  color: var(--gold); font-weight: 700; letter-spacing: 0;
+  background: rgba(232, 163, 61, 0.12); border: 1px solid var(--border-hi);
+  border-radius: 999px; padding: 1px 7px; font-size: 11px;
+}
+.daily-list { display: flex; flex-direction: column; gap: 5px; }
+.daily-goal {
+  display: flex; align-items: center; gap: 8px;
+  border: 1px solid var(--border); border-radius: 9px;
+  padding: 6px 8px; background: var(--panel2);
+}
+.daily-goal.ready { border-color: var(--border-hi); background: rgba(95, 191, 107, 0.08); }
+.daily-goal.claimed { opacity: 0.5; }
+.daily-icon { font-size: 17px; line-height: 1; flex: 0 0 auto; }
+.daily-icon img { width: 20px; height: 20px; border-radius: 4px; display: block; }
+.daily-info { flex: 1; min-width: 0; }
+.daily-label { font-size: 11.5px; line-height: 1.25; margin-bottom: 4px; }
+.daily-bar { height: 4px; border-radius: 3px; background: var(--panel); overflow: hidden; }
+.daily-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-hi)); transition: width 0.4s ease; }
+.daily-action { flex: 0 0 auto; }
+.daily-prog { font-size: 10.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.daily-check { color: #5fbf6b; font-size: 14px; }
+.daily-claim, .daily-bonus {
+  border: 1px solid var(--border-hi); border-radius: 6px;
+  background: rgba(232, 163, 61, 0.14); color: var(--gold);
+  font-weight: 700; cursor: pointer; font-family: inherit;
+}
+.daily-claim { font-size: 10.5px; padding: 4px 8px; }
+.daily-bonus { width: 100%; margin-top: 6px; padding: 7px; font-size: 11.5px; }
+.daily-claim:hover, .daily-bonus:hover { background: rgba(232, 163, 61, 0.26); }
+.daily-doneline { font-size: 10.5px; color: var(--text-dim); margin-top: 6px; text-align: center; line-height: 1.3; }
+
+/* alvos de toque no mobile (mesma regra dos outros botões pequenos do jogo) */
+@media (max-width: 900px) {
+  .daily-claim { min-height: 34px; padding: 4px 12px; }
+  .daily-bonus { min-height: 44px; }
+}

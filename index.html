@@ -18,7 +18,8 @@
   <h1 id="game-title">Project <span>Infinity</span> Idle</h1>
   <div id="phase-wrap">
     <div id="phase-badge" title="Sua fase atual de progressão">Fase I — O Despertar</div>
-    <div id="phase-progress"><div id="phase-progress-fill"></div></div>
+    <div id="phase-progress" role="progressbar" aria-label="Progresso para a próxima fase"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="phase-progress-fill"></div></div>
   </div>
   <button id="codex-btn" title="Códex — releia as histórias de Mestre Aldric">📖 Códex</button>
   <div id="essence-badge" class="hidden" title="Essência: +2% de produção global por ponto, permanente">
@@ -32,26 +33,32 @@
 
   <!-- ===== Painel esquerdo: recursos + clique ===== -->
   <aside id="left-panel">
+    <!-- SEM aria-live no ouro de propósito: ele muda 10×/s, e uma região viva aqui inundaria o
+         leitor de tela a ponto de tornar o jogo inutilizável. O valor é lido sob demanda pelo
+         aria-label da moeda (atualizado em UI.updateDynamic), que é onde o jogador cego já está. -->
     <div id="gold-box">
       <div id="gold-amount">0</div>
       <div id="gold-label">ouro</div>
       <div id="gold-rate">+0/s</div>
     </div>
 
-    <button id="click-coin" title="Clique para minerar ouro">
-      <div class="coin-shine"></div>
+    <button id="click-coin" title="Clique para minerar ouro" aria-label="Minerar ouro">
+      <div class="coin-shine" aria-hidden="true"></div>
     </button>
     <div id="click-power-label">+1 por clique</div>
 
     <div id="left-extra">
-      <div class="side-label first">Recursos</div>
-      <div id="resources-box"></div>
-      <div id="buffs-box"></div>
+      <div class="side-label first" id="lbl-recursos">Recursos</div>
+      <div id="resources-box" role="list" aria-labelledby="lbl-recursos"></div>
+      <div id="buffs-box" role="list" aria-label="Bônus ativos"></div>
+      <div id="daily-box"></div>
       <div id="closest-ach-box"></div>
 
+      <!-- Crônicas é o histórico narrativo do jogo: entradas discretas e espaçadas, exatamente o
+           caso de uso de uma região viva "polite" (anuncia sem interromper o que o leitor faz). -->
       <div id="log-box">
         <div id="log-title">Crônicas</div>
-        <div id="log-feed"></div>
+        <div id="log-feed" role="log" aria-live="polite" aria-label="Crônicas"></div>
       </div>
     </div>
   </aside>
@@ -64,8 +71,11 @@
 
 </main>
 
-<div id="float-layer"></div>
-<div id="toast-layer"></div>
+<!-- números flutuantes são decoração pura do clique (o valor já está no rótulo da moeda): escondidos
+     do leitor de tela, senão viram ruído a cada clique -->
+<div id="float-layer" aria-hidden="true"></div>
+<!-- toasts são avisos pontuais (meta cumprida, conquista, drop raro) — região viva "polite" -->
+<div id="toast-layer" role="status" aria-live="polite"></div>
 <div id="modal-layer" class="hidden"></div>
 
 <script src="js/format.js"></script>
@@ -79,6 +89,7 @@
 <script src="js/gearsets.js"></script>
 <script src="js/layers.js"></script>
 <script src="js/worldtree.js"></script>
+<script src="js/daily.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/ui-ext.js"></script>
 <script src="js/relics-ui.js"></script>
@@ -86,6 +97,7 @@
 <script src="js/gearsets-ui.js"></script>
 <script src="js/layers-ui.js"></script>
 <script src="js/worldtree-ui.js"></script>
+<script src="js/daily-ui.js"></script>
 <script src="js/main.js"></script>
 </body>
 </html>

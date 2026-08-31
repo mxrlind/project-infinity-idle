@@ -21,6 +21,7 @@ const ROOT = path.join(__dirname, '..');
 const ENGINE = [
   'js/format.js', 'js/data.js', 'js/state.js', 'js/game.js', 'js/expansion.js',
   'js/relics.js', 'js/bosses.js', 'js/gearsets.js', 'js/layers.js', 'js/worldtree.js',
+  'js/daily.js',
 ];
 
 // ---------- stubs de browser ----------

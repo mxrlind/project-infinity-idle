@@ -126,6 +126,11 @@ function defaultState() {
     // jogador expande o que quiser. A escolha dele fica salva — recolher algo tem que ser permanente.
     ui: { sections: {} },
 
+    // Metas do Dia (AUDIT item 10) — permanente: streak e total NÃO resetam no prestígio nem na
+    // ascensão (é progresso de hábito do jogador, não da run). `date` é a data LOCAL 'YYYY-MM-DD'
+    // que gerou as metas atuais; `lastDone` é o último dia fechado por completo (base do streak).
+    daily: { date: null, goals: [], streak: 0, best: 0, lastDone: null, totalDone: 0, bonusClaimed: false },
+
     sound: true,
     flashFx: true,    // efeitos de tela cheia (flash de drop lendário)
     hand: 'right',    // 'right' (destro: moeda à direita no mobile) | 'left' (canhoto: à esquerda)

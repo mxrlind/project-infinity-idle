@@ -670,6 +670,9 @@ Object.assign(Game, {
 
   // gancho de progresso das missões diárias (chamado pelos sistemas: sell/forge/research/feed/boss)
   missionEvent(type, n) {
+    // as Metas do Dia compartilham os mesmos tipos de evento (sell/forge/research/feed/boss), mas
+    // valem desde o começo do jogo — por isso ANTES do guard de NPCs, que só abre na Cidade
+    this.dailyEvent(type, n);
     if (!this.npcsUnlocked()) return;
     for (const npcId in S.npcs.mission) {
       const m = S.npcs.mission[npcId];

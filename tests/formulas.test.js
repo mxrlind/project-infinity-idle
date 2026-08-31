@@ -584,4 +584,117 @@ test('importSave rejeita save com número inválido', () => {
   localStorage.removeItem(SAVE_KEY);
 });
 
+// ===== Metas do Dia (AUDIT item 10) =====
+// Sistema de retenção: a lógica de data/sequência é onde erro passa despercebido (fuso, dia pulado,
+// coleta repetida), e o efeito só aparece dias depois, no jogador real.
+
+function _comData(dia, fn) {
+  const real = Game.todayKey;
+  Game.todayKey = () => dia;
+  try { fn(); } finally { Game.todayKey = real; }
+}
+function _fecharODia() {
+  Game.ensureDaily();
+  for (const g of S.daily.goals) Game.dailyEvent(Game.dailyDef(g.id).type, g.need);
+  for (const g of S.daily.goals) Game.claimDaily(g.id);
+  Game.claimDailyBonus();
+}
+function _jogadorDiario() {
+  S = defaultState();
+  S.unlocked.heroes = true; S.unlocked.base = true;
+  S.combat.maxWave = 50;
+}
+
+test('todayKey usa o fuso local, não UTC', () => {
+  // às 23h30 de 1/jan no Brasil, toISOString() já diz 2/jan — viraria as metas na hora errada
+  assertEqual(Game.todayKey(new Date(2026, 0, 1, 23, 30)), '2026-01-01', 'noite ainda é o mesmo dia');
+  assertEqual(Game.todayKey(new Date(2026, 0, 1, 0, 5)), '2026-01-01', 'madrugada também');
+});
+
+test('as metas do dia são determinísticas pela data', () => {
+  _jogadorDiario();
+  const a = JSON.stringify(Game.rollDailyGoals('2026-08-31'));
+  const b = JSON.stringify(Game.rollDailyGoals('2026-08-31'));
+  const c = JSON.stringify(Game.rollDailyGoals('2026-09-01'));
+  assertEqual(a, b, 'mesma data gera exatamente as mesmas metas');
+  assertTrue(a !== c, 'datas diferentes geram metas diferentes');
+});
+
+test('nunca sorteia meta que o jogador não tem como cumprir', () => {
+  S = defaultState();   // fase 1: sem heróis, sem base, sem mercado, sem mascote
+  for (const g of Game.rollDailyGoals('2026-08-31')) {
+    assertTrue(Game.dailyDef(g.id).req(S), `meta "${g.id}" exige sistema que a fase 1 não tem`);
+  }
+});
+
+test('coletar meta paga uma vez só', () => {
+  _jogadorDiario();
+  Game.ensureDaily();
+  const g = S.daily.goals[0];
+  assertEqual(Game.claimDaily(g.id), false, 'não dá pra coletar sem cumprir');
+  Game.dailyEvent(Game.dailyDef(g.id).type, g.need);
+  const ouroAntes = S.gold;
+  assertTrue(Game.claimDaily(g.id), 'cumprida, coleta');
+  assertTrue(S.gold > ouroAntes, 'e paga');
+  const ouroDepois = S.gold;
+  assertEqual(Game.claimDaily(g.id), false, 'segunda coleta é recusada');
+  assertEqual(S.gold, ouroDepois, 'e não paga de novo');
+});
+
+test('sequência sobe em dias consecutivos e zera ao pular um dia', () => {
+  _jogadorDiario();
+  _comData('2026-08-31', _fecharODia);
+  _comData('2026-09-01', _fecharODia);
+  _comData('2026-09-02', _fecharODia);
+  assertEqual(S.daily.streak, 3, 'três dias seguidos = sequência 3');
+  assertEqual(S.daily.best, 3, 'e o recorde acompanha');
+
+  _comData('2026-09-05', _fecharODia);      // pulou 03 e 04
+  assertEqual(S.daily.streak, 1, 'pular dia reinicia a sequência');
+  assertEqual(S.daily.best, 3, 'mas o recorde permanece');
+});
+
+test('abrir o dia sem completar não avança a sequência', () => {
+  _jogadorDiario();
+  _comData('2026-08-31', _fecharODia);
+  const streak = S.daily.streak;
+  _comData('2026-09-01', () => {
+    Game.ensureDaily();
+    assertEqual(Game.claimDailyBonus(), false, 'sem cumprir as metas, não há bônus');
+  });
+  assertEqual(S.daily.streak, streak, 'e a sequência não muda');
+});
+
+test('fechar o mesmo dia duas vezes não infla a sequência', () => {
+  _jogadorDiario();
+  _comData('2026-08-31', _fecharODia);
+  const streak = S.daily.streak;
+  _comData('2026-08-31', () => { Game.claimDailyBonus(); });
+  assertEqual(S.daily.streak, streak, 'o bônus do dia só conta uma vez');
+});
+
+test('a sequência multiplica a recompensa até o teto', () => {
+  _jogadorDiario();
+  S.daily.streak = 0;
+  assertClose(Game.dailyStreakMult(), 1, 1e-9, 'sem sequência, sem bônus');
+  S.daily.streak = 5;
+  assertClose(Game.dailyStreakMult(), 1 + 5 * DAILY_STREAK_BONUS, 1e-9, 'cresce por dia');
+  S.daily.streak = 999;
+  assertClose(Game.dailyStreakMult(), 1 + DAILY_STREAK_MAX * DAILY_STREAK_BONUS, 1e-9, 'e para no teto');
+});
+
+test('progresso das metas do dia sobrevive ao prestígio e à ascensão', () => {
+  // é progresso de hábito do jogador, não da run — perder isso puniria justamente quem prestigia
+  _jogadorDiario();
+  _comData('2026-08-31', _fecharODia);
+  const streak = S.daily.streak, total = S.daily.totalDone;
+  S.essence = 1e6; S.earned = 1e18;
+  Game.doPrestige();
+  assertEqual(S.daily.streak, streak, 'prestígio não zera a sequência');
+  assertEqual(S.daily.totalDone, total, 'nem o total cumprido');
+  S.prestiges = 20; S.essence = 1e6;
+  Game.doAscend();
+  assertEqual(S.daily.streak, streak, 'ascensão também não');
+});
+
 runTests();

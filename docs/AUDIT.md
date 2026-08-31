@@ -169,12 +169,12 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 ### 🟡 Melhorias
 8. ✅ Dar às árvores de talento trade-offs reais (custo mutuamente exclusivo ou sinergias fortes o bastante pra criar dilema), não só "tudo é bom, junte tudo".
 9. ✅ Variância/crítico no dano de clique manual, pra dar textura tátil ao clique (hoje é puramente determinístico). *(resolvido em sessão anterior ao registro deste doc — `clickAttack` já tem crítico + ataque duplo do Duelista; item não estava marcado aqui.)*
-10. Sistema de meta diária/desafio rotativo simples (nem precisa backend — pode ser seed determinística por data).
+10. ✅ Sistema de meta diária/desafio rotativo simples (nem precisa backend — pode ser seed determinística por data). *(implementado: `js/daily.js`/`daily-ui.js`, 3 metas por data real com sequência de dias; ver [CHANGELOG.md](CHANGELOG.md))*
 11. ✅ Corrigir o texto de `renderPrestige` ("raiz do ouro") pra bater com o expoente real (0.45) ou ajustar o expoente pra 0.5 e simplificar a comunicação.
 12. Cachear `getElementById` em `UI.init()` ao invés de buscar todo tick.
 
 ### 🟢 Polimento
-13. Adicionar `aria-label` nos botões de ícone (moeda, clique de combate, seletor de quantidade).
+13. ✅ Adicionar `aria-label` nos botões de ícone (moeda, clique de combate, seletor de quantidade). *(feito, e mais: regiões vivas em Crônicas/toasts, `aria-selected` nas abas, `aria-pressed` no seletor, `role="progressbar"` nas barras, decoração com `aria-hidden`. O ouro ficou deliberadamente FORA de região viva — muda 10×/s e afogaria o leitor de tela; o valor vive no rótulo da moeda.)*
 14. Substituir emoji restante (upgrades, salas, talentos, conquistas) por ícones ilustrados, seguindo o precedente já criado pra heróis/inimigos — hoje há uma inconsistência visual clara entre o que ganhou arte e o que ficou emoji.
 15. Documentar explicitamente em `ARCHITECTURE.md` a decisão consciente de "sem validação server-side" como limitação de produto, não deixar implícito.
 

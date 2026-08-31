@@ -594,6 +594,7 @@ const Game = {
     }
 
     this.onKillExt(wasBoss);                    // expansão: XP de mascote, missões, segredos
+    this.dailyEvent('kill', 1);                 // Metas do Dia ('boss' já vem por missionEvent)
 
     if (wasBoss) {
       c.bossKills++;
@@ -875,6 +876,7 @@ const Game = {
     const before = S.gens[genId] || 0;
     S.gens[genId] = before + count;
     if (before < 77 && before + count >= 77) S.luckyNumberSeen = true;
+    this.dailyEvent('gen', count);              // Metas do Dia
     // primeiro gerador da run: o gancho narrativo real do "Aprendiz Coletor" (AUDIT item 4 — antes
     // disparava no 1º CLIQUE, texto errado pro momento; ver ui.js pro flavor certo do 1º clique)
     if (totalOwnedBefore === 0) UI.log(`${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"${ADVISOR_TIPS.firstGen}"</i>`);
@@ -1552,6 +1554,7 @@ const Game = {
     }
 
     this.tickExt(dt);   // expansão: mundo vivo, pesquisa, mercado, NPCs, mascotes, automação
+    this.ensureDaily();  // Metas do Dia: vira à meia-noite local (compara duas strings, é barato)
 
     this.updatePhases();
   },

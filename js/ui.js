@@ -99,6 +99,13 @@ const UI = {
       b.innerHTML = t.unlocked
         ? `${iconHtml}${t.name}`
         : `<span class="tab-icon"><img src="img/tabs/locked.png" alt=""></span>???`;
+      // sem isto o leitor de tela anuncia "???" e nada mais numa aba bloqueada, e não diz qual aba
+      // está aberta (o estado ativo é só cor + classe CSS)
+      b.setAttribute('aria-selected', this.activeTab === t.id ? 'true' : 'false');
+      if (!t.unlocked) {
+        b.setAttribute('aria-label', 'Bloqueado — continue jogando para desbloquear');
+        b.setAttribute('aria-disabled', 'true');
+      }
       if (t.unlocked) {
         b.onclick = () => { this.activeTab = t.id; this.dirty.tabs = true; this.dirty[t.id] = true; this.renderActive(); };
       } else {
@@ -198,6 +205,9 @@ const UI = {
     bar.appendChild(this.el('span', 'buy-label', 'Comprar:'));
     for (const amt of [1, 10, 'max']) {
       const b = this.el('button', 'buy-amt' + (this.buyAmount === amt ? ' active' : ''), amt === 'max' ? 'Máx' : '×' + amt);
+      // "×1 / ×10 / Máx" é um grupo de escolha: sem aria-pressed o leitor não diz qual está ativa
+      b.setAttribute('aria-pressed', this.buyAmount === amt ? 'true' : 'false');
+      b.setAttribute('aria-label', amt === 'max' ? 'Comprar o máximo possível' : `Comprar ${amt} por vez`);
       b.onclick = () => { this.buyAmount = amt; this.dirty.prod = true; this.renderActive(); };
       bar.appendChild(b);
     }
@@ -303,6 +313,8 @@ const UI = {
     bar.appendChild(this.el('span', 'buy-label', 'Níveis por compra:'));
     for (const amt of [1, 10, 'max']) {
       const b = this.el('button', 'buy-amt' + (this.buyAmount === amt ? ' active' : ''), amt === 'max' ? 'Máx' : '×' + amt);
+      b.setAttribute('aria-pressed', this.buyAmount === amt ? 'true' : 'false');
+      b.setAttribute('aria-label', amt === 'max' ? 'Subir o máximo de níveis possível' : `Subir ${amt} nível${amt > 1 ? 'is' : ''} por vez`);
       b.onclick = () => { this.buyAmount = amt; this.dirty.heroes = true; this.renderActive(); };
       bar.appendChild(b);
     }
@@ -1748,6 +1760,12 @@ const UI = {
     document.getElementById('gold-rate').textContent = fmtRate(Game.goldPerSec());
     document.getElementById('click-power-label').textContent = '+' + fmt(Game.clickPower()) + ' por clique';
 
+    // O ouro não pode ser uma região viva (mudaria 10×/s e afogaria o leitor de tela), então o valor
+    // atual vive no rótulo da moeda — que é onde o jogador cego tem o foco. Trocar aria-label não
+    // dispara anúncio: só é lido quando ele consulta, que é exatamente o comportamento desejado.
+    const coin = document.getElementById('click-coin');
+    if (coin) coin.setAttribute('aria-label', `Minerar ouro. Você tem ${fmt(S.gold)} de ouro, ganhando ${fmtRate(Game.goldPerSec())}. Cada clique rende ${fmt(Game.clickPower())}.`);
+
     const phase = Game.currentPhase();
     const roman = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][phase.id] || phase.id;
     document.getElementById('phase-badge').textContent = `Fase ${roman} — ${phase.name}`;
@@ -1756,10 +1774,15 @@ const UI = {
     const np = Game.nextPhaseProgress();
     if (np) {
       progFill.style.width = (np.pct * 100) + '%';
-      progFill.parentElement.title = `Rumo à Fase ${np.next.id} — ${np.next.name}: ${fmt(S.earned)} / ${fmt(np.next.at)} ouro (nesta run)`;
+      const desc = `Rumo à Fase ${np.next.id} — ${np.next.name}: ${fmt(S.earned)} / ${fmt(np.next.at)} ouro (nesta run)`;
+      progFill.parentElement.title = desc;
+      progFill.parentElement.setAttribute('aria-valuenow', Math.round(np.pct * 100));
+      progFill.parentElement.setAttribute('aria-valuetext', desc);
     } else {
       progFill.style.width = '100%';
       progFill.parentElement.title = 'Todas as fases conhecidas foram alcançadas!';
+      progFill.parentElement.setAttribute('aria-valuenow', 100);
+      progFill.parentElement.setAttribute('aria-valuetext', 'Todas as fases conhecidas foram alcançadas');
     }
 
     const glow = Math.min(0.4, 0.08 + 0.015 * S.prestiges + 0.02 * Math.log2(1 + S.essence));
@@ -1774,6 +1797,7 @@ const UI = {
     if (this.dirty.left) this.renderLeft();
     if (this.R.resEls) for (const k in this.R.resEls) this.R.resEls[k].textContent = fmt(S.res[k]);
     this.updateBuffs();
+    this.updateDaily();
     this.updateClosestAch();
     this.ensureModalSanity();
 
@@ -2253,6 +2277,7 @@ const UI = {
       const gain = Game.clickPower();
       Game.gainGold(gain);
       S.clicks++;
+      Game.dailyEvent('click', 1);      // Metas do Dia
       S.lastClickAt = Date.now();
       Sound.play('click');
       const o = this.floatOrigin(ev, coin);

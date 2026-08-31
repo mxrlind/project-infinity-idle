@@ -2,6 +2,46 @@
 
 ## Não lançado
 
+### Metas do Dia e acessibilidade (AUDIT itens 10 e 13)
+
+**Metas do Dia** — o primeiro sistema de retenção que atravessa sessões. Prestígio e conquistas são
+progressão de dentro da run; nada no jogo dava motivo pra abrir ele *amanhã*.
+
+3 metas por dia (`DAILY_GOALS` em `data.js`), sorteadas deterministicamente pela **data real** — não
+pelo dia do mundo, que dura 20 minutos e giraria várias vezes na mesma sessão. Sem backend: a mesma
+data gera as mesmas metas pra todo mundo. Motor em `js/daily.js`, UI em `js/daily-ui.js`, painel
+esquerdo (retenção só funciona se estiver à vista).
+
+- O pool é filtrado por `req(S)`: quem está na fase 1 nunca recebe "forje 8 equipamentos". Meta
+  impossível é pior que meta nenhuma — em compensação, o novato vê 2 metas em vez de 3 até
+  desbloquear mais sistemas.
+- Recompensa escala com `enemyGold(maxWave)`, então não fica obsoleta; **sequência** de dias
+  consecutivos multiplica em +10%/dia até ×2.
+- A sequência só avança depois de **coletar** as 3 (senão subiria sem o jogador voltar ao jogo), e
+  só uma vez por dia.
+- `S.daily` é permanente: sobrevive a prestígio e ascensão, porque é progresso de hábito do jogador,
+  não da run.
+- Hooks: `dailyEvent` entra no topo de `missionEvent` (herda sell/forge/research/feed/boss de graça,
+  mas antes do guard de NPCs, porque as metas valem desde o começo do jogo), mais três chamadas
+  diretas — clique, compra de gerador e abate.
+- `todayKey()` usa o fuso **local**, nunca `toISOString()`: às 23h30 de 1º de janeiro no Brasil, o
+  UTC já diz 2 de janeiro, e as metas virariam na hora errada.
+
+**Acessibilidade.** O `#click-coin` — o botão mais usado do jogo — era um `<button>` vazio, anunciado
+como só "botão" por leitor de tela. Agora tem rótulo dinâmico com ouro, produção e valor do clique.
+
+- Crônicas (`role="log"`) e toasts (`role="status"`) viraram regiões vivas `polite`.
+- O ouro **não** virou região viva de propósito: muda 10×/s e afogaria o leitor. O valor vive no
+  rótulo da moeda, lido sob demanda.
+- Abas com `aria-selected` (o estado ativo era só cor); abas bloqueadas dizem que estão bloqueadas
+  em vez de anunciar "???" sem contexto — mantendo o mistério do nome.
+- Seletor ×1/×10/Máx com `aria-pressed` e rótulos ("Comprar o máximo possível").
+- Barra de fase e barras das metas viraram `role="progressbar"` com `aria-valuetext`.
+- Decoração (números flutuantes, brilho da moeda) escondida com `aria-hidden`.
+
+Suíte 50 → **59**: determinismo por data, fuso local, meta nunca impossível, coleta única, e as
+quatro regras de sequência (sobe, zera ao pular, não avança sem completar, não infla no mesmo dia).
+
 ### O "botão de compra congelado" e a aba Pesquisa
 
 - **🐛 A camada de modal invisível travava a tela inteira (`js/ui.js`, `style.css`)** — a causa real do
