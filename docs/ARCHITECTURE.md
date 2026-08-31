@@ -161,8 +161,59 @@ essenceGain()           = ⌊(ouro_ganho_na_run / 1e8)^0.45⌋ × (1+5%×Transce
 offline: gold/know/materiais = taxa_normal × segundos_offline(máx 12h) × 0.5 × (1+10%×Sonho Lucrativo)
 ```
 
-## Limitações conhecidas / decisões deliberadas
+## O jogo é 100% client-side — o que isso permite e o que impede
 
-- **`heroMaxLevels` e `genMaxBuy` têm um teto de iterações** (200 e 500 respectivamente) para evitar loops longos em `while`. Na prática só importa em cenários de ouro absurdamente acima do necessário; não afeta jogo normal.
-- **Sem backend**: todo o estado vive no `localStorage` do navegador. Export/import por código Base64 é o único jeito de migrar entre navegadores/dispositivos.
+Esta é a decisão de arquitetura mais consequente do projeto, e é **deliberada**: sem servidor, o jogo
+é um arquivo estático que roda em qualquer lugar, publica com um `git push`, funciona offline e não
+custa nada pra manter. Em troca, abre mão de tudo que depende de confiar no cliente.
+
+**O que é verdade hoje:** todo número do jogo mora no `localStorage` e é editável pelo console em
+dois segundos. `S.gold = 1e30` funciona. Não há validação de integridade, nem assinatura de save, nem
+relógio de autoridade — o próprio `computeOffline()` acredita no relógio do sistema operacional.
+Nenhuma dessas coisas é um bug a corrigir: são o contrato de um jogo sem backend.
+
+### A distinção que importa numa revisão de código
+
+Confundir esses dois casos é o erro mais fácil de cometer aqui:
+
+| | Exemplo | É bug? |
+|---|---|---|
+| **Exploit acidental** | comprar e vender no Mercado em loop inflava `earned` ~8× — dois botões da UI | **Sim, e grave.** O jogador topa nisso jogando, sem intenção de trapacear, e a economia quebra sozinha |
+| **Trapaça deliberada** | abrir o console e escrever `S.essence = 1e9` | **Não.** É a natureza da plataforma; blindar exigiria servidor |
+
+O primeiro caso é responsabilidade real do código e deve ter teste de regressão (ver a seção de
+integridade de `earned` em `tests/formulas.test.js`). O segundo não vale uma linha de defesa: qualquer
+esforço nele é contornável recarregando a página com o devtools aberto.
+
+Corolário prático já aplicado: **regra de desbloqueio vive no motor, não na UI** (`reqPrestige` em
+`buyGen`/`hireHero`, `worldTreeUnlocked()` em `canGrowWorldTree`). Isso não é anti-trapaça — é impedir
+que a regra exista em um lugar só, onde some se alguém trocar a view.
+
+### O que NÃO pode ser construído em cima disto
+
+Sem servidor de autoridade, estes recursos são impossíveis de fazer com honestidade — não "difíceis",
+impossíveis, porque todos dependem de acreditar num número que o jogador controla:
+
+- **Leaderboard / ranking** — a primeira pessoa com o console aberto fica em primeiro lugar para sempre
+- **PvP, torneios ou qualquer comparação entre jogadores**
+- **Troca ou economia entre contas**
+- **Qualquer venda cujo "o jogador possui isto" seja verificado no cliente** — uma lista de cosméticos
+  comprados guardada no `localStorage` é uma lista de desejos, não um registro de compra. Cobrar exige
+  webhook do provedor de pagamento e o direito de posse resolvido no servidor
+- **Conquistas com peso social** ("só 0,1% conseguiu") — o número não significaria nada
+
+Se algum desses virar meta, **a economia precisa ser reconstruída com o servidor como fonte da
+verdade** — produção, compras e combate resolvidos lá, com o cliente virando só a tela. Isso é um
+projeto à parte, não um refactor incremental do que existe, e vale planejar como tal em vez de tentar
+"adicionar segurança" ao modelo atual.
+
+O caminho intermediário barato, se a necessidade for só continuidade entre dispositivos: usar um
+backend apenas como **sincronização de save** (guardar o blob, sem validá-lo). Resolve trocar de
+aparelho sem prometer integridade que não existe — e sem sustentar nada da lista acima.
+
+## Outras limitações / decisões deliberadas
+
 - **Tick de produção é capado em 2s por chamada** (`Math.min(dt, 2)` em `main.js`) mesmo que a aba fique em segundo plano por mais tempo — o "resto" do tempo é coberto separadamente pelo cálculo de progresso offline no próximo carregamento, não pelo tick em si.
+- **Ganho offline é capado em 12h** (`computeOffline`), então sumir por um mês rende o mesmo que sumir por meio dia. É intencional: mantém o retorno relevante sem transformar ausência em estratégia.
+- **`enemyMaxHp` estoura o `double`** (vira `Infinity`) em algum ponto entre a onda 1200 e a 2000 — teto matemático inalcançável na prática (a onda 1000 já exige DPS na casa de 1e162), registrado só para não assustar quem topar com isso.
+- **Sem migração de save entre dispositivos** além do export/import por código Base64.

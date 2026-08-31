@@ -176,7 +176,7 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 ### 🟢 Polimento
 13. ✅ Adicionar `aria-label` nos botões de ícone (moeda, clique de combate, seletor de quantidade). *(feito, e mais: regiões vivas em Crônicas/toasts, `aria-selected` nas abas, `aria-pressed` no seletor, `role="progressbar"` nas barras, decoração com `aria-hidden`. O ouro ficou deliberadamente FORA de região viva — muda 10×/s e afogaria o leitor de tela; o valor vive no rótulo da moeda.)*
 14. Substituir emoji restante (upgrades, salas, talentos, conquistas) por ícones ilustrados, seguindo o precedente já criado pra heróis/inimigos — hoje há uma inconsistência visual clara entre o que ganhou arte e o que ficou emoji.
-15. Documentar explicitamente em `ARCHITECTURE.md` a decisão consciente de "sem validação server-side" como limitação de produto, não deixar implícito.
+15. ✅ Documentar explicitamente em `ARCHITECTURE.md` a decisão consciente de "sem validação server-side" como limitação de produto, não deixar implícito. *(seção "O jogo é 100% client-side" — inclui o critério de revisão exploit acidental vs. trapaça deliberada, a lista do que não pode ser construído em cima, e o caminho de saída se algum deles virar meta. Na mesma passagem foi corrigida uma afirmação obsoleta que ainda descrevia o teto de 200/500 do `genMaxBuy`, removido no item 🔴3.)*
 
 ---
 

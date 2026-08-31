@@ -2,6 +2,28 @@
 
 ## Não lançado
 
+### O modelo de confiança, documentado (AUDIT item 15)
+
+`ARCHITECTURE.md` ganhou a seção **"O jogo é 100% client-side — o que isso permite e o que impede"**.
+A limitação já era real, mas estava implícita: quem chegasse no projeto podia começar a construir um
+leaderboard sem perceber que ele seria decorativo.
+
+O que a seção fixa, além do óbvio:
+
+- **O critério de revisão de código** que separa *exploit acidental* (comprar/vender no Mercado em
+  loop inflava `earned` ~8× com dois botões da UI — bug grave, com teste de regressão) de *trapaça
+  deliberada* (`S.gold = 1e30` no console — não é bug, é a natureza da plataforma). Confundir os dois
+  leva a gastar esforço blindando o que não dá pra blindar e a ignorar o que quebra sozinho.
+- **A lista do que não pode existir** sobre esta arquitetura: ranking, PvP, troca entre contas, venda
+  com posse verificada no cliente, conquistas com peso social.
+- **O caminho de saída**, se algum deles virar meta: reconstruir a economia com o servidor como fonte
+  da verdade — projeto à parte, não refactor incremental. E o meio-termo barato (backend só como
+  sincronização de save, sem prometer integridade).
+
+Na mesma passagem foi corrigida uma afirmação **obsoleta** na lista de limitações, que ainda descrevia
+o teto de 200/500 iterações em `genMaxBuy`/`heroMaxLevels` — removido quando essas funções passaram a
+resolver a soma geométrica por fórmula fechada.
+
 ### Metas do Dia e acessibilidade (AUDIT itens 10 e 13)
 
 **Metas do Dia** — o primeiro sistema de retenção que atravessa sessões. Prestígio e conquistas são
