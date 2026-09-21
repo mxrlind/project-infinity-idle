@@ -233,18 +233,18 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 
 *Revisão focada em performance, bugs e organização, cobrindo o que foi escrito depois da Parte 0–11 (a base cresceu 2,6× — 3.166 → ~8.300 linhas). `node tests/run.js` = 59/59 passando no momento desta auditoria.*
 
-> **Status de execução:** 🔴 B1, 🔴 B2 e 🔴 B3 corrigidos em 2026-09-21 (ver [CHANGELOG.md](CHANGELOG.md)).
-> Todo o resto (P1–P10, B4–B13, O1–O7, D1–D8) é backlog, não implementado ainda.
+> **Status de execução:** 🔴 B1, 🔴 B2, 🔴 B3, 🔴 P1, 🔴 P2 e 🟠 P3 corrigidos em 2026-09-21 (ver
+> [CHANGELOG.md](CHANGELOG.md)). Todo o resto (P4–P10, B4–B13, O1–O7, D1–D8) é backlog.
 
 ### 12.1 — Gargalos de desempenho
 
-🔴 **P1 — `Game.synergyBonuses()` recalculado ~30–40×/tick (≈350×/s), sem cache.**
+🔴 **P1 — `Game.synergyBonuses()` recalculado ~30–40×/tick (≈350×/s), sem cache.** *(corrigido em 2026-09-21, ver CHANGELOG)*
 O ponto mais quente do jogo. `synergyBonuses()` (`game.js:1158`) roda três varreduras completas da grade da Base a cada chamada — `adjacencyPairs()` (`game.js:1109`), `activeSynergies()` (`game.js:1074`), `activeComplexes()` (`game.js:1125`) — cada uma revalidando `ensureBaseGrid()` (`game.js:1031`, 13× `indexOf` sobre 16 células) e `activeSynergies()` fazendo `ROOM_SYNERGIES.find()` (21 defs) por célula×vizinho, ~670 comparações por chamada. `heroGearMult()` (`game.js:313`) chama isso **uma vez por herói, por cálculo de DPS**, e `teamDps`/`updateDynamic` somados chamam DPS 20–25× por tick. Estimativa: ~400k operações/s e ~1.200 alocações/s de array/objeto para um valor que só muda quando o jogador constrói ou move uma sala. Correção: cache com dirty-flag (o projeto já usa esse padrão em `_gearDirty`/`_fieldDirty`), invalidado em `buildRoom`, `swapCells`, prestígio/ascensão e pesquisas que mexam em `extSynergyMult`. Deve cortar ~70–80% do custo do tick.
 
-🔴 **P2 — `UI.updateClosestAch()` reavalia todas as ~66 conquistas e reescreve HTML 10×/s.**
+🔴 **P2 — `UI.updateClosestAch()` reavalia todas as ~66 conquistas e reescreve HTML 10×/s.** *(corrigido em 2026-09-21, ver CHANGELOG)*
 `ui.js:1801` chama isso todo tick → `Game.closestAchievement()` (`game.js:1377`) roda `derived()` + `a.progress()` para cada conquista. A conquista `cx1` (`data.js:676`) sozinha chama `codexCompletion()` (`expansion.js:747`), que varre `NPCS` + 9 `countDefs`. `box.innerHTML` é reescrito mesmo sem mudança. Correção: mover para o cadenciamento de 2s de `checkAchievements` (`main.js:43`) e só tocar o DOM quando id/porcentagem mudarem.
 
-🟠 **P3 — CSS custom property escrita no `documentElement` todo tick.**
+🟠 **P3 — CSS custom property escrita no `documentElement` todo tick.** *(corrigido em 2026-09-21, ver CHANGELOG)*
 `ui.js:1788-1789` escreve `--arcane-glow` a cada tick, alimentando um `radial-gradient` de tela cheia (`style.css:28`) — força repintura 10×/s por um valor que só muda em prestígio/essência. Guardar o último valor e só escrever na mudança.
 
 🟠 **P4 — `innerHTML` reconstruído por linha, por tick (~130 reparsings/s).**
@@ -319,6 +319,6 @@ Geradores (`ui.js:1810`, até 11), salas (`ui.js:1910`, 13 — cada uma chamando
 
 ### 12.5 — Ordem de execução sugerida
 
-B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — todos os três já corrigidos)* → P1 → P2 → P3 *(performance, ~80% do ganho)* → B5 + B6 *(consistência de regra campo vs. banco)* → O1 *(decidir destino de `monetization.js`)* → D1 *(rebalancear a Árvore do Mundo)* → resto.
+B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — todos os três já corrigidos)* → P1 → P2 → P3 *(performance, ~80% do ganho — os três já corrigidos)* → B5 + B6 *(consistência de regra campo vs. banco)* → O1 *(decidir destino de `monetization.js`)* → D1 *(rebalancear a Árvore do Mundo)* → resto.
 
 **Resumo em uma frase:** o motor cresceu 2,6× desde julho mantendo a separação de responsabilidades honesta, mas cresceu sem cache — `synergyBonuses()` sozinho queima ~400k operações/s recalculando algo que só muda quando o jogador move uma sala — e os bugs de maior impacto (import de save inerte, meta impossível, Bolsa que nunca detecta melhoria) são todos código que *parece* funcionar e nunca executa o caminho que importa.

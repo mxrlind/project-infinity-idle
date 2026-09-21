@@ -1674,11 +1674,17 @@ const UI = {
     bb.innerHTML = html;
   },
 
+  // lê o cache de `Game._closestAchCache` (P2 — recalculado a cada 2s, não a cada tick) e só toca o
+  // DOM quando a conquista OU a porcentagem (arredondada) mudam de verdade.
+  _lastClosestSig: undefined,
   updateClosestAch() {
     const box = document.getElementById('closest-ach-box');
-    const res = Game.closestAchievement();
-    if (!res) { box.innerHTML = ''; return; }
+    const res = Game._closestAchCache;
+    if (!res) { if (this._lastClosestSig !== null) { box.innerHTML = ''; this._lastClosestSig = null; } return; }
     const { ach, pct } = res;
+    const sig = ach.id + ':' + Math.round(pct * 1000);
+    if (sig === this._lastClosestSig) return;
+    this._lastClosestSig = sig;
     const hidden = ach.secret;
     const name = hidden ? '???' : ach.name;
     const icon = hidden ? '❓' : ach.icon;
@@ -1787,8 +1793,11 @@ const UI = {
       progFill.parentElement.setAttribute('aria-valuetext', 'Todas as fases conhecidas foram alcançadas');
     }
 
-    const glow = Math.min(0.4, 0.08 + 0.015 * S.prestiges + 0.02 * Math.log2(1 + S.essence));
-    document.documentElement.style.setProperty('--arcane-glow', glow.toFixed(3));
+    // P3 (AUDIT.md PARTE 12): só muda com prestígio/essência, mas era escrito no documentElement
+    // 10×/s — CSS custom property força reavaliação do radial-gradient de tela cheia. Guarda o
+    // último valor e só escreve (e repinta) quando muda de verdade.
+    const glow = Math.min(0.4, 0.08 + 0.015 * S.prestiges + 0.02 * Math.log2(1 + S.essence)).toFixed(3);
+    if (glow !== this._lastGlow) { this._lastGlow = glow; document.documentElement.style.setProperty('--arcane-glow', glow); }
 
     const essBadge = document.getElementById('essence-badge');
     if (S.essence > 0 || S.unlocked.prestige) {

@@ -11,6 +11,7 @@
 
   Game.scheduleEvent();
   Game.scheduleGolden();
+  Game.refreshClosestAch();   // seed do cache (P2) — senão a caixa "Mais perto de desbloquear" fica vazia até o 1º achTimer de 2s
   if (S.combat.maxHp <= 0) Game.spawnEnemy();
 
   UI.init();

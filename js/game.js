@@ -979,6 +979,7 @@ const Game = {
     UI.log(`${r.icon} <b>${r.name}</b> agora é nível ${S.rooms[roomId]}!`);
     Sound.play('build');
     UI.dirty.base = true;
+    this._baseDirty = true;
     return true;
   },
 
@@ -1026,6 +1027,31 @@ const Game = {
 
   // ---------- Grade da Base (posicionamento + sinergias de vizinhança) ----------
 
+  // ----- Cache das 3 varreduras da grade (AUDIT.md PARTE 12, item P1) -----
+  // adjacencyPairs/activeSynergies/activeComplexes só mudam quando a grade é editada (construir sala
+  // nova, mover salas) ou quando um nível de sala muda — e nada mais. Mas heroGearMult() chama
+  // synergyBonuses() uma vez POR HERÓI em todo cálculo de DPS, e teamDps()/updateDynamic somados
+  // chamam isso ~30-40×/tick: sem cache, cada tick refazia 3 varreduras completas da grade (16
+  // células) dezenas de vezes para um valor que, na prática, muda algumas vezes por hora. Invalidada
+  // em `buildRoom`, `swapCells` e `resetRunState` (prestígio/ascensão zeram S.rooms). O multiplicador
+  // de `synergyBonuses()` (pesquisa + Castelo) fica DE FORA do cache — é barato (dois campos) e muda
+  // com frequência própria (pesquisa concluída), então recalcular ele a cada chamada é mais simples
+  // que rastrear mais uma fonte de invalidação.
+  _baseDirty: true,
+  _baseCache: null,
+
+  ensureBaseCache() {
+    if (this._baseDirty || !this._baseCache) {
+      this._baseCache = {
+        adjacency: this._computeAdjacencyPairs(),
+        synergies: this._computeActiveSynergies(),
+        complexes: this._computeActiveComplexes(),
+      };
+      this._baseDirty = false;
+    }
+    return this._baseCache;
+  },
+
   // Garante que S.baseGrid seja um array válido com cada sala exatamente uma vez.
   // Preserva posições existentes e acomoda salas novas/faltantes em células livres.
   ensureBaseGrid() {
@@ -1071,7 +1097,8 @@ const Game = {
   },
 
   // sinergias atualmente ativas: [{ def, value, i, j }] — value = per × min(nível das duas salas)
-  activeSynergies() {
+  activeSynergies() { return this.ensureBaseCache().synergies; },
+  _computeActiveSynergies() {
     const g = this.ensureBaseGrid();
     const res = [];
     for (let i = 0; i < g.length; i++) {
@@ -1106,7 +1133,8 @@ const Game = {
 
   // 🟢 NÍVEL 1 — Vizinhança: todo par ortogonal de salas CONSTRUÍDAS, tenham afinidade ou não.
   // É o piso do sistema: recompensa ocupar a grade de forma compacta em vez de espalhar as salas.
-  adjacencyPairs() {
+  adjacencyPairs() { return this.ensureBaseCache().adjacency; },
+  _computeAdjacencyPairs() {
     const g = this.ensureBaseGrid();
     const out = [];
     for (let i = 0; i < g.length; i++) {
@@ -1122,7 +1150,8 @@ const Game = {
   // 🟣 NÍVEL 3 — Complexos: 3+ salas específicas, todas construídas E formando um grupo conectado
   // entre si por adjacência ortogonal (uma peça só — linha, L ou bloco). Não basta estarem na grade:
   // é isso que transforma a Base num puzzle em vez de uma lista de caixas pra marcar.
-  activeComplexes() {
+  activeComplexes() { return this.ensureBaseCache().complexes; },
+  _computeActiveComplexes() {
     const g = this.ensureBaseGrid();
     const out = [];
     for (const def of ROOM_COMPLEXES) {
@@ -1200,6 +1229,7 @@ const Game = {
     if (i < 0 || j < 0 || i >= g.length || j >= g.length || i === j) return false;
     const t = g[i]; g[i] = g[j]; g[j] = t;
     UI.dirty.base = true;
+    this._baseDirty = true;
     return true;
   },
 
@@ -1262,6 +1292,7 @@ const Game = {
     S.forge.inventory = [];
     S.buffs = [];
     S.invasion = 0;
+    this._baseDirty = true;   // S.rooms zerado: as 3 varreduras da grade (P1) precisam recalcular
   },
 
   doPrestige() {
@@ -1371,6 +1402,7 @@ const Game = {
       }
     }
     this.checkLore();                          // descobertas do Códex seguem o mesmo cadenciamento
+    this.refreshClosestAch();                  // idem P2: recalcula junto, não a cada tick
   },
 
   // conquista (normal ou secreta) mais perto de ser batida
@@ -1387,6 +1419,13 @@ const Game = {
     if (!best) return null;
     return { ach: best, pct: Math.max(0, bestPct) };
   },
+
+  // Cache de `closestAchievement()` (AUDIT.md PARTE 12, item P2): `UI.updateDynamic()` chamava a
+  // versão sem cache 10×/s, e `a.progress()` de `cx1` roda `codexCompletion()` (varre NPCs + 9
+  // categorias) — caro para um valor que só muda quando alguma conquista destrava ou o progresso
+  // avança de forma perceptível. Recalculado no mesmo cadenciamento de 2s de `checkAchievements()`.
+  _closestAchCache: null,
+  refreshClosestAch() { this._closestAchCache = this.closestAchievement(); },
 
   // ---------- Eventos ----------
 

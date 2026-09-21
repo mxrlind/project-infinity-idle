@@ -2,6 +2,30 @@
 
 ## Não lançado
 
+### Performance: cache da grade da Base + achievement mais próximo + CSS por tick (AUDIT PARTE 12, P1/P2/P3)
+
+Três dos pontos mais quentes do tick, por ordem de impacto:
+
+**P1** — `Game.synergyBonuses()` refazia 3 varreduras completas da grade da Base (`adjacencyPairs`,
+`activeSynergies`, `activeComplexes`) a cada chamada, e `heroGearMult()` chama isso uma vez POR HERÓI
+em todo cálculo de DPS — ~30-40× por tick. Essas 3 varreduras só dependem da posição das salas na
+grade e do nível delas, que só mudam via `buildRoom`/`swapCells`/prestígio/ascensão. Agora ficam num
+cache (`Game._baseCache`, flag `_baseDirty`) recomputado só quando algo dessas fontes muda; o
+multiplicador de pesquisa/Castelo (`extSynergyMult()`/`baseMult()`) continua sendo calculado toda
+chamada, de propósito — é barato e muda com frequência própria.
+
+**P2** — `UI.updateDynamic()` chamava `Game.closestAchievement()` 10×/s para atualizar a caixa "Mais
+perto de desbloquear"; a conquista `cx1` sozinha roda `codexCompletion()` (varre NPCs + 9 categorias)
+dentro desse cálculo. Agora só recalcula no mesmo cadenciamento de 2s de `checkAchievements()`
+(`Game.refreshClosestAch()`, cache em `Game._closestAchCache`), e o `innerHTML` da caixa só é
+reescrito quando a conquista OU a porcentagem (arredondada) realmente mudam.
+
+**P3** — a variável CSS `--arcane-glow` (usada num `radial-gradient` de tela cheia) era reescrita no
+`documentElement` a cada tick mesmo quando o valor não mudava, forçando repintura à toa. Guarda o
+último valor escrito e só toca o DOM na mudança.
+
+Suíte de testes 60 → 62 (cache da Base + cache de conquista mais próxima).
+
 ### Bolsa passa a detectar melhorias de verdade (AUDIT PARTE 12, item B3)
 
 `UI.renderBag` (`ui.js`) contava "melhorias" filtrando `S.forge.inventory` por `item.heroId`, mas

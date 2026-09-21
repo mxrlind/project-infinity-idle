@@ -273,6 +273,7 @@ function gridWith(placement, lvl) {
   }
   S.baseGrid = g;
   for (const r of ROOMS) S.rooms[r.id] = lvl === undefined ? 1 : lvl;
+  Game._baseDirty = true;   // mutação direta de S.baseGrid bypassa buildRoom/swapCells (cache P1)
   return g;
 }
 
@@ -302,6 +303,7 @@ test('activeComplexes: exige as salas construídas E conectadas entre si', () =>
   // conectadas, mas uma não construída → inativo
   gridWith({ [cx.rooms[0]]: 0, [cx.rooms[1]]: 1, [cx.rooms[2]]: 2 }, 3);
   S.rooms[cx.rooms[2]] = 0;
+  Game._baseDirty = true;
   assertTrue(!Game.activeComplexes().some(c => c.def.id === cx.id), 'sala nível 0 não conta');
 });
 
@@ -310,6 +312,7 @@ test('activeComplexes: o bônus escala pelo MENOR nível entre as salas do compl
   const cx = ROOM_COMPLEXES.find(d => d.id === 'complexo_industrial');
   gridWith({ [cx.rooms[0]]: 0, [cx.rooms[1]]: 1, [cx.rooms[2]]: 2 }, 10);
   S.rooms[cx.rooms[1]] = 4;   // o elo mais fraco
+  Game._baseDirty = true;
   const found = Game.activeComplexes().find(c => c.def.id === cx.id);
   assertEqual(found.lvl, 4, 'o nível do complexo é o menor entre os membros');
 });
@@ -320,6 +323,7 @@ test('adjacencyPairs: conta cada par de vizinhas construídas UMA vez só', () =
   g[0] = 'serraria'; g[1] = 'mina_r';
   S.baseGrid = g;
   S.rooms = { serraria: 2, mina_r: 5 };
+  Game._baseDirty = true;
   const pairs = Game.adjacencyPairs();
   assertEqual(pairs.length, 1, 'duas salas lado a lado = um par, não dois');
   assertEqual(pairs[0].lvl, 2, 'o par vale pelo menor nível');
@@ -331,6 +335,7 @@ test('adjacencyPairs: sala de nível 0 não forma vizinhança', () => {
   g[0] = 'serraria'; g[1] = 'mina_r';
   S.baseGrid = g;
   S.rooms = { serraria: 2 };   // mina_r não construída
+  Game._baseDirty = true;
   assertEqual(Game.adjacencyPairs().length, 0);
 });
 
@@ -341,6 +346,7 @@ test('synergyBonuses: soma os três níveis (vizinhança + combinação + comple
   g[0] = 'quartel'; g[1] = 'oficina';
   S.baseGrid = g;
   S.rooms = { quartel: 5, oficina: 5 };
+  Game._baseDirty = true;
   const b = Game.synergyBonuses();
   const arsenal = ROOM_SYNERGIES.find(d => d.name === 'Arsenal');
   assertClose(b.dps, arsenal.per * 5, 1e-9, 'a combinação entra no bucket dela');
@@ -356,6 +362,7 @@ test('roomConnections: lista a vizinhança de TODO vizinho, inclusive quem tamb�
   g[0] = 'quartel'; g[1] = 'oficina';
   S.baseGrid = g;
   S.rooms = { quartel: 5, oficina: 5 };
+  Game._baseDirty = true;
   const conn = Game.roomConnections(0);
   assertEqual(conn.combinacoes.length, 1, 'Arsenal aparece como combinação');
   assertEqual(conn.vizinhanca.length, 1, 'e a MESMA sala continua contando como vizinha');
@@ -709,6 +716,36 @@ test('progresso das metas do dia sobrevive ao prestígio e à ascensão', () => 
   S.prestiges = 20; S.essence = 1e6;
   Game.doAscend();
   assertEqual(S.daily.streak, streak, 'ascensão também não');
+});
+
+// ---------- Caches de performance (AUDIT.md PARTE 12, P1/P2) ----------
+
+test('cache da grade da Base (P1): buildRoom/swapCells invalidam, mudança direta de S.rooms não', () => {
+  S = defaultState();
+  const g = new Array(BASE_GRID_COLS * BASE_GRID_ROWS).fill(null);
+  g[0] = 'quartel'; g[1] = 'oficina';
+  S.baseGrid = g;
+  S.rooms = { quartel: 5, oficina: 5 };
+  Game._baseDirty = true;
+  const before = Game.synergyBonuses().dps;
+  assertTrue(before > 0, 'sinergia ativa antes de qualquer mudança');
+  S.rooms.quartel = 50; S.rooms.oficina = 50;   // muda o nível SEM passar por buildRoom — cache deve ficar preso no valor antigo
+  assertClose(Game.synergyBonuses().dps, before, 1e-9, 'cache não vê a mudança direta em S.rooms');
+  Game._baseDirty = true; // simula o que buildRoom() faria de verdade
+  assertTrue(Game.synergyBonuses().dps > before, 'depois de invalidar, o novo nível (min entre as duas salas) conta');
+});
+
+test('cache de closestAchievement (P2): só atualiza via refreshClosestAch/checkAchievements', () => {
+  S = defaultState();
+  Game._closestAchCache = null;
+  Game.refreshClosestAch();
+  assertTrue(!!Game._closestAchCache, 'refreshClosestAch popula o cache');
+  const before = Game._closestAchCache;
+  S.ach[before.ach.id] = true;   // destrava a conquista mais próxima sem chamar refresh
+  assertEqual(Game._closestAchCache.ach.id, before.ach.id, 'cache não muda sozinho');
+  Game.checkAchievements();      // é quem chama refreshClosestAch por baixo
+  const after = Game._closestAchCache;
+  assertTrue(!after || after.ach.id !== before.ach.id, 'checkAchievements atualiza o cache — a conquista já destravada some da lista de "mais perto"');
 });
 
 runTests();
