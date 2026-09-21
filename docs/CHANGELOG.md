@@ -2,6 +2,16 @@
 
 ## Não lançado
 
+### Bolsa passa a detectar melhorias de verdade (AUDIT PARTE 12, item B3)
+
+`UI.renderBag` (`ui.js`) contava "melhorias" filtrando `S.forge.inventory` por `item.heroId`, mas
+cartas forjadas (`Game.forgeItem`) nunca têm esse campo — só drops de combate (`Game.rollGear`) têm,
+e esses são sempre auto-equipados ou vendidos direto em `awardGear`, nunca chegam à bolsa. Resultado:
+o filtro sempre dava 0, e o selo "N melhorias!" nunca aparecia, nem a bolsa abria sozinha quando
+valia a pena olhar. Corrigido comparando cada carta contra o equipamento atual de todo herói **em
+campo** (`Game.fieldHeroes()` + `Game.itemDeltaForHero`, a mesma comparação que já alimenta o selo
+eligible-up/down dos mini-cards de herói). Suíte de testes 59 → 60.
+
 ### Import de save e reset agora funcionam de verdade (AUDIT PARTE 12, item B1)
 
 `window.addEventListener('beforeunload', saveGame)` (`main.js:58`) gravava o `S` da sessão em

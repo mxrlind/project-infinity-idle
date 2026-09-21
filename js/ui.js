@@ -548,14 +548,16 @@ const UI = {
   // bolsa: cartas forjadas acumuladas
   renderBag(c) {
     const n = S.forge.inventory.length;
-    // Decisão pendente = alguma carta na bolsa é MELHOR que a que o herói dela já usa. Sem isso a
-    // bolsa é só um depósito, e um depósito não precisa estar aberto na cara do jogador.
-    const upgrades = S.forge.inventory.filter(item => {
-      const h = S.heroes[item.heroId];
-      if (!h) return false;
-      const cur = h.gear[item.slot];
-      return !cur || Game.itemScore(item) > Game.itemScore(cur);
-    }).length;
+    // Decisão pendente = alguma carta na bolsa é MELHOR que o que ALGUM herói em campo já usa
+    // naquele slot. Cartas forjadas (Game.forgeItem) não pertencem a um herói específico — só
+    // drops de combate (Game.rollGear) têm `heroId`, e esses nunca ficam na bolsa (são
+    // auto-equipados ou vendidos direto em awardGear) — então filtrar por `item.heroId` aqui
+    // nunca achava nada (AUDIT.md, PARTE 12, item B3). Reusa `itemDeltaForHero`, a mesma
+    // comparação que já alimenta o selo eligible-up/down dos mini-cards de herói.
+    const fielders = Game.fieldHeroes();
+    const upgrades = S.forge.inventory.filter(item =>
+      fielders.some(heroId => Game.itemDeltaForHero(item.uid, heroId) > 0)
+    ).length;
     const best = n ? Math.max(...S.forge.inventory.map(i => i.rarity || 0)) : -1;
     const bestRar = best >= 0 ? RARITIES[best] : null;
     const body = this.section(c, {

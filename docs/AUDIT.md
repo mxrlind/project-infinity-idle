@@ -233,8 +233,8 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 
 *Revisão focada em performance, bugs e organização, cobrindo o que foi escrito depois da Parte 0–11 (a base cresceu 2,6× — 3.166 → ~8.300 linhas). `node tests/run.js` = 59/59 passando no momento desta auditoria.*
 
-> **Status de execução:** 🔴 B1 e 🔴 B2 corrigidos em 2026-09-21 (ver [CHANGELOG.md](CHANGELOG.md)).
-> Todo o resto (P1–P10, B3–B13, O1–O7, D1–D8) é backlog, não implementado ainda.
+> **Status de execução:** 🔴 B1, 🔴 B2 e 🔴 B3 corrigidos em 2026-09-21 (ver [CHANGELOG.md](CHANGELOG.md)).
+> Todo o resto (P1–P10, B4–B13, O1–O7, D1–D8) é backlog, não implementado ainda.
 
 ### 12.1 — Gargalos de desempenho
 
@@ -270,7 +270,8 @@ Geradores (`ui.js:1810`, até 11), salas (`ui.js:1910`, 13 — cada uma chamando
 🔴 **B2 — Meta diária "Vender no Mercado" nunca pode ser sorteada.** *(corrigido em 2026-09-21, ver CHANGELOG)*
 `data.js:1049` checa `S.research.done.mercado`, mas a pesquisa que libera o Mercado tem id `comercio` (`data.js:825`, `unlock: 'market'`) — não existe pesquisa com id `mercado`. `req` retorna sempre `false`, então `rollDailyGoals` (`daily.js:42`) filtra essa meta do pool para todo jogador, todo dia, para sempre: das 8 metas declaradas, só 7 já existiram na prática.
 
-🔴 **B3 — A seção "Bolsa" nunca detecta melhorias.** `ui.js:553-558` conta upgrades filtrando `S.forge.inventory` por `item.heroId`, mas itens **forjados** (`Game.forgeItem`, `game.js:737`) nunca têm esse campo — só drops de combate (`rollGear`, `game.js:550`) têm, e esses são auto-equipados ou vendidos, nunca ficam na bolsa. `upgrades` é sempre 0: a Bolsa nunca abre sozinha nem mostra "N melhorias!". O próprio comentário acima da função (`ui.js:551-552`) já sinalizava essa decisão como pendente. Correção: comparar contra o melhor item equipado no slot entre os heróis em campo (`Game.itemScore` + `Game.fieldHeroes()`).
+🔴 **B3 — A seção "Bolsa" nunca detecta melhorias.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+`ui.js:553-558` conta upgrades filtrando `S.forge.inventory` por `item.heroId`, mas itens **forjados** (`Game.forgeItem`, `game.js:737`) nunca têm esse campo — só drops de combate (`rollGear`, `game.js:550`) têm, e esses são auto-equipados ou vendidos, nunca ficam na bolsa. `upgrades` é sempre 0: a Bolsa nunca abre sozinha nem mostra "N melhorias!". O próprio comentário acima da função (`ui.js:551-552`) já sinalizava essa decisão como pendente. Correção: comparar contra o melhor item equipado no slot entre os heróis em campo (`Game.itemScore` + `Game.fieldHeroes()`).
 
 🟠 **B4 — XSS via save importado, fechado só parcialmente** (a Parte 1/item 🟠2 marcou esse item como ✅, mas restam vetores). `updateBuffs` já escapa (`ui.js:1670`, `UI.esc`) e `importSave` valida o array `buffs` (`state.js:246-251`), mas o schema só checa `typeof` de chaves de primeiro nível — `forge` e `npcs` passam como `'object'` com conteúdo livre. Ainda sem escape: `gearIconHtml()` (`ui.js:65-66`, `item.icon` cru → `innerHTML` em `renderMiniGear`/`bagCard`/`showForgeReveal`) e a label de oferta de NPC (`ui-ext.js:348`, monta de `S.npcs.offers`, que é persistido no save).
 
@@ -318,6 +319,6 @@ Geradores (`ui.js:1810`, até 11), salas (`ui.js:1910`, 13 — cada uma chamando
 
 ### 12.5 — Ordem de execução sugerida
 
-B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — B1 e B2 já corrigidos)* → P1 → P2 → P3 *(performance, ~80% do ganho)* → B5 + B6 *(consistência de regra campo vs. banco)* → O1 *(decidir destino de `monetization.js`)* → D1 *(rebalancear a Árvore do Mundo)* → resto.
+B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — todos os três já corrigidos)* → P1 → P2 → P3 *(performance, ~80% do ganho)* → B5 + B6 *(consistência de regra campo vs. banco)* → O1 *(decidir destino de `monetization.js`)* → D1 *(rebalancear a Árvore do Mundo)* → resto.
 
 **Resumo em uma frase:** o motor cresceu 2,6× desde julho mantendo a separação de responsabilidades honesta, mas cresceu sem cache — `synergyBonuses()` sozinho queima ~400k operações/s recalculando algo que só muda quando o jogador move uma sala — e os bugs de maior impacto (import de save inerte, meta impossível, Bolsa que nunca detecta melhoria) são todos código que *parece* funcionar e nunca executa o caminho que importa.

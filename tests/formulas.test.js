@@ -411,6 +411,20 @@ test('scrapItem: desmanche não infla earned', () => {
   assertTrue(S.gold > 0, 'mas o ouro do desmanche entra no bolso');
 });
 
+test('Bolsa: carta forjada (sem heroId) é detectada como melhoria via fieldHeroes (AUDIT B3)', () => {
+  S = defaultState();
+  const heroId = HEROES[0].id;
+  S.heroes[heroId] = { lvl: 10, gear: { arma: null, amuleto: null }, fieldSlot: 0 };
+  const fielders = Game.fieldHeroes();
+  assertTrue(fielders.length > 0, 'herói de teste está em campo');
+  const item = { uid: 999, slot: 'arma', rarity: 0, mult: 0.2, affixes: [] };  // sem heroId de propósito
+  S.forge.inventory = [item];
+  const upgrades = S.forge.inventory.filter(i =>
+    fielders.some(id => Game.itemDeltaForHero(i.uid, id) > 0)
+  ).length;
+  assertEqual(upgrades, 1, 'item sem heroId ainda conta como melhoria comparando contra o campo');
+});
+
 test('gainGold segue contando progressão (produção/abate/clique)', () => {
   S = defaultState();
   S.gold = 0; S.earned = 0; S.allEarned = 0;
