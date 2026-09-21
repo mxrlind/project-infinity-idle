@@ -7,6 +7,13 @@
 > anterior não registrada aqui). Detalhes no [CHANGELOG.md](CHANGELOG.md). Restam: 🟡10 (meta
 > diária), 🟢12-15 (polimento) e as decisões de longo prazo da Parte 11 (identidade visual completa,
 > backend/live-ops, segundo loop estratégico).
+>
+> **Segunda auditoria (2026-09-21):** o motor cresceu de 3.166 para ~8.300 linhas desde julho
+> (novos sistemas: Base com sinergias, Expansão/Mundo, Monetização, Árvore do Mundo, Relíquias,
+> Conjuntos de equipamento, Chefes com mecânica, Metas Diárias, Camadas de Ascensão). Ver
+> [PARTE 12](#parte-12--auditoria-de-desempenho-e-bugs-2026-09-21) para os achados dessa rodada,
+> com foco em desempenho (não coberto em profundidade na auditoria de julho) e nos sistemas novos.
+> Status de execução da Parte 12 registrado no início dela.
 
 ---
 
@@ -219,3 +226,98 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 ---
 
 **Resumo em uma frase:** o código é mais maduro que o design — vocês construíram uma máquina bem-feita para rodar uma fórmula que ainda não decidiu o que a torna diferente das outras.
+
+---
+
+## PARTE 12 — Auditoria de desempenho e bugs (2026-09-21)
+
+*Revisão focada em performance, bugs e organização, cobrindo o que foi escrito depois da Parte 0–11 (a base cresceu 2,6× — 3.166 → ~8.300 linhas). `node tests/run.js` = 59/59 passando no momento desta auditoria.*
+
+> **Status de execução:** 🔴 B1 e 🔴 B2 corrigidos em 2026-09-21 (ver [CHANGELOG.md](CHANGELOG.md)).
+> Todo o resto (P1–P10, B3–B13, O1–O7, D1–D8) é backlog, não implementado ainda.
+
+### 12.1 — Gargalos de desempenho
+
+🔴 **P1 — `Game.synergyBonuses()` recalculado ~30–40×/tick (≈350×/s), sem cache.**
+O ponto mais quente do jogo. `synergyBonuses()` (`game.js:1158`) roda três varreduras completas da grade da Base a cada chamada — `adjacencyPairs()` (`game.js:1109`), `activeSynergies()` (`game.js:1074`), `activeComplexes()` (`game.js:1125`) — cada uma revalidando `ensureBaseGrid()` (`game.js:1031`, 13× `indexOf` sobre 16 células) e `activeSynergies()` fazendo `ROOM_SYNERGIES.find()` (21 defs) por célula×vizinho, ~670 comparações por chamada. `heroGearMult()` (`game.js:313`) chama isso **uma vez por herói, por cálculo de DPS**, e `teamDps`/`updateDynamic` somados chamam DPS 20–25× por tick. Estimativa: ~400k operações/s e ~1.200 alocações/s de array/objeto para um valor que só muda quando o jogador constrói ou move uma sala. Correção: cache com dirty-flag (o projeto já usa esse padrão em `_gearDirty`/`_fieldDirty`), invalidado em `buildRoom`, `swapCells`, prestígio/ascensão e pesquisas que mexam em `extSynergyMult`. Deve cortar ~70–80% do custo do tick.
+
+🔴 **P2 — `UI.updateClosestAch()` reavalia todas as ~66 conquistas e reescreve HTML 10×/s.**
+`ui.js:1801` chama isso todo tick → `Game.closestAchievement()` (`game.js:1377`) roda `derived()` + `a.progress()` para cada conquista. A conquista `cx1` (`data.js:676`) sozinha chama `codexCompletion()` (`expansion.js:747`), que varre `NPCS` + 9 `countDefs`. `box.innerHTML` é reescrito mesmo sem mudança. Correção: mover para o cadenciamento de 2s de `checkAchievements` (`main.js:43`) e só tocar o DOM quando id/porcentagem mudarem.
+
+🟠 **P3 — CSS custom property escrita no `documentElement` todo tick.**
+`ui.js:1788-1789` escreve `--arcane-glow` a cada tick, alimentando um `radial-gradient` de tela cheia (`style.css:28`) — força repintura 10×/s por um valor que só muda em prestígio/essência. Guardar o último valor e só escrever na mudança.
+
+🟠 **P4 — `innerHTML` reconstruído por linha, por tick (~130 reparsings/s).**
+Geradores (`ui.js:1810`, até 11), salas (`ui.js:1910`, 13 — cada uma chamando `roomCostHtml` → `extRoomCostMult` → loop de 25 pesquisas), forja (`ui.js:983`), buffs (`ui.js:1672`, mesmo com zero buffs). O projeto já resolve isso em outro lugar com assinatura/comparação (`_dailySig` em `daily-ui.js:11`, `compSig` em `ui.js:445`) — falta aplicar o mesmo padrão aqui.
+
+🟠 **P5 — `Game.genMaxBuy()` chamado duas vezes por linha por tick** (`ui.js:1807-1808`) quando "Máx" está selecionado — calcular `n` uma vez e derivar `cost` dele.
+
+🟡 **P6 — `.find()` linear sem índice por id**, repetido em `heroDps`/`roleDpsMult`/`heroArchetype`/`heroRole`/`summonDps` (`HEROES.find`), `genCost`/`genMult` (`GENERATORS.find`), `relics.js`/`bosses`/`weapon types`. `genMult()`/`globalProdMult()` também percorrem os 31 `UPGRADES` a cada chamada (~700 iterações/tick só nisso). Correção: mapas `id → def` construídos uma vez no load.
+
+🟡 **P7 — alocações descartáveis por tick**: `fieldHeroes()` (`game.js:347`, Object.keys+filter+sort, chamado 5–8×/tick — já existe `_fieldDirty`, falta cachear a lista junto), `worldInfo()` (`expansion.js:10`, ~15–20 objetos novos/tick via `extGoldMult`/`extDpsMult`/etc.), `matPerSec()`.
+
+🟡 **P8 — `Game.clickAttack()` roda a cadeia de DPS inteira por clique** (`game.js:817`) — jogador clicando 10×/s dobra o custo total de CPU do jogo. Reaproveitar o `teamDps` já calculado no tick.
+
+🟢 **P9 — `getElementById` sem cache no tick** (item 🟢 já citado na Parte 1/item 12 da lista priorizada — ainda não feito: `ui.js:1759-1794` + `updateBuffs`/`updateClosestAch`/`updateDaily`/`ensureModalSanity`/`updateWorld` somam ~16 buscas por tick).
+
+🟢 **P10 — `drawBaseLinks` faz layout thrashing** (`ui.js:1296-1301`): `center(idx)` chama `getBoundingClientRect()` sem memoizar, 2× por segmento. Só roda no render da Base (não no tick), mas cachear os centros antes do laço de desenho é trivial.
+
+### 12.2 — Bugs
+
+🔴 **B1 — Import de save e hard reset não têm efeito real.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+`beforeunload` (`main.js:58`) chama `saveGame()` incondicionalmente. `importSave()` + `location.reload()` (`ui.js:1607-1610`) e `hardReset()` (`ui.js:1618-1619`) gravam o novo estado, mas o `reload()` dispara `beforeunload` antes de descarregar a página, que regrava o **estado antigo da sessão em memória** por cima do que acabou de ser importado/resetado. O jogador vê a página recarregar e acha que funcionou; o progresso real continua o de antes. Efeito colateral: depois de um hard reset, o boot encontra um save (o antigo, regravado) e pula o modal de lore inicial (`main.js:17-20`).
+
+🔴 **B2 — Meta diária "Vender no Mercado" nunca pode ser sorteada.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+`data.js:1049` checa `S.research.done.mercado`, mas a pesquisa que libera o Mercado tem id `comercio` (`data.js:825`, `unlock: 'market'`) — não existe pesquisa com id `mercado`. `req` retorna sempre `false`, então `rollDailyGoals` (`daily.js:42`) filtra essa meta do pool para todo jogador, todo dia, para sempre: das 8 metas declaradas, só 7 já existiram na prática.
+
+🔴 **B3 — A seção "Bolsa" nunca detecta melhorias.** `ui.js:553-558` conta upgrades filtrando `S.forge.inventory` por `item.heroId`, mas itens **forjados** (`Game.forgeItem`, `game.js:737`) nunca têm esse campo — só drops de combate (`rollGear`, `game.js:550`) têm, e esses são auto-equipados ou vendidos, nunca ficam na bolsa. `upgrades` é sempre 0: a Bolsa nunca abre sozinha nem mostra "N melhorias!". O próprio comentário acima da função (`ui.js:551-552`) já sinalizava essa decisão como pendente. Correção: comparar contra o melhor item equipado no slot entre os heróis em campo (`Game.itemScore` + `Game.fieldHeroes()`).
+
+🟠 **B4 — XSS via save importado, fechado só parcialmente** (a Parte 1/item 🟠2 marcou esse item como ✅, mas restam vetores). `updateBuffs` já escapa (`ui.js:1670`, `UI.esc`) e `importSave` valida o array `buffs` (`state.js:246-251`), mas o schema só checa `typeof` de chaves de primeiro nível — `forge` e `npcs` passam como `'object'` com conteúdo livre. Ainda sem escape: `gearIconHtml()` (`ui.js:65-66`, `item.icon` cru → `innerHTML` em `renderMiniGear`/`bagCard`/`showForgeReveal`) e a label de oferta de NPC (`ui-ext.js:348`, monta de `S.npcs.offers`, que é persistido no save).
+
+🟠 **B5 — Bônus globais de equipamento contam heróis na reserva, não só em campo.** `recomputeGearBonuses()` (`game.js:168-194`) e `activeSetCounts()` (`gearsets.js:25`) iteram `S.heroes` inteiro, enquanto o resto do sistema (`teamDps`, `recomputeSynergy`, `_roleEff`) usa só `fieldHeroes()`. Consequência: guardar armas com afixo de time no banco dá o bônus de graça, e Conjuntos de 4 peças completam sem nenhuma peça em campo — mesma categoria do exploit `reqPrestige` fechado em julho (regra existe num lugar, ignorada em outro). Atenção ao corrigir: `setFieldSlot` (`game.js:369`) só marca `_fieldDirty`, precisaria marcar `_gearDirty` também.
+
+🟠 **B6 — "Formação Estendida" (5º slot) não invalida o cache de sinergia.** `expansion.js:284` marca `UI.dirty.heroes` mas não `Game._fieldDirty`; `_lastSynergy.slots` fica em 4, então o medidor de sinergia mostra o campo como cheio até o jogador mover um herói manualmente.
+
+🟠 **B7 — Progressão de combate trava em aba de fundo.** `dt` é limitado a 2s (`main.js:36`) e `damageEnemy` (`game.js:829-834`) descarta dano excedente — só 1 inimigo morre por tick. Navegadores estrangulam `setInterval` em background para ~1×/s, e `computeOffline` (`game.js:1485`) credita ouro/conhecimento/materiais mas nenhuma onda/abate — deixar o jogo aberto em outra aba é pior que fechá-lo, para combate. Isso também cria um teto duro de 10 abates/s no late-game: acima de certo DPS, mais dano deixa de acelerar progressão.
+
+🟡 **B8** — `UI._seenIds['bag']` (`ui.js:15-20`) usa `item.uid` monotonicamente crescente como chave — o Set nunca encolhe numa sessão longa. 🟡 **B9** — seed de diálogo de NPC colide (`ui-ext.js:278`: `'mercador'[1]` e `'ferreiro'[1]` são ambos `'e'`). 🟡 **B10** — `typewrite` (`ui.js:2204-2208`) não guarda/limpa o `setInterval`; fechar o modal no meio deixa escrevendo até 10s, e abrir lore em sequência acumula intervalos. 🟡 **B11** — `SAVE_VERSION = 3` (`state.js:3`) segue sem ser lido em `loadGame` (item 🟡6 da Parte 1, marcado ✅ mas só o merge raso→genérico foi resolvido, não migração real). 🟡 **B12** — lógica de visibilidade de recursos (`ui.js:1657`) continua com a dupla negação apontada na Parte 1/item 🟡 (não corrigido). 🟢 **B13** — moeda dourada ainda pode nascer atrás do painel esquerdo no mobile (`ui.js:2037`, mesmo diagnóstico da Parte 1/item 🟢).
+
+### 12.3 — Organização e limpeza
+
+🔴 **O1 — `js/monetization.js` (521 linhas) não está referenciado em `index.html`, mas é uma armadilha se alguém ligar.** Tem `STRIPE_PUBLIC_KEY: 'pk_live_xxxxx'` hardcoded, `JSON.parse` sem try/catch alimentando `Object.assign(this, data)` sobre dado de `localStorage` (permite sobrescrever métodos do próprio objeto), handlers `onclick="MONETIZATION.buyItem(...)"` inline (estilo oposto ao resto do projeto), CSS 100% inline fora do design system (um botão nasceria sobreposto ao `#topbar`), abas de shop que nunca trocam estado visual ativo, um `setInterval` de 5 min (`trackRevenue`) que só faz `console.log` e nunca é limpo, e zero integração com `S`/save (chave de `localStorage` separada — "compras" não sobrevivem a export/import nem a hard reset). Recomendação: mover para `docs/`/`prototypes/` como referência de produto, ou reescrever no padrão do projeto antes de ligar.
+
+🟠 **O2 — regras de negócio na UI em sistemas novos** (mesma categoria do exploit de julho, mas contido — não chega a ser explorável hoje): `UI.renderRelics` decide o slot livre (`relics-ui.js:116`, `indexOf(null)`) sem um `Game.equipRelicFirstFree()` equivalente a `Game.firstFreeFieldSlot()`; `renderProd`/`renderRecruit`/`updateDynamic` reimplementam o mesmo filtro de visibilidade **três vezes** (`ui.js:220-222`, `511-513`, `1823-1827`, com comentário admitindo que precisam ficar idênticas). Pontos bons registrados: `buyGen`/`hireHero` já validam `reqPrestige` no motor, e `canGrowWorldTree` (`worldtree.js:31-40`) documenta explicitamente por que o gate vive lá — o padrão certo existe, só não é universal ainda.
+
+🟠 **O3 — duplicação entre os `*-ui.js`**: 5 implementações do widget "HTML de custo multi-recurso" (`roomCostHtml`, `forgeCostPart`, `researchCostHtml`, `worldTreeCostHtml`, inline de ofertas de NPC), cada uma com seu próprio dicionário de ícones de recurso; padrão "botão com afford" (`classList.toggle('afford', ok); disabled = !ok`) repetido ~12×; seletor ×1/×10/Máx implementado 3× (`ui.js:206-213`, `314-319`, `worldtree-ui.js:52-56`) — a versão da Árvore do Mundo perdeu `aria-pressed`/`aria-label`, regredindo a acessibilidade do item ✅13 da Parte 9.
+
+🟡 **O4 — números mágicos que duplicam texto de `data.js`**: multiplicadores de sala hardcoded em `game.js` (linhas 34-36, 410-411, 464, 524, 1019) repetem os mesmos percentuais que já estão escritos nos `desc` de `ROOMS` (`data.js:280-294`) — duas fontes de verdade para manter sincronizadas a cada ajuste de balanceamento. Também sem constante nomeada: curvas de HP de inimigo/chefe (`game.js:452,459`), timer de chefe (`game.js:482-483`), chances de drop (`game.js:581,590,823`), volatilidade de mercado (`expansion.js:350`).
+
+🟡 **O5 — ~80 globais em `window`** (aceitável sem bundler, ordem de `<script>` em `index.html:81-101` documenta a dependência), com um near-miss já existente: `RESEARCH_MAX_COMPLETABLE` (`data.js:845`) é calculado na avaliação de `data.js` e consumido por `ACHIEVEMENTS.rs3` (`data.js:665`) — só funciona porque a ordem de declaração é essa.
+
+🟡 **O6 — tratamento de erro inconsistente**: `catch (e) {}` silencioso em vários pontos (`state.js:148,153`, `game.js:1362`, `expansion.js:732`, `daily.js:42`), guarda defensiva bem documentada em `npcLevel` (`expansion.js:414-416`), e nenhuma guarda em `renderBag` (`ui.js:559`), que quebraria se `RARITIES[best]` fosse `undefined` por uma raridade inválida vinda de save importado.
+
+🟢 **O7 — código morto legado**: `Game.synergyMult` (`game.js:200`, marcado "(legado)") e `SYNERGY_MAX_BONUS` (`data.js:152`, "compat com saves") não são lidos por ninguém; `o._target` (`expansion.js:591`) grava campo transitório dentro de `S.npcs.offers`, que vai pro save.
+
+### 12.4 — Ideias de design (baseadas no conteúdo real de `data.js`/`expansion.js`)
+
+🔴 **D1 — a Árvore do Mundo tem 2/3 do conteúdo matematicamente inalcançável.** Custos por nível (`data.js:574-581`, bases 1.15/1.32) nos estágios de nível 150/400/1000 (`data.js:582-589`) exigem essência/cristal na casa de 1e18–1e24+, muito além do que `essenceGain = (earned/1e8)^0.45` (`game.js:1241`) consegue produzir em qualquer curva realista de late-game. Achatar as bases (~1.06–1.08) ou reposicionar os estágios (ex: 0/5/15/40/80/150) resolveria.
+
+🟠 **D2 — o teto de 10 abates/s (ligado ao B7) satura o valor de investir em DPS no late-game.** Uma mecânica de "abater múltiplos inimigos por tick quando o DPS excede o HP da onda" transformaria excesso de DPS em progressão visível.
+
+🟠 **D3 — Fases 7 e 8 continuam teasers vazios**; a Fase 8 (100T) nem tem notificação em `updatePhases` (`game.js:1307-1312`). Decidir entre dar conteúdo real à aba "???"/guildas ou remover a Fase 8 e assumir a Árvore do Mundo/Ascensão como o endgame declarado.
+
+🟠 **D4 — a reserva de heróis não tem função própria** (e hoje é a superfície do exploit B5): com `FIELD_SLOTS = 4` (`data.js:150`) e 10 heróis, 6 ficam parados só custando. Sugestões que reaproveitam sistemas existentes: expedições em tempo real (mesma mecânica de fila de `RESEARCH`), treinamento (XP cedido de um herói banco pra um em campo), ou rotação tática puxada pelos requisitos de papel dos chefes (`BOSS_MECHANICS.req.role`, `data.js:484-497`) — hoje o aviso de mecânica (`bosses-ui.js:7`) chega depois do spawn, tarde demais pra decidir.
+
+🟡 **D5 — a renda passiva do Mercado (`mercadoGoldPerSec`, `game.js:15-19`) fica fora de `globalProdMult()`** — não recebe essência, conquistas, talentos, salas, upgrades globais nem Árvore do Mundo, mas recebe todos os bônus de ouro-por-abate. Provavelmente não intencional; a sala fica obsoleta exatamente quando os multiplicadores principais crescem.
+
+🟡 **D6 — as melhores decisões do jogo (Relíquias) estão escondidas atrás de dezenas de horas/dias**: chefe onda ≥40 (8% chance), Colecionador atrás da pesquisa `cidade` (7200s, atrás de `comercio`), ou pesquisa `portais` (259.200s = 3 dias reais). Dar a primeira relíquia garantida no primeiro chefe da onda 20 ensinaria o sistema enquanto ainda é decisão, não otimização. Mesma observação para os ramos de pesquisa mutuamente exclusivos (1 dia real cada) — os pares de Talento já resolvem isso melhor, disponíveis cedo na Fase 4.
+
+🟡 **D7 — Metas do Dia é o único gancho de retenção entre sessões, e roda com 7 das 8 metas** (B2) e sem marco de sequência acima de `DAILY_STREAK_MAX = 10` — o exato momento em que o hábito se formaria fica sem recompensa adicional. Há eventos já registrados em `S` e não usados no pool (`market.stats.bought`, `npcs.requestsDone`, níveis de sala/Árvore do Mundo).
+
+🟢 **D8 — o Códex já agrega 9 categorias de completude (`codexCompletion`, `expansion.js:747-766`) mas não tem indicador visível** fora do modal — um badge de % no botão do topbar é custo quase zero e dá um gancho de "colecionador" pro jogador que já esgotou a curva de números.
+
+### 12.5 — Ordem de execução sugerida
+
+B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — B1 e B2 já corrigidos)* → P1 → P2 → P3 *(performance, ~80% do ganho)* → B5 + B6 *(consistência de regra campo vs. banco)* → O1 *(decidir destino de `monetization.js`)* → D1 *(rebalancear a Árvore do Mundo)* → resto.
+
+**Resumo em uma frase:** o motor cresceu 2,6× desde julho mantendo a separação de responsabilidades honesta, mas cresceu sem cache — `synergyBonuses()` sozinho queima ~400k operações/s recalculando algo que só muda quando o jogador move uma sala — e os bugs de maior impacto (import de save inerte, meta impossível, Bolsa que nunca detecta melhoria) são todos código que *parece* funcionar e nunca executa o caminho que importa.

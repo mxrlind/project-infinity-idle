@@ -141,7 +141,17 @@ function defaultState() {
 
 let S = defaultState();
 
+// Suprime a próxima chamada de saveGame(). Existe porque main.js grava em 'beforeunload' E em
+// 'visibilitychange' (document.hidden) — os dois disparam durante um location.reload(), então
+// qualquer código que troque o save e recarregue a página (importSave, hardReset) tinha o próprio
+// save novo sobrescrito pelo S antigo da sessão em memória um instante depois, sem erro nenhum: a
+// página recarregava, parecia ter funcionado, e o progresso real continuava o de antes (AUDIT.md,
+// PARTE 12, item B1). Setar antes de localStorage.setItem()+reload() e nunca limpar depois — a
+// página vai recarregar mesmo, então não há "próxima chamada legítima" pra restaurar o flag.
+let _skipNextSave = false;
+
 function saveGame() {
+  if (_skipNextSave) return;
   S.last = Date.now();
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(S));
@@ -249,6 +259,7 @@ function importSave(str) {
       typeof b.id === 'string' && typeof b.name === 'string' && typeof b.icon === 'string' &&
       typeof b.until === 'number' && b.name.length <= 40 && b.icon.length <= 8
     );
+    _skipNextSave = true; // ver comentário na declaração — sem isso, o reload que segue o import reescreve o save antigo por cima
     localStorage.setItem(SAVE_KEY, JSON.stringify(clean));
     return true;
   } catch (e) {
@@ -257,6 +268,7 @@ function importSave(str) {
 }
 
 function hardReset() {
+  _skipNextSave = true; // ver comentário na declaração — sem isso, o reload que segue o reset reescreve o save antigo por cima
   try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
   S = defaultState();
 }

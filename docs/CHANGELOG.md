@@ -2,6 +2,28 @@
 
 ## Não lançado
 
+### Import de save e reset agora funcionam de verdade (AUDIT PARTE 12, item B1)
+
+`window.addEventListener('beforeunload', saveGame)` (`main.js:58`) gravava o `S` da sessão em
+memória toda vez que a página descarregava — inclusive no `location.reload()` que `importSave()` e
+`hardReset()` disparam logo depois de escrever o novo save no `localStorage`. O jogador colava um
+código de save, clicava em Importar, via a página recarregar, e o progresso continuava sendo o de
+antes: o save novo tinha sido escrito e imediatamente sobrescrito pelo antigo, sem erro nenhum.
+Mesmo mecanismo quebrava o "Resetar TUDO".
+
+Corrigido com uma flag de supressão (`_skipNextSave` em `state.js`), setada por `importSave`/
+`hardReset` antes de escrever no `localStorage` e checada no topo de `saveGame()`. Não precisa ser
+limpa depois — a página vai recarregar de qualquer forma, então não existe uma "próxima chamada
+legítima" de `saveGame()` pra restaurar o flag.
+
+### Meta diária "Vender no Mercado" agora pode ser sorteada (AUDIT PARTE 12, item B2)
+
+O `req()` dessa meta (`data.js`) checava `S.research.done.mercado`, mas a pesquisa que libera o
+Mercado tem id `comercio` — `mercado` nunca existiu em `S.research.done`. Resultado: `req()` sempre
+`false`, e `rollDailyGoals` (`daily.js`) filtrava essa meta do pool de sorteio pra todo jogador, todo
+dia, desde que o sistema de Metas do Dia existe. Das 8 metas declaradas, só 7 já tinham aparecido na
+prática. Corrigido trocando `mercado` por `comercio`.
+
 ### O modelo de confiança, documentado (AUDIT item 15)
 
 `ARCHITECTURE.md` ganhou a seção **"O jogo é 100% client-side — o que isso permite e o que impede"**.

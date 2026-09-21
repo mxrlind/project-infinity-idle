@@ -1046,7 +1046,10 @@ const DAILY_GOALS = [
   { id: 'forge',    icon: '🔨', type: 'forge',    n: [3, 8],     reward: 40,
     label: (n) => `Forjar ${fmt(n)} equipamentos`, req: (S) => S.unlocked.base },
   { id: 'sell',     icon: '💱', type: 'sell',     n: [200, 600], reward: 35,
-    label: (n) => `Vender ${fmt(n)} unidades no Mercado`, req: (S) => !!(S.research.done && S.research.done.mercado) },
+    // id da pesquisa que libera o Mercado é 'comercio' (unlock: 'market'), não 'mercado' — não existe
+    // pesquisa com esse id. Com o id errado, req() nunca era true e essa meta nunca entrava no pool
+    // de rollDailyGoals (daily.js), pra nenhum jogador, desde que o sistema existe (AUDIT.md, PARTE 12, item B2).
+    label: (n) => `Vender ${fmt(n)} unidades no Mercado`, req: (S) => !!(S.research.done && S.research.done.comercio) },
   { id: 'research', icon: '🔬', type: 'research', n: [1, 3],     reward: 50,
     label: (n) => `Concluir ${fmt(n)} pesquisa${n > 1 ? 's' : ''}`, req: (S) => S.unlocked.talents },
   { id: 'feed',     icon: '🐾', type: 'feed',     n: [2, 5],     reward: 35,
