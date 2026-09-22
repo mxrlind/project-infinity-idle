@@ -2,6 +2,34 @@
 
 ## Não lançado
 
+### Árvore do Mundo: 2/3 do conteúdo estava matematicamente inalcançável (AUDIT PARTE 12, D1)
+
+`WORLD_TREE.costAt()` usava bases 1.15/1.20/1.28/1.32 (essência/conhecimento/madeira/cristal) com
+estágios até o nível 1000 — nos últimos dois estágios (150/400/1000) o custo por nível já exigia
+recursos na casa de 1e18-1e24+, muito além do que a run produz em qualquer curva realista de
+late-game (`essenceGain = (earned/1e8)^0.45`). Na prática, "Árvore Gigante" e "Árvore Cósmica" nunca
+existiram de verdade — eram conteúdo morto atrás de um muro impossível.
+
+Bases achatadas para 1.06/1.07/1.085/1.095 e estágios reposicionados de 0/10/50/150/400/1000 para
+0/5/15/40/80/150 (`maxLevel` também cai de 1000 para 150). No nível 150 o custo agora fica em ~6,2K
+essência / ~511K conhecimento / ~62M madeira / ~20K cristal — difícil de verdade no late-game, mas
+alcançável, em vez de impossível. `bonusPerLevel` (+1%/nível) e o resto do sistema (presente de
+Pontos de Ascensão ao cruzar estágio) não mudaram. Verificado no preview: transição de estágio bate
+exatamente nos novos thresholds, suíte de testes (que usa `WORLD_TREE.costAt()` diretamente, não
+valores fixos) segue 65/65.
+
+Arquivo: `js/data.js`.
+
+### `js/monetization.js` movido para `docs/prototypes/` (AUDIT PARTE 12, O1)
+
+O arquivo (521 linhas) nunca esteve referenciado em `index.html` — código morto desde que foi escrito,
+com problemas de abordagem que vão além de bugs pontuais (pagamento client-side sem cobrança real,
+chave Stripe live como placeholder, gacha com propaganda enganosa; detalhes em
+`docs/prototypes/README.md`). Movido junto de `MONETIZATION.md`/`IMPLEMENTATION_PLAN.md`/
+`QUICKSTART_MONETIZATION.md` para `docs/prototypes/`, com um README novo explicando por que está ali
+e o caminho recomendado (grátis → medir retenção D1/D7 → AdSense → só então backend). Nenhum arquivo
+do motor tocado.
+
 ### Equipamento e Conjuntos deixam de valer com o herói na reserva (AUDIT PARTE 12, B5/B6)
 
 `recomputeGearBonuses()` e `activeSetCounts()` (afixo "Estandarte" e bônus de Conjuntos 2pç/4pç)

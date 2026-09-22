@@ -585,23 +585,27 @@ const LAYERS = [
 // #13 (drops → build → chefes → recursos → recomeço). Custos são uma aproximação inicial, ajustável por
 // playtesting — mesmo espírito de "implementação parcial, por design" do #13. Motor em js/worldtree.js.
 const WORLD_TREE = {
-  maxLevel: 1000,
+  // AUDIT D1 (2026-09-21): bases 1.15/1.20/1.28/1.32 com estágios até nível 1000 exigiam recursos na
+  // casa de 1e18-1e24+ nos últimos 2/3 estágios — muito além do que a run produz em qualquer curva
+  // realista (essenceGain = (earned/1e8)^0.45). Bases achatadas (~1.06-1.10) e estágios reposicionados
+  // (0/5/15/40/80/150) deixam o estágio final (🌌 Cósmica) difícil de alcançar, não impossível.
+  maxLevel: 150,
   bonusPerLevel: 0.01,   // +1% produção/DPS/essência por nível, cumulativo
   costAt(lvl) {
     return {
-      essence:      Math.floor(1   * Math.pow(1.15, lvl)),
-      conhecimento: Math.floor(20  * Math.pow(1.20, lvl)),
-      madeira:      Math.floor(300 * Math.pow(1.28, lvl)),
-      cristal:      Math.floor(25  * Math.pow(1.32, lvl)),
+      essence:      Math.floor(1   * Math.pow(1.06,  lvl)),
+      conhecimento: Math.floor(20  * Math.pow(1.07,  lvl)),
+      madeira:      Math.floor(300 * Math.pow(1.085, lvl)),
+      cristal:      Math.floor(25  * Math.pow(1.095, lvl)),
     };
   },
   stages: [
-    { at: 0,    name: 'Broto',            icon: '🌱' },
-    { at: 10,   name: 'Muda',             icon: '🌿' },
-    { at: 50,   name: 'Árvore Jovem',     icon: '🌳' },
-    { at: 150,  name: 'Árvore Ancestral', icon: '🌲' },
-    { at: 400,  name: 'Árvore Gigante',   icon: '🌴' },
-    { at: 1000, name: 'Árvore Cósmica',   icon: '🌌' },
+    { at: 0,   name: 'Broto',            icon: '🌱' },
+    { at: 5,   name: 'Muda',             icon: '🌿' },
+    { at: 15,  name: 'Árvore Jovem',     icon: '🌳' },
+    { at: 40,  name: 'Árvore Ancestral', icon: '🌲' },
+    { at: 80,  name: 'Árvore Gigante',   icon: '🌴' },
+    { at: 150, name: 'Árvore Cósmica',   icon: '🌌' },
   ],
 };
 
