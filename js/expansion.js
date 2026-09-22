@@ -281,7 +281,10 @@ Object.assign(Game, {
     this.missionEvent('research', 1);
     if (def.unlock === 'coruja') this.grantPet('coruja');
     if (def.unlock === 'market' || def.unlock === 'npcs') UI.dirty.tabs = true;
-    if (def.unlock === 'slot5') UI.dirty.heroes = true;
+    // AUDIT.md B6: só marcar UI.dirty.heroes deixava o MEDIDOR de sinergia preso em "4/4" até o
+    // jogador mover um herói manualmente (o que dispara _fieldDirty por outro caminho) — o 5º slot
+    // já existia (fieldSlots() lê a pesquisa direto), mas o cache de _lastSynergy.slots não sabia.
+    if (def.unlock === 'slot5') { UI.dirty.heroes = true; this._fieldDirty = true; }
     // Relíquias (#6): concluir a árvore de pesquisa até o fim (Portais Estelares) rende uma relíquia
     if (id === 'portais') this.grantRelic();
     UI.dirty.research = true;

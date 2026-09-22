@@ -233,8 +233,9 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 
 *Revisão focada em performance, bugs e organização, cobrindo o que foi escrito depois da Parte 0–11 (a base cresceu 2,6× — 3.166 → ~8.300 linhas). `node tests/run.js` = 59/59 passando no momento desta auditoria.*
 
-> **Status de execução:** 🔴 B1, 🔴 B2, 🔴 B3 e **P1–P10 inteiros** corrigidos em 2026-09-21 (ver
-> [CHANGELOG.md](CHANGELOG.md)) — a Parte 12.1 (desempenho) está 100% fechada. Resta B4–B13, O1–O7, D1–D8.
+> **Status de execução:** 🔴 B1, 🔴 B2, 🔴 B3, 🟠 B5, 🟠 B6 e **P1–P10 inteiros** corrigidos em
+> 2026-09-21 (ver [CHANGELOG.md](CHANGELOG.md)) — a Parte 12.1 (desempenho) está 100% fechada.
+> Resta B4, B7–B13, O1–O7, D1–D8.
 
 ### 12.1 — Gargalos de desempenho
 
@@ -275,9 +276,11 @@ Geradores (`ui.js:1810`, até 11), salas (`ui.js:1910`, 13 — cada uma chamando
 
 🟠 **B4 — XSS via save importado, fechado só parcialmente** (a Parte 1/item 🟠2 marcou esse item como ✅, mas restam vetores). `updateBuffs` já escapa (`ui.js:1670`, `UI.esc`) e `importSave` valida o array `buffs` (`state.js:246-251`), mas o schema só checa `typeof` de chaves de primeiro nível — `forge` e `npcs` passam como `'object'` com conteúdo livre. Ainda sem escape: `gearIconHtml()` (`ui.js:65-66`, `item.icon` cru → `innerHTML` em `renderMiniGear`/`bagCard`/`showForgeReveal`) e a label de oferta de NPC (`ui-ext.js:348`, monta de `S.npcs.offers`, que é persistido no save).
 
-🟠 **B5 — Bônus globais de equipamento contam heróis na reserva, não só em campo.** `recomputeGearBonuses()` (`game.js:168-194`) e `activeSetCounts()` (`gearsets.js:25`) iteram `S.heroes` inteiro, enquanto o resto do sistema (`teamDps`, `recomputeSynergy`, `_roleEff`) usa só `fieldHeroes()`. Consequência: guardar armas com afixo de time no banco dá o bônus de graça, e Conjuntos de 4 peças completam sem nenhuma peça em campo — mesma categoria do exploit `reqPrestige` fechado em julho (regra existe num lugar, ignorada em outro). Atenção ao corrigir: `setFieldSlot` (`game.js:369`) só marca `_fieldDirty`, precisaria marcar `_gearDirty` também.
+🟠 **B5 — Bônus globais de equipamento contam heróis na reserva, não só em campo.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+`recomputeGearBonuses()` (`game.js:168-194`) e `activeSetCounts()` (`gearsets.js:25`) iteram `S.heroes` inteiro, enquanto o resto do sistema (`teamDps`, `recomputeSynergy`, `_roleEff`) usa só `fieldHeroes()`. Consequência: guardar armas com afixo de time no banco dá o bônus de graça, e Conjuntos de 4 peças completam sem nenhuma peça em campo — mesma categoria do exploit `reqPrestige` fechado em julho (regra existe num lugar, ignorada em outro). Atenção ao corrigir: `setFieldSlot` (`game.js:369`) só marca `_fieldDirty`, precisaria marcar `_gearDirty` também.
 
-🟠 **B6 — "Formação Estendida" (5º slot) não invalida o cache de sinergia.** `expansion.js:284` marca `UI.dirty.heroes` mas não `Game._fieldDirty`; `_lastSynergy.slots` fica em 4, então o medidor de sinergia mostra o campo como cheio até o jogador mover um herói manualmente.
+🟠 **B6 — "Formação Estendida" (5º slot) não invalida o cache de sinergia.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+`expansion.js:284` marca `UI.dirty.heroes` mas não `Game._fieldDirty`; `_lastSynergy.slots` fica em 4, então o medidor de sinergia mostra o campo como cheio até o jogador mover um herói manualmente.
 
 🟠 **B7 — Progressão de combate trava em aba de fundo.** `dt` é limitado a 2s (`main.js:36`) e `damageEnemy` (`game.js:829-834`) descarta dano excedente — só 1 inimigo morre por tick. Navegadores estrangulam `setInterval` em background para ~1×/s, e `computeOffline` (`game.js:1485`) credita ouro/conhecimento/materiais mas nenhuma onda/abate — deixar o jogo aberto em outra aba é pior que fechá-lo, para combate. Isso também cria um teto duro de 10 abates/s no late-game: acima de certo DPS, mais dano deixa de acelerar progressão.
 
@@ -319,6 +322,6 @@ Geradores (`ui.js:1810`, até 11), salas (`ui.js:1910`, 13 — cada uma chamando
 
 ### 12.5 — Ordem de execução sugerida
 
-B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — todos os três já corrigidos)* → P1 → P2 → P3 → P4 → P5 → P6 → P7 → P8 → P9 → P10 *(performance — toda a Parte 12.1 já corrigida, exceto o rabo pequeno de P7 em `worldInfo()`/`matPerSec()`)* → B5 + B6 *(consistência de regra campo vs. banco)* → O1 *(decidir destino de `monetization.js`)* → D1 *(rebalancear a Árvore do Mundo)* → resto.
+B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — todos os três já corrigidos)* → P1 → P2 → P3 → P4 → P5 → P6 → P7 → P8 → P9 → P10 *(performance — toda a Parte 12.1 já corrigida, exceto o rabo pequeno de P7 em `worldInfo()`/`matPerSec()`)* → B5 + B6 *(consistência de regra campo vs. banco — os dois já corrigidos)* → O1 *(decidir destino de `monetization.js`)* → D1 *(rebalancear a Árvore do Mundo)* → resto.
 
 **Resumo em uma frase:** o motor cresceu 2,6× desde julho mantendo a separação de responsabilidades honesta, mas cresceu sem cache — `synergyBonuses()` sozinho queima ~400k operações/s recalculando algo que só muda quando o jogador move uma sala — e os bugs de maior impacto (import de save inerte, meta impossível, Bolsa que nunca detecta melhoria) são todos código que *parece* funcionar e nunca executa o caminho que importa.

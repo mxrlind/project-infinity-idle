@@ -2,6 +2,22 @@
 
 ## Não lançado
 
+### Equipamento e Conjuntos deixam de valer com o herói na reserva (AUDIT PARTE 12, B5/B6)
+
+`recomputeGearBonuses()` e `activeSetCounts()` (afixo "Estandarte" e bônus de Conjuntos 2pç/4pç)
+iteravam TODOS os heróis, enquanto o resto do sistema (`teamDps`, sinergia de time, papéis) só
+considera quem está no Campo de Batalha — guardar uma arma com afixo de time na reserva dava o bônus
+de graça, e um Conjunto completava sem nenhuma peça em campo. Restrito a `Game.fieldHeroes()` nos dois
+lugares; `setFieldSlot` agora marca `_gearDirty` além de `_fieldDirty` (mover um herói pra dentro ou
+fora do campo muda quais peças contam).
+
+De quebra, um segundo bug ficou visível ao corrigir o primeiro: concluir a pesquisa "Formação
+Estendida" (5º slot de campo) marcava a UI como suja mas não o cache de sinergia — o medidor
+continuava mostrando "4/4 slots" até o jogador mover um herói manualmente. `completeResearch` agora
+marca `_fieldDirty` também nesse caso.
+
+Suíte de testes 62 → 65.
+
 ### Performance: resto da Parte 12.1 — DOM, índices por id e menos trabalho por clique (AUDIT PARTE 12, P4-P10)
 
 Continuação do passe de performance (depois de P1/P2/P3): fecha a lista inteira de gargalos medidos.

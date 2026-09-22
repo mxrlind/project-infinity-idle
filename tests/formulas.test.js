@@ -749,4 +749,50 @@ test('cache de closestAchievement (P2): só atualiza via refreshClosestAch/check
   assertTrue(!after || after.ach.id !== before.ach.id, 'checkAchievements atualiza o cache — a conquista já destravada some da lista de "mais perto"');
 });
 
+// ---------- Regra campo vs. reserva (AUDIT.md B5/B6) ----------
+
+test('recomputeGearBonuses (B5): afixo de time só conta com o herói EM CAMPO', () => {
+  S = defaultState();
+  const heroId = HEROES[0].id;
+  const item = { uid: 1, slot: 'arma', rarity: 2, mult: 0.1, affixes: [{ type: 'team', val: 0.05 }] };
+  S.heroes[heroId] = { lvl: 10, gear: { arma: item, amuleto: null }, fieldSlot: null };   // na RESERVA
+  Game._gearDirty = true; Game._fieldDirty = true;
+  Game.ensureGearBonus();
+  assertClose(Game.gearBonus.team, 0, 1e-9, 'herói na reserva não concede o afixo de time');
+
+  Game.setFieldSlot(heroId, 0);   // agora em campo
+  Game.ensureGearBonus();
+  assertClose(Game.gearBonus.team, 0.05, 1e-9, 'o mesmo herói em campo concede o afixo');
+
+  Game.setFieldSlot(heroId, null);   // de volta pra reserva
+  Game.ensureGearBonus();
+  assertClose(Game.gearBonus.team, 0, 1e-9, 'e voltar pra reserva remove de novo (setFieldSlot marca _gearDirty)');
+});
+
+test('activeSetCounts (B5): conjunto só conta peças EM CAMPO', () => {
+  S = defaultState();
+  const setDef = GEAR_SETS[0];
+  const ids = HEROES.slice(0, 2).map(h => h.id);
+  S.heroes[ids[0]] = { lvl: 10, gear: { arma: { uid: 1, slot: 'arma', rarity: 2, mult: 0.1, set: setDef.id }, amuleto: null }, fieldSlot: null };
+  S.heroes[ids[1]] = { lvl: 10, gear: { arma: { uid: 2, slot: 'arma', rarity: 2, mult: 0.1, set: setDef.id }, amuleto: null }, fieldSlot: null };
+  Game._gearDirty = true; Game._fieldDirty = true;
+  assertEqual(Game.activeSetCounts()[setDef.id] || 0, 0, 'duas peças na reserva não formam o conjunto 2pç');
+
+  Game.setFieldSlot(ids[0], 0);
+  Game.setFieldSlot(ids[1], 1);
+  assertEqual(Game.activeSetCounts()[setDef.id], 2, 'as mesmas duas peças EM CAMPO contam');
+});
+
+test('slot5 (B6): concluir a pesquisa invalida o cache de sinergia na hora, sem esperar mover um herói', () => {
+  S = defaultState();
+  const def = RESEARCH.find(r => r.unlock === 'slot5');
+  assertTrue(!!def, 'existe uma pesquisa que desbloqueia o 5º slot');
+  Game.ensureSynergy();
+  assertEqual(Game._lastSynergy.slots, FIELD_SLOTS, 'antes da pesquisa, o medidor mostra 4 slots');
+  Game.completeResearch(def.id);
+  assertEqual(Game._fieldDirty, true, 'completeResearch já deixa o cache de campo marcado como sujo');
+  Game.ensureSynergy();
+  assertEqual(Game._lastSynergy.slots, FIELD_SLOTS + 1, 'e o medidor já reflete o 5º slot sem precisar mover herói nenhum');
+});
+
 runTests();

@@ -167,7 +167,10 @@ const Game = {
 
   recomputeGearBonuses() {
     const b = { team: 0, gold: 0, crit: 0, mat: 0 };
-    for (const id in S.heroes) {
+    // AUDIT.md B5: bônus GLOBAIS de equipamento (afixo "Estandarte" etc.) contavam heróis na RESERVA,
+    // enquanto teamDps/recomputeSynergy/_roleEff só usam fieldHeroes() — guardar uma arma de time no
+    // banco dava o bônus de graça. Restrito aos heróis em campo, mesma regra do resto do sistema.
+    for (const id of this.fieldHeroes()) {
       const gear = S.heroes[id].gear;
       for (const slot of GEAR_SLOTS) {
         const item = gear[slot.id];
@@ -382,6 +385,10 @@ const Game = {
     }
     h.fieldSlot = slotIndex;
     this._fieldDirty = true;
+    // AUDIT.md B5: mover um herói pra dentro/fora do campo muda quais peças de equipamento contam
+    // pros bônus globais e pros Conjuntos (agora restritos a fieldHeroes()) — sem isso o cache de
+    // gear ficava com o valor de ANTES da troca até algo mais alheio marcar _gearDirty.
+    this._gearDirty = true;
     UI.dirty.heroes = true;
     return true;
   },

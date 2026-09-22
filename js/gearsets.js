@@ -22,8 +22,11 @@ Object.assign(Game, {
 
   // peças EQUIPADAS por set, somando os dois slots de todos os heróis contratados
   activeSetCounts() {
+    // AUDIT.md B5: contava peças de conjunto em TODOS os heróis, inclusive na reserva — um Conjunto
+    // de 4 peças completava sem nenhuma peça em campo. Restrito a fieldHeroes(), mesma regra de
+    // recomputeGearBonuses() (game.js).
     const counts = {};
-    for (const id in S.heroes) {
+    for (const id of this.fieldHeroes()) {
       for (const slot of GEAR_SLOTS) {
         const item = S.heroes[id].gear[slot.id];
         if (item && item.set) counts[item.set] = (counts[item.set] || 0) + 1;
