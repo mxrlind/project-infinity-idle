@@ -185,12 +185,9 @@ Object.assign(UI, {
 
   researchCostHtml(def) {
     const cost = Game.researchCost(def);
-    const names = { madeira: '🪵', pedra: '🪨', ferro: '⛓️', cristal: '💠' };
-    const parts = [];
-    parts.push(`<span class="${S.res.conhecimento >= cost.know ? '' : 'cost-missing'}">${fmt(cost.know)} 📘</span>`);
-    if (cost.gold > 0) parts.push(`<span class="${S.gold >= cost.gold ? '' : 'cost-missing'}">${fmt(cost.gold)} ouro</span>`);
-    for (const k in cost.mats) parts.push(`<span class="${(S.res[k] || 0) >= cost.mats[k] ? '' : 'cost-missing'}">${fmt(cost.mats[k])} ${names[k] || k}</span>`);
-    return parts.join(' · ');
+    const flat = Object.assign({ conhecimento: cost.know, gold: cost.gold }, cost.mats);
+    const names = { conhecimento: '📘', gold: 'ouro', madeira: '🪵', pedra: '🪨', ferro: '⛓️', cristal: '💠' };
+    return this.costHtml(flat, k => k === 'gold' ? S.gold : (S.res[k] || 0), names, new Set(['conhecimento']));
   },
 
   // ---------- Aba: Mercado ----------
@@ -323,9 +320,7 @@ Object.assign(UI, {
         else {
           rBox.innerHTML = `🗒️ ${rt} <span class="npc-prog">(${fmt(Math.min(have, req.need))}/${fmt(req.need)})</span> — `;
           const deliver = this.el('button', 'buy-btn npc-claim', 'Entregar');
-          const afford = have >= req.need;
-          deliver.classList.toggle('afford', afford);
-          deliver.disabled = !afford;
+          this.setAfford(deliver, have >= req.need);
           deliver.onclick = () => { if (Game.claimRequest(def.id)) { this.dirty.city = true; this.renderActive(); } };
           rBox.appendChild(deliver);
           this.R.cityReq.push({ npcId: def.id, btn: deliver, progEl: rBox.querySelector('.npc-prog') });
@@ -340,16 +335,12 @@ Object.assign(UI, {
         if (!info) return;
         const used = S.npcs.used[def.id] && S.npcs.used[def.id][i];
         const row = this.el('div', 'npc-offer' + (used ? ' used' : ''));
-        const costHtml = Object.keys(info.cost).map(k => {
-          const have = k === 'gold' ? S.gold : (S.res[k] || 0);
-          const names = { gold: 'ouro', madeira: '🪵', pedra: '🪨', ferro: '⛓️', cristal: '💠', conhecimento: '📘' };
-          return `<span class="${have >= info.cost[k] ? '' : 'cost-missing'}">${fmt(info.cost[k])} ${names[k] || k}</span>`;
-        }).join(' · ');
+        const npcCostNames = { gold: 'ouro', madeira: '🪵', pedra: '🪨', ferro: '⛓️', cristal: '💠', conhecimento: '📘' };
+        const costHtml = this.costHtml(info.cost, k => k === 'gold' ? S.gold : (S.res[k] || 0), npcCostNames, new Set(Object.keys(info.cost)));
         row.innerHTML = `<div class="npc-offer-label">${info.label}</div>`;
         const btn = this.el('button', 'buy-btn npc-offer-btn');
         btn.innerHTML = used ? 'Esgotado hoje' : `Comprar<br><span class="btn-cost">${costHtml}</span>`;
-        btn.disabled = used || !Game.canAffordOffer(info.cost);
-        btn.classList.toggle('afford', !used && Game.canAffordOffer(info.cost));
+        this.setAfford(btn, !used && Game.canAffordOffer(info.cost));
         btn.onclick = () => { if (Game.useOffer(def.id, i)) { this.dirty.city = true; this.renderActive(); } else Sound.play('error'); };
         row.appendChild(btn);
         oBox.appendChild(row);
@@ -422,8 +413,7 @@ Object.assign(UI, {
         const cost = Game.petFeedCost(ref.id);
         const ok = p.lvl < PET_MAX_LVL && (S.res[cost.res] || 0) >= cost.amount;
         ref.feedBtn.innerHTML = p.lvl >= PET_MAX_LVL ? 'MÁXIMO' : `🍖 Alimentar<br><span class="btn-cost">${fmt(cost.amount)} ${ref.resIcons[cost.res] || cost.res}</span>`;
-        ref.feedBtn.disabled = !ok;
-        ref.feedBtn.classList.toggle('afford', ok);
+        this.setAfford(ref.feedBtn, ok);
       }
     }
 
@@ -437,9 +427,7 @@ Object.assign(UI, {
       if (this.R.research.queue.length !== S.research.queue.length) { this.dirty.research = true; this.renderActive(); return; }
       for (const ref of this.R.research.cards) {
         ref.costEl.innerHTML = this.researchCostHtml(ref.def);
-        const ok = Game.canStartResearch(ref.def.id);
-        ref.btn.disabled = !ok;
-        ref.btn.classList.toggle('afford', ok);
+        this.setAfford(ref.btn, Game.canStartResearch(ref.def.id));
       }
     }
 
@@ -456,10 +444,8 @@ Object.assign(UI, {
         ref.sellBtn.innerHTML = `Vender ×${fmt(Math.max(0, sellN))}<br><span class="btn-cost">+${fmt(sellGain)} ouro</span>`;
         const canBuy = buyN > 0 && S.gold >= Game.marketBuyPrice(ref.id) * buyN;
         const canSell = sellN > 0 && owned >= sellN;
-        ref.buyBtn.disabled = !canBuy;
-        ref.buyBtn.classList.toggle('afford', canBuy);
-        ref.sellBtn.disabled = !canSell;
-        ref.sellBtn.classList.toggle('afford', canSell);
+        this.setAfford(ref.buyBtn, canBuy);
+        this.setAfford(ref.sellBtn, canSell);
       }
     }
 
@@ -468,17 +454,13 @@ Object.assign(UI, {
         if (ref.used) continue;
         const info = Game.npcOfferInfo(ref.npcId, ref.i);
         if (!info) continue;
-        const ok = Game.canAffordOffer(info.cost);
-        ref.btn.disabled = !ok;
-        ref.btn.classList.toggle('afford', ok);
+        this.setAfford(ref.btn, Game.canAffordOffer(info.cost));
       }
       if (this.R.cityReq) for (const ref of this.R.cityReq) {
         const req = S.npcs.request[ref.npcId];
         if (!req || req.claimed) continue;
         const have = S.res[req.res] || 0;
-        const ok = have >= req.need;
-        ref.btn.disabled = !ok;
-        ref.btn.classList.toggle('afford', ok);
+        this.setAfford(ref.btn, have >= req.need);
         if (ref.progEl) ref.progEl.textContent = `(${fmt(Math.min(have, req.need))}/${fmt(req.need)})`;
       }
     }

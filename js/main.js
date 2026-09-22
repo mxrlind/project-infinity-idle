@@ -12,6 +12,7 @@
   Game.scheduleEvent();
   Game.scheduleGolden();
   Game.refreshClosestAch();   // seed do cache (P2) — senão a caixa "Mais perto de desbloquear" fica vazia até o 1º achTimer de 2s
+  Game._codexPctCache = Game.codexCompletion().pct;   // seed do badge do Códex (D8), mesmo motivo
   if (S.combat.maxHp <= 0) Game.spawnEnemy();
 
   UI.init();

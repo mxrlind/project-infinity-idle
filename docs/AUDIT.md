@@ -233,10 +233,10 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 
 *Revisão focada em performance, bugs e organização, cobrindo o que foi escrito depois da Parte 0–11 (a base cresceu 2,6× — 3.166 → ~8.300 linhas). `node tests/run.js` = 59/59 passando no momento desta auditoria.*
 
-> **Status de execução:** 🔴 B1, 🔴 B2, 🔴 B3, 🟠 B4, 🟠 B5, 🟠 B6, 🟠 B7, 🟡 B8, 🟡 B9, 🟡 B10,
-> 🟡 B11, 🟡 B12, 🟢 B13, **P1–P10 inteiros**, 🔴 O1 e 🔴 D1 corrigidos em 2026-09-21 (ver
-> [CHANGELOG.md](CHANGELOG.md)) — a Parte 12.1 (desempenho) e a Parte 12.2 (bugs) estão 100%
-> fechadas. Resta O2–O7, D2–D8.
+> **Status de execução (2026-09-21):** Partes 12.1 (desempenho), 12.2 (bugs) e 12.3 (organização)
+> estão **100% fechadas**. Da 12.4 (design), D1/D2/D5/D6/D8 estão fechados — só restam **D3, D4, D7**,
+> e os três são decisões de produto/conteúdo (não bugs), aguardando direção antes de virar código.
+> Ver [CHANGELOG.md](CHANGELOG.md) para o detalhe de cada item.
 
 ### 12.1 — Gargalos de desempenho
 
@@ -293,38 +293,43 @@ Geradores (`ui.js:1810`, até 11), salas (`ui.js:1910`, 13 — cada uma chamando
 
 🔴 **O1 — `js/monetization.js` (521 linhas) não está referenciado em `index.html`, mas é uma armadilha se alguém ligar.** Tem `STRIPE_PUBLIC_KEY: 'pk_live_xxxxx'` hardcoded, `JSON.parse` sem try/catch alimentando `Object.assign(this, data)` sobre dado de `localStorage` (permite sobrescrever métodos do próprio objeto), handlers `onclick="MONETIZATION.buyItem(...)"` inline (estilo oposto ao resto do projeto), CSS 100% inline fora do design system (um botão nasceria sobreposto ao `#topbar`), abas de shop que nunca trocam estado visual ativo, um `setInterval` de 5 min (`trackRevenue`) que só faz `console.log` e nunca é limpo, e zero integração com `S`/save (chave de `localStorage` separada — "compras" não sobrevivem a export/import nem a hard reset). Recomendação: mover para `docs/`/`prototypes/` como referência de produto, ou reescrever no padrão do projeto antes de ligar.
 
-🟠 **O2 — regras de negócio na UI em sistemas novos** (mesma categoria do exploit de julho, mas contido — não chega a ser explorável hoje): `UI.renderRelics` decide o slot livre (`relics-ui.js:116`, `indexOf(null)`) sem um `Game.equipRelicFirstFree()` equivalente a `Game.firstFreeFieldSlot()`; `renderProd`/`renderRecruit`/`updateDynamic` reimplementam o mesmo filtro de visibilidade **três vezes** (`ui.js:220-222`, `511-513`, `1823-1827`, com comentário admitindo que precisam ficar idênticas). Pontos bons registrados: `buyGen`/`hireHero` já validam `reqPrestige` no motor, e `canGrowWorldTree` (`worldtree.js:31-40`) documenta explicitamente por que o gate vive lá — o padrão certo existe, só não é universal ainda.
+🟠 **O2 — regras de negócio na UI em sistemas novos.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+`UI.renderRelics` decidia o slot livre (`relics-ui.js:116`, `indexOf(null)`) sem um `Game.equipRelicFirstFree()` equivalente a `Game.firstFreeFieldSlot()`; `renderProd`/`renderRecruit`/`updateDynamic` reimplementavam o mesmo filtro de visibilidade **três vezes**.
 
-🟠 **O3 — duplicação entre os `*-ui.js`**: 5 implementações do widget "HTML de custo multi-recurso" (`roomCostHtml`, `forgeCostPart`, `researchCostHtml`, `worldTreeCostHtml`, inline de ofertas de NPC), cada uma com seu próprio dicionário de ícones de recurso; padrão "botão com afford" (`classList.toggle('afford', ok); disabled = !ok`) repetido ~12×; seletor ×1/×10/Máx implementado 3× (`ui.js:206-213`, `314-319`, `worldtree-ui.js:52-56`) — a versão da Árvore do Mundo perdeu `aria-pressed`/`aria-label`, regredindo a acessibilidade do item ✅13 da Parte 9.
+🟠 **O3 — duplicação entre os `*-ui.js`.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+5 implementações do widget "HTML de custo multi-recurso" unificadas em `UI.costHtml()`; padrão "botão com afford" (~12×) unificado em `UI.setAfford()`; seletor ×1/×10/Máx (3×) unificado em `UI.buyAmountBar()` — a versão da Árvore do Mundo recuperou `aria-pressed`/`aria-label`.
 
-🟡 **O4 — números mágicos que duplicam texto de `data.js`**: multiplicadores de sala hardcoded em `game.js` (linhas 34-36, 410-411, 464, 524, 1019) repetem os mesmos percentuais que já estão escritos nos `desc` de `ROOMS` (`data.js:280-294`) — duas fontes de verdade para manter sincronizadas a cada ajuste de balanceamento. Também sem constante nomeada: curvas de HP de inimigo/chefe (`game.js:452,459`), timer de chefe (`game.js:482-483`), chances de drop (`game.js:581,590,823`), volatilidade de mercado (`expansion.js:350`).
+🟡 **O4 — números mágicos que duplicam texto de `data.js`.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+Cada `ROOMS` com bônus numérico ganhou `perLevel` (`data.js`) + `desc` como getter template sobre esses valores; `game.js` lê `ROOMS_BY_ID.<id>.perLevel.*` em vez de repetir o número — inclui cofre/templo/castelo/torre/arena/quartel/oficina/gerador/lab/biblioteca/serraria/mina_r (13 salas, não só as 3 do exemplo original).
 
-🟡 **O5 — ~80 globais em `window`** (aceitável sem bundler, ordem de `<script>` em `index.html:81-101` documenta a dependência), com um near-miss já existente: `RESEARCH_MAX_COMPLETABLE` (`data.js:845`) é calculado na avaliação de `data.js` e consumido por `ACHIEVEMENTS.rs3` (`data.js:665`) — só funciona porque a ordem de declaração é essa.
+🟡 **O5 — ~80 globais em `window`** (aceitável sem bundler) — comentário adicionado em 2026-09-21 documentando explicitamente a dependência de ordem de `RESEARCH_MAX_COMPLETABLE`/`ACHIEVEMENTS.rs3` (é segura hoje por ser uma closure, mas frágil a refactors futuros). Estrutural, não corrigido — não há bundler pra corrigir de verdade sem reescrever o carregamento do projeto.
 
-🟡 **O6 — tratamento de erro inconsistente**: `catch (e) {}` silencioso em vários pontos (`state.js:148,153`, `game.js:1362`, `expansion.js:732`, `daily.js:42`), guarda defensiva bem documentada em `npcLevel` (`expansion.js:414-416`), e nenhuma guarda em `renderBag` (`ui.js:559`), que quebraria se `RARITIES[best]` fosse `undefined` por uma raridade inválida vinda de save importado.
+🟡 **O6 — tratamento de erro inconsistente.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+`renderBag` ganhou o clamp que faltava em `RARITIES[best]`; os 5 `catch (e) {}` silenciosos (state.js×2, game.js, expansion.js, daily.js) ganharam comentário explicando por que o silêncio é intencional em cada um (mesmo padrão já usado em `npcLevel`).
 
-🟢 **O7 — código morto legado**: `Game.synergyMult` (`game.js:200`, marcado "(legado)") e `SYNERGY_MAX_BONUS` (`data.js:152`, "compat com saves") não são lidos por ninguém; `o._target` (`expansion.js:591`) grava campo transitório dentro de `S.npcs.offers`, que vai pro save.
+🟢 **O7 — código morto legado.** *(corrigido em 2026-09-21, ver CHANGELOG)*
+`Game.synergyMult`/`SYNERGY_MAX_BONUS` removidos (confirmado sem leitores); `o._target` parou de gravar em `S.npcs.offers` (virou variável local `temperTarget`) — não persiste mais lixo no save.
 
 ### 12.4 — Ideias de design (baseadas no conteúdo real de `data.js`/`expansion.js`)
 
-🔴 **D1 — a Árvore do Mundo tem 2/3 do conteúdo matematicamente inalcançável.** Custos por nível (`data.js:574-581`, bases 1.15/1.32) nos estágios de nível 150/400/1000 (`data.js:582-589`) exigem essência/cristal na casa de 1e18–1e24+, muito além do que `essenceGain = (earned/1e8)^0.45` (`game.js:1241`) consegue produzir em qualquer curva realista de late-game. Achatar as bases (~1.06–1.08) ou reposicionar os estágios (ex: 0/5/15/40/80/150) resolveria.
+🔴 **D1 — a Árvore do Mundo tem 2/3 do conteúdo matematicamente inalcançável.** *(corrigido em 2026-09-21, ver CHANGELOG)*
 
-🟠 **D2 — o teto de 10 abates/s (ligado ao B7) satura o valor de investir em DPS no late-game.** Uma mecânica de "abater múltiplos inimigos por tick quando o DPS excede o HP da onda" transformaria excesso de DPS em progressão visível.
+🟠 **D2 — o teto de 10 abates/s (ligado ao B7) satura o valor de investir em DPS no late-game.** *(resolvido de fato pelo fix de B7 em 2026-09-21 — `damageEnemy` agora encadeia overkill em múltiplos abates por chamada, exatamente a mecânica sugerida aqui; nenhuma UI de "multi-abate" foi adicionada além disso, não pareceu necessária além do log existente)*
 
-🟠 **D3 — Fases 7 e 8 continuam teasers vazios**; a Fase 8 (100T) nem tem notificação em `updatePhases` (`game.js:1307-1312`). Decidir entre dar conteúdo real à aba "???"/guildas ou remover a Fase 8 e assumir a Árvore do Mundo/Ascensão como o endgame declarado.
+🟠 **D3 — Fases 7 e 8 continuam teasers vazios**; a Fase 8 (100T) nem tem notificação em `updatePhases`. **Decisão de produto pendente, não implementada nesta rodada** — dar conteúdo real à aba "???"/guildas é uma feature grande (não um bugfix), e remover a Fase 8 é uma decisão irreversível de escopo declarado; nenhuma das duas foi tomada unilateralmente.
 
-🟠 **D4 — a reserva de heróis não tem função própria** (e hoje é a superfície do exploit B5): com `FIELD_SLOTS = 4` (`data.js:150`) e 10 heróis, 6 ficam parados só custando. Sugestões que reaproveitam sistemas existentes: expedições em tempo real (mesma mecânica de fila de `RESEARCH`), treinamento (XP cedido de um herói banco pra um em campo), ou rotação tática puxada pelos requisitos de papel dos chefes (`BOSS_MECHANICS.req.role`, `data.js:484-497`) — hoje o aviso de mecânica (`bosses-ui.js:7`) chega depois do spawn, tarde demais pra decidir.
+🟠 **D4 — a reserva de heróis não tem função própria** (6 dos 10 heróis só custam, parados). **Decisão de produto pendente, não implementada** — três abordagens concorrentes (expedições/treinamento/rotação tática), cada uma um sistema novo de porte real; pede escolha do dono do jogo antes de qualquer código.
 
-🟡 **D5 — a renda passiva do Mercado (`mercadoGoldPerSec`, `game.js:15-19`) fica fora de `globalProdMult()`** — não recebe essência, conquistas, talentos, salas, upgrades globais nem Árvore do Mundo, mas recebe todos os bônus de ouro-por-abate. Provavelmente não intencional; a sala fica obsoleta exatamente quando os multiplicadores principais crescem.
+🟡 **D5 — a renda passiva do Mercado ficava fora de `globalProdMult()`.** *(corrigido em 2026-09-21, ver CHANGELOG — confirmado não intencional)*
 
-🟡 **D6 — as melhores decisões do jogo (Relíquias) estão escondidas atrás de dezenas de horas/dias**: chefe onda ≥40 (8% chance), Colecionador atrás da pesquisa `cidade` (7200s, atrás de `comercio`), ou pesquisa `portais` (259.200s = 3 dias reais). Dar a primeira relíquia garantida no primeiro chefe da onda 20 ensinaria o sistema enquanto ainda é decisão, não otimização. Mesma observação para os ramos de pesquisa mutuamente exclusivos (1 dia real cada) — os pares de Talento já resolvem isso melhor, disponíveis cedo na Fase 4.
+🟡 **D6 — as melhores decisões do jogo (Relíquias) estavam escondidas atrás de dezenas de horas/dias.** *(corrigido em 2026-09-21, ver CHANGELOG — 1ª relíquia agora garantida na onda 20)* Observação sobre pesquisa exclusiva (1 dia real) mantida como nota, não implementada — mudar o tempo de pesquisa é decisão de balanceamento maior que uma garantia pontual.
 
-🟡 **D7 — Metas do Dia é o único gancho de retenção entre sessões, e roda com 7 das 8 metas** (B2) e sem marco de sequência acima de `DAILY_STREAK_MAX = 10` — o exato momento em que o hábito se formaria fica sem recompensa adicional. Há eventos já registrados em `S` e não usados no pool (`market.stats.bought`, `npcs.requestsDone`, níveis de sala/Árvore do Mundo).
+🟡 **D7 — Metas do Dia sem marco de sequência acima de `DAILY_STREAK_MAX = 10`, e eventos registrados em `S` fora do pool** (`market.stats.bought`, `npcs.requestsDone`, níveis de sala/Árvore do Mundo). **Não implementado nesta rodada** — decisão de conteúdo/balanceamento (o que premiar após o streak máximo, quais eventos novos valem virar meta) que pede direção do dono do jogo, não só código.
 
-🟢 **D8 — o Códex já agrega 9 categorias de completude (`codexCompletion`, `expansion.js:747-766`) mas não tem indicador visível** fora do modal — um badge de % no botão do topbar é custo quase zero e dá um gancho de "colecionador" pro jogador que já esgotou a curva de números.
+🟢 **D8 — o Códex não tinha indicador visível fora do modal.** *(corrigido em 2026-09-21, ver CHANGELOG — badge de % no botão do topbar, cacheado no mesmo cadenciamento de 2s de `checkAchievements`)*
 
 ### 12.5 — Ordem de execução sugerida
 
-B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — todos os três já corrigidos)* → P1 → P2 → P3 → P4 → P5 → P6 → P7 → P8 → P9 → P10 *(performance — toda a Parte 12.1 já corrigida, exceto o rabo pequeno de P7 em `worldInfo()`/`matPerSec()`)* → B5 + B6 *(consistência de regra campo vs. banco — os dois já corrigidos)* → O1 *(decidir destino de `monetization.js` — movido para `docs/prototypes/`)* → D1 *(rebalancear a Árvore do Mundo — já corrigido)* → B4 + B7–B13 *(resto dos bugs — todos já corrigidos, a Parte 12.2 inteira está fechada)* → resto (O2–O7, D2–D8).
+B1 → B2 → B3 → P1–P10 → B5 + B6 → O1 → D1 → B4 + B7–B13 → O2 → O3 → O4 → O5 (documentado, não corrigível sem bundler) → O6 → O7 → D2 (resolvido de graça pelo B7) → D5 → D6 → D8 *(toda a Parte 12.1, 12.2, 12.3 fechadas; 12.4 com D1/D2/D5/D6/D8 fechados)*. **Restam D3, D4, D7 — decisões de produto/conteúdo, não bugs, aguardando direção do dono do jogo antes de qualquer implementação.**
 
 **Resumo em uma frase:** o motor cresceu 2,6× desde julho mantendo a separação de responsabilidades honesta, mas cresceu sem cache — `synergyBonuses()` sozinho queima ~400k operações/s recalculando algo que só muda quando o jogador move uma sala — e os bugs de maior impacto (import de save inerte, meta impossível, Bolsa que nunca detecta melhoria) são todos código que *parece* funcionar e nunca executa o caminho que importa.

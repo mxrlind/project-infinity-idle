@@ -9,13 +9,17 @@ const Game = {
   roomLvl(id) { return S.rooms[id] || 0; },
 
   // Multiplicador geral da Base (Castelo): amplifica sinergias de vizinhança e os edifícios avançados.
-  baseMult() { return 1 + 0.10 * this.roomLvl('castelo'); },
+  baseMult() { return 1 + ROOMS_BY_ID.castelo.perLevel.allPct * this.roomLvl('castelo'); },
 
-  // Renda passiva do Mercado — escala com a maior onda (nunca fica obsoleta) e com a Base (Castelo/Templo).
+  // Renda passiva do Mercado — escala com a maior onda (nunca fica obsoleta). AUDIT D5: devolve o
+  // valor BASE, sem multiplicadores próprios — `goldPerSec()` aplica `globalProdMult()` (que já inclui
+  // baseMult/Castelo, buffMult('prod') etc.) sobre geradores+Mercado juntos. Antes o Mercado só
+  // recebia baseMult+buffMult, ficando de fora de conquistas/essência/talentos/sinergias/upgrades —
+  // exatamente quando esses multiplicadores mais crescem no late-game, a sala mais ficava pra trás.
   mercadoGoldPerSec() {
     const lvl = this.roomLvl('mercado');
     if (lvl <= 0) return 0;
-    return lvl * this.enemyGold(S.combat.maxWave, false) * 0.4 * this.baseMult() * this.buffMult('prod');
+    return lvl * this.enemyGold(S.combat.maxWave, false) * 0.4;
   },
 
   buffMult(kind) {
@@ -31,8 +35,8 @@ const Game = {
     m *= 1 + 0.02 * S.essence;                             // essência
     m *= 1 + 0.05 * this.talentLvl('ganancia');            // talento
     m *= 1 + 0.03 * this.talentLvl('harmonia') * S.prestiges;
-    m *= 1 + 0.06 * this.roomLvl('cofre');                 // sala
-    m *= 1 + 0.04 * this.roomLvl('templo') * this.baseMult(); // Templo: buff de produção global (×Castelo)
+    m *= 1 + ROOMS_BY_ID.cofre.perLevel.goldPct * this.roomLvl('cofre');
+    m *= 1 + ROOMS_BY_ID.templo.perLevel.globalPct * this.roomLvl('templo') * this.baseMult(); // Templo: buff de produção global (×Castelo)
     m *= 1 + this.synergyBonuses().gold;                   // sinergia de vizinhança na Base
     m *= 1 + this.teamSynergy().prod;                      // sinergia de time (faixa 60%)
     for (const u of UPGRADES_BY_TYPE.global) if (S.upgrades[u.id]) m *= u.mult;
@@ -58,7 +62,8 @@ const Game = {
   goldPerSec() {
     let total = 0;
     for (const g of GENERATORS) total += this.genProd(g.id);
-    return total * this.globalProdMult() + this.mercadoGoldPerSec();   // + renda passiva do Mercado
+    total += this.mercadoGoldPerSec();
+    return total * this.globalProdMult();
   },
 
   genCost(genId, count = 1) {
@@ -200,7 +205,6 @@ const Game = {
   // Recalculado só quando a composição do campo muda (contratar/escalar/desescalar/prestígio),
   // via flag _fieldDirty. teamDps() lê o cache em O(1) por tick.
   _fieldDirty: true,
-  synergyMult: 1,   // (legado) mantido em sincronia com a faixa de Ataque para compat
   _lastSynergy: { counts: { tank: 0, dps: 0, support: 0 }, pct: 0, n: 0, matched: 0, slots: FIELD_SLOTS },
 
   ensureSynergy() {
@@ -276,7 +280,6 @@ const Game = {
     const pct = n === 0 ? 0 : Math.round(Math.min(100,
       compScore * SYNERGY_WEIGHTS.comp + fillScore * SYNERGY_WEIGHTS.fill + specScore * SYNERGY_WEIGHTS.spec));
     this._lastSynergy = { counts, n, matched, slots, pct, compScore, fillScore, specScore, teamSynergies };
-    this.synergyMult = 1 + (pct >= 20 ? SYNERGY_TIER_VAL.atk : 0) + (pct >= 100 ? SYNERGY_MEGA.atk : 0);
   },
 
   // bônus agregados por faixa (usados nas fórmulas do motor). A faixa 100% ativa o Estado Perfeito (+50% tudo).
@@ -316,7 +319,7 @@ const Game = {
     const h = S.heroes[heroId];
     if (!h) return 1;
     let m = 1;
-    const power = 1 + 0.10 * this.roomLvl('oficina') + this.synergyBonuses().equip;
+    const power = 1 + ROOMS_BY_ID.oficina.perLevel.gearPct * this.roomLvl('oficina') + this.synergyBonuses().equip;
     for (const slot of GEAR_SLOTS) {
       const item = h.gear[slot.id];
       if (!item) continue;
@@ -420,8 +423,8 @@ const Game = {
     const critCh = Math.min(FORGE_CRIT_CAP, this.gearBonus.crit + this.extCritBonus() + re.crit);
     total *= 1 + critCh * (FORGE_CRIT_MULT - 1);
     total *= 1 + this.teamSynergy().atk;        // sinergia de time (faixas 20% + Estado Perfeito 100%)
-    total *= 1 + 0.10 * this.roomLvl('quartel');
-    total *= 1 + 0.08 * this.roomLvl('torre') * this.baseMult();  // Torre Arcana: DPS mágico (×Castelo)
+    total *= 1 + ROOMS_BY_ID.quartel.perLevel.dpsPct * this.roomLvl('quartel');
+    total *= 1 + ROOMS_BY_ID.torre.perLevel.magicDpsPct * this.roomLvl('torre') * this.baseMult();  // Torre Arcana (×Castelo)
     total *= 1 + this.synergyBonuses().dps;     // sinergia de vizinhança (ex.: Quartel + Oficina)
     total *= 1 + 0.10 * this.talentLvl('furia');
     // trade-off de talento (AUDIT item 8): Assalto Total vs Guarda Calculada
@@ -474,7 +477,7 @@ const Game = {
     g *= 1 + this.gearBonus.gold;              // afixo "Cobiça" (ouro por abate)
     g *= 1 + this.teamRoleEffects().gold;      // papel: Bardo em campo (+ouro por abate)
     g *= 1 + this.teamSynergy().gold;          // sinergia de time (faixa 40%)
-    if (boss) g *= 1 + 0.12 * this.roomLvl('arena') * this.baseMult();  // Arena: ouro de chefes (×Castelo)
+    if (boss) g *= 1 + ROOMS_BY_ID.arena.perLevel.bossGoldPct * this.roomLvl('arena') * this.baseMult();  // Arena (×Castelo)
     g *= this.extKillGoldMult();               // expansão: Lua Cheia + pesquisa "Caçada Ritual"
     if (S.invasion > 0 && !boss) g *= 3;
     return g;
@@ -493,7 +496,7 @@ const Game = {
   },
 
   bossTimeLimit() {
-    let t = 30 + 3 * this.talentLvl('paciencia') + 2 * this.roomLvl('arena') + this.teamRoleEffects().bossTime;
+    let t = 30 + 3 * this.talentLvl('paciencia') + ROOMS_BY_ID.arena.perLevel.bossTimeSec * this.roomLvl('arena') + this.teamRoleEffects().bossTime;
     if (this.gearSetLifestealActive && this.gearSetLifestealActive()) t += 2;  // Conjunto Sombrio (4pç): sustain = mais tempo de chefe
     return t;
   },
@@ -534,7 +537,7 @@ const Game = {
 
   dropChance() {
     let ch = 0.35;
-    ch += 0.05 * this.roomLvl('oficina');
+    ch += ROOMS_BY_ID.oficina.perLevel.dropPct * this.roomLvl('oficina');
     ch += this.synergyBonuses().equip;          // sinergia de vizinhança (ex.: Oficina + Mina)
     ch += 0.04 * this.talentLvl('pilhagem');
     // trade-off de talento (AUDIT item 8): Assalto Total vs Guarda Calculada
@@ -891,6 +894,19 @@ const Game = {
     S.gold += amount;
   },
 
+  // AUDIT O2: a regra "quando um gerador/herói fica visível na lista" estava reimplementada 3×
+  // idênticas (renderProd/updateDynamic, renderRecruit/updateDynamic) com um comentário admitindo
+  // que precisavam ficar em sincronia manual — agora vive só aqui.
+  genVisible(g) {
+    return (!g.reqPrestige || S.prestiges >= g.reqPrestige) &&
+      ((S.gens[g.id] || 0) > 0 || S.earned >= g.baseCost * 0.4);
+  },
+
+  heroVisible(def) {
+    return (!def.reqPrestige || S.prestiges >= def.reqPrestige) &&
+      (S.heroes[def.id] || S.earned >= def.baseCost * 0.3);
+  },
+
   buyGen(genId, count) {
     const g = GENERATORS_BY_ID[genId];
     if (!g) return false;
@@ -1012,7 +1028,7 @@ const Game = {
     return true;
   },
 
-  energyBoost() { return 1 + 0.08 * this.roomLvl('gerador'); },
+  energyBoost() { return 1 + ROOMS_BY_ID.gerador.perLevel.prodPct * this.roomLvl('gerador'); },
 
   // Rendimento efetivo de uma sala produtora: nível × marco de extração.
   // MARCO DE EXTRAÇÃO (ROOM_MILESTONE): a cada 10 níveis a sala DOBRA o que rende, no mesmo espírito
@@ -1032,21 +1048,21 @@ const Game = {
     const mat = (1 + this.synergyBonuses().material) * this.extMaterialMult();   // sinergia + estação/clima
     const mina = this.roomYield('mina_r');
     return {
-      madeira: 2 * this.roomYield('serraria') * eb * mat,
-      pedra: 1.5 * mina * eb * mat,
-      ferro: 0.5 * mina * eb * mat,
+      madeira: ROOMS_BY_ID.serraria.perLevel.madeira * this.roomYield('serraria') * eb * mat,
+      pedra: ROOMS_BY_ID.mina_r.perLevel.pedra * mina * eb * mat,
+      ferro: ROOMS_BY_ID.mina_r.perLevel.ferro * mina * eb * mat,
       // Cristal tinha UMA fonte só no jogo inteiro (40% de chance ao abater um chefe de onda ≥ 30 —
       // justamente o ponto onde o jogador mais empacava) contra cinco consumidores: Forja, Árvore do
       // Mundo, salas avançadas, poções e ofertas de NPC. A Mina Profunda passa a render cristal a
       // partir do nível 5, transformando o recurso de "sorte no chefe" em fluxo previsível.
-      cristal: this.roomLvl('mina_r') >= CRYSTAL_MINE_LEVEL ? 0.02 * mina * eb * mat : 0,
-      energia: 1 * this.roomYield('gerador') * mat * this.extEnergyMult(),
+      cristal: this.roomLvl('mina_r') >= CRYSTAL_MINE_LEVEL ? ROOMS_BY_ID.mina_r.perLevel.cristal * mina * eb * mat : 0,
+      energia: ROOMS_BY_ID.gerador.perLevel.energia * this.roomYield('gerador') * mat * this.extEnergyMult(),
     };
   },
 
   knowledgePerSec() {
-    return 0.2 * this.roomLvl('lab')
-      * (1 + 0.15 * this.roomLvl('biblioteca'))
+    return ROOMS_BY_ID.lab.perLevel.conhecimento * this.roomLvl('lab')
+      * (1 + ROOMS_BY_ID.biblioteca.perLevel.conhecimentoPct * this.roomLvl('biblioteca'))
       * (1 + 0.10 * this.talentLvl('sabedoria'))
       * this.energyBoost()
       * (1 + this.synergyBonuses().knowledge)
@@ -1419,7 +1435,7 @@ const Game = {
     for (const a of ACHIEVEMENTS) {
       if (S.ach[a.id]) continue;
       let ok = false;
-      try { ok = a.check(S, D); } catch (e) {}
+      try { ok = a.check(S, D); } catch (e) {} // 1 conquista com `check` quebrado (save corrompido/antigo) não pode travar as outras ~65
       if (ok) {
         S.ach[a.id] = true;
         UI.log(`🏅 Conquista: <b>${a.name}</b> — ${a.desc} <span class="ach-bonus">(+1% produção)</span>`);
@@ -1432,6 +1448,7 @@ const Game = {
     }
     this.checkLore();                          // descobertas do Códex seguem o mesmo cadenciamento
     this.refreshClosestAch();                  // idem P2: recalcula junto, não a cada tick
+    this._codexPctCache = this.codexCompletion().pct; // AUDIT D8: badge do topbar, mesmo cadenciamento (codexCompletion é caro — ver comentário de refreshClosestAch)
   },
 
   // conquista (normal ou secreta) mais perto de ser batida
@@ -1455,6 +1472,10 @@ const Game = {
   // avança de forma perceptível. Recalculado no mesmo cadenciamento de 2s de `checkAchievements()`.
   _closestAchCache: null,
   refreshClosestAch() { this._closestAchCache = this.closestAchievement(); },
+
+  // AUDIT D8: badge de % no botão do topbar do Códex — mesma ideia do "mais perto de desbloquear",
+  // cacheada no cadenciamento de 2s de checkAchievements() em vez de rodar codexCompletion() por tick.
+  _codexPctCache: 0,
 
   // ---------- Eventos ----------
 
@@ -1633,7 +1654,7 @@ const Sound = {
   ctx: null,
   ensure() {
     if (!this.ctx) {
-      try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+      try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} // navegador sem Web Audio: jogo continua mudo, sem quebrar
     }
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   },

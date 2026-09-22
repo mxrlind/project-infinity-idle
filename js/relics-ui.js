@@ -113,9 +113,7 @@ Object.assign(UI, {
       <button class="buy-btn rc-equip">Equipar</button>`;
     card.title = def.desc;
     card.querySelector('.rc-equip').onclick = () => {
-      const free = S.relics.equipped.indexOf(null);
-      if (free === -1) { this.toast('🔮 Todos os slots ocupados — desequipe uma primeiro.', '#ff6b5e'); return; }
-      Game.equipRelic(relicId, free);
+      if (!Game.equipRelicFirstFree(relicId)) { this.toast('🔮 Todos os slots ocupados — desequipe uma primeiro.', '#ff6b5e'); return; }
       this.dirty.heroes = true;
       this.renderActive();
     };

@@ -2,6 +2,60 @@
 
 ## Não lançado
 
+### Fecha o AUDIT: O2-O7 (organização) + D2/D5/D6/D8 (design) — restam só D3/D4/D7 (decisões de produto)
+
+**O2** — `Game.equipRelicFirstFree()` novo, mesmo padrão de `firstFreeFieldSlot()`; `Game.genVisible()`/
+`Game.heroVisible()` novos substituem o filtro de visibilidade que estava reimplementado 3× idêntico
+entre `renderProd`/`renderRecruit`/`updateDynamic`.
+
+**O3** — três widgets duplicados viraram helpers em `UI`: `costHtml()` (5 implementações do "HTML de
+custo multi-recurso" — Base/Forja/Pesquisa/Árvore do Mundo/oferta de NPC), `setAfford()` (~12
+ocorrências do padrão `classList.toggle('afford')+disabled`), `buyAmountBar()` (seletor ×1/×10/Máx,
+3 telas — a versão da Árvore do Mundo recuperou `aria-pressed`/`aria-label`, que tinha regredido).
+De quebra, achado e corrigido um bug de gramática pré-existente propagado por engano ao consolidar o
+seletor: "10 nívelis" → "10 níveis" (`${amt}nível${amt>1?'is':''}` nunca foi português correto).
+
+**O4** — todo `ROOMS` com bônus numérico por nível (13 salas — cofre/templo/castelo/torre/arena/
+quartel/oficina/gerador/lab/biblioteca/serraria/mina_r) ganhou `perLevel` em `data.js` + `desc` como
+getter que monta o texto A PARTIR desses valores; `game.js` lê `ROOMS_BY_ID.<id>.perLevel.*` em vez de
+repetir o número. Rebalancear uma sala agora é 1 edição, não 2 (arquivos diferentes, fácil de esquecer
+um dos dois).
+
+**O5** — documentado (não corrigível sem bundler): comentário explica por que `RESEARCH_MAX_COMPLETABLE`
+funciona apesar de ser declarado DEPOIS do que o consome (`ACHIEVEMENTS.rs3`) — só por ser lido dentro
+de uma função fechada, chamada bem depois do módulo inteiro já ter rodado.
+
+**O6** — `renderBag` ganhou o clamp que faltava em `item.rarity` antes de indexar `RARITIES[best]`
+(save importado com raridade fora do intervalo quebrava o render da aba inteira); os 5 `catch (e) {}`
+silenciosos do motor ganharam comentário justificando cada um (mesmo padrão já usado em `npcLevel`).
+
+**O7** — `Game.synergyMult`/`SYNERGY_MAX_BONUS` removidos (confirmado sem nenhum leitor); `o._target`
+em `useOffer()` parou de escrever num campo transitório dentro de `S.npcs.offers` (que vai pro save) —
+virou variável local `temperTarget`, só existe durante a chamada.
+
+**D2** — resolvido de graça pelo fix de B7 (ver changelog anterior): `damageEnemy` encadeando overkill
+em múltiplos abates por chamada é exatamente a mecânica que este item pedia.
+
+**D5** — `mercadoGoldPerSec()` agora devolve o valor BASE (sem multiplicador próprio); `goldPerSec()`
+aplica `globalProdMult()` sobre geradores+Mercado juntos. Antes a sala só recebia `baseMult`+`buffMult`,
+ficando de fora de conquistas/essência/talentos/sinergias/upgrades — exatamente os multiplicadores que
+mais crescem no late-game, quando a sala mais precisava continuar relevante.
+
+**D6** — a 1ª Relíquia agora é garantida no primeiro chefe da onda 20+ (antes dependia só de 8% de
+chance a partir da onda 40) — ensina o sistema enquanto ainda é uma decisão de jogo, não uma otimização
+de quem já está há dezenas de horas.
+
+**D8** — badge de % de completude do Códex no botão do topbar (`Game._codexPctCache`, atualizado no
+mesmo cadenciamento de 2s de `checkAchievements()` — `codexCompletion()` é caro demais pra rodar por
+tick, mesmo motivo do cache de `closestAchievement` do P2).
+
+**D3, D4, D7 NÃO implementados de propósito** — são decisões de produto/conteúdo (o que fazer com as
+Fases 7/8, o que dar de função à reserva de heróis, o que premiar além do streak máximo de metas
+diárias), cada uma com abordagens concorrentes reais no próprio AUDIT.md. Implementar qualquer uma
+sem direção do dono do jogo seria inventar escopo, não corrigir um bug.
+
+Testes 69→**72** (2 de D5 — Mercado recebe globalProdMult —, 2 de D6 — 1ª relíquia garantida, 2ª não).
+
 ### Restante da Parte 12: B4, B7-B13 (bugs menores e limpeza)
 
 **B4** — dois vetores de XSS via save importado que sobreviveram ao fechamento parcial de julho:

@@ -160,7 +160,7 @@ function saveGame() {
 
 function loadGame() {
   let raw = null;
-  try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {}
+  try { raw = localStorage.getItem(SAVE_KEY); } catch (e) {} // storage bloqueado (privado/permissão): trata como "sem save"
   if (!raw) return null;
   try {
     const data = JSON.parse(raw);
@@ -274,6 +274,6 @@ function importSave(str) {
 
 function hardReset() {
   _skipNextSave = true; // ver comentário na declaração — sem isso, o reload que segue o reset reescreve o save antigo por cima
-  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {} // storage bloqueado: S = defaultState() abaixo já reseta o jogo em memória
   S = defaultState();
 }

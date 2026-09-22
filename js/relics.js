@@ -70,4 +70,12 @@ Object.assign(Game, {
     UI.dirty.heroes = true;
     return true;
   },
+
+  // AUDIT O2: a UI decidia o slot livre sozinha (`S.relics.equipped.indexOf(null)`) sem um
+  // equivalente a `Game.firstFreeFieldSlot()` — a regra "qual slot recebe" pertence ao motor.
+  equipRelicFirstFree(relicId) {
+    const free = S.relics.equipped.indexOf(null);
+    if (free === -1) return false;
+    return this.equipRelic(relicId, free);
+  },
 });

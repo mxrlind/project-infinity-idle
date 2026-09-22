@@ -837,4 +837,38 @@ test('loadGame: S.v reflete SAVE_VERSION atual após o load, não a versão em q
   assertEqual(S.gold, 500, 'e o resto do save continua carregando normalmente');
 });
 
+// ---------- goldPerSec / mercadoGoldPerSec (AUDIT D5) ----------
+
+test('goldPerSec: renda do Mercado recebe globalProdMult junto com os geradores', () => {
+  S = defaultState();
+  S.rooms.mercado = 1;
+  S.combat.maxWave = 50;
+  const before = Game.goldPerSec();
+  S.ach.c1 = true; // qualquer conquista já vale +1% em globalProdMult
+  const after = Game.goldPerSec();
+  assertTrue(after > before, 'uma conquista nova deveria aumentar TODA a renda, incluindo a do Mercado');
+  const mult = Game.globalProdMult();
+  assertClose(after, (0 + Game.mercadoGoldPerSec()) * mult, 1e-6, 'sem geradores, goldPerSec = mercado × globalProdMult, exatamente');
+});
+
+// ---------- Primeira relíquia garantida na onda 20 (AUDIT D6) ----------
+
+test('onKillExt: 1ª relíquia é garantida no primeiro chefe da onda 20+, não só sorte', () => {
+  S = defaultState();
+  S.combat.wave = 20;
+  assertEqual(Game.ownedRelicIds().length, 0, 'começa sem nenhuma relíquia');
+  Game.onKillExt(true);
+  assertEqual(Game.ownedRelicIds().length, 1, 'o primeiro abate de chefe na onda 20 já garante 1 relíquia');
+});
+
+test('onKillExt: não garante uma 2ª relíquia de graça (só a 1ª é garantida)', () => {
+  S = defaultState();
+  S.combat.wave = 20;
+  Game.onKillExt(true);
+  const after1 = Game.ownedRelicIds().length;
+  S.combat.wave = 25;
+  Game.onKillExt(true);
+  assertEqual(Game.ownedRelicIds().length, after1, 'onda 25 (< 40) sem chance de sorte não deveria conceder outra');
+});
+
 runTests();

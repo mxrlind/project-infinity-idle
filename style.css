@@ -102,6 +102,12 @@ body {
   transition: border-color 0.15s, color 0.15s;
 }
 #codex-btn:hover { border-color: var(--gold-hi); color: var(--gold-hi); }
+/* AUDIT D8: badge de completude — só aparece quando há algo a mostrar (pct > 0, ver updateCodexBadge) */
+.codex-pct-badge {
+  font-size: 11px; font-weight: 700; color: var(--bg);
+  background: var(--gold-hi); border-radius: 10px; padding: 1px 6px; margin-left: 4px;
+}
+.codex-pct-badge:empty { display: none; }
 
 #essence-badge {
   margin-left: auto;

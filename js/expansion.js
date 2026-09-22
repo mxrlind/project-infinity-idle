@@ -597,12 +597,15 @@ Object.assign(Game, {
     if (!info || !this.canAffordOffer(info.cost)) return false;
     const o = info.o;
 
-    // pré-validações que não devem cobrar antes de falhar
+    // AUDIT O7: `o` é referência DIRETA a S.npcs.offers[npcId][i], que vai pro save — gravar um campo
+    // transitório nele persistia lixo no localStorage pra sempre (até a oferta rotacionar no dia
+    // seguinte). `temperTarget` é local, só existe durante esta chamada.
+    let temperTarget = null;
     if (o.kind === 'temper') {
       const equipped = [];
       for (const hid in S.heroes) for (const slot of GEAR_SLOTS) if (S.heroes[hid].gear[slot.id]) equipped.push({ hid, slot: slot.id });
       if (!equipped.length) { UI.toast('Nenhum item equipado!', '#ff6b5e'); return false; }
-      o._target = equipped[Math.floor(Math.random() * equipped.length)];
+      temperTarget = equipped[Math.floor(Math.random() * equipped.length)];
     }
     if (o.kind === 'reroll' && !S.forge.inventory.length) { UI.toast('Bolsa vazia!', '#ff6b5e'); return false; }
     if (o.kind === 'enchant' && !S.forge.inventory.length) { UI.toast('Bolsa vazia!', '#ff6b5e'); return false; }
@@ -621,7 +624,7 @@ Object.assign(Game, {
           : `${def.icon} ${def.name} entregou <b>${fmt(o.n)}</b> ${MARKET_GOODS.find(g => g.id === o.res).name}.`);
         break;
       case 'temper': {
-        const t = o._target;
+        const t = temperTarget;
         const item = S.heroes[t.hid].gear[t.slot];
         item.mult *= 1.10;
         this._gearDirty = true;
@@ -743,7 +746,7 @@ Object.assign(Game, {
     for (const item of LORE_ITEMS) {
       if (S.codex.lore[item.id]) continue;
       let ok = false;
-      try { ok = item.check(S, D); } catch (e) {}
+      try { ok = item.check(S, D); } catch (e) {} // mesmo padrão de checkAchievements: 1 segredo quebrado não trava os outros 13
       if (ok) {
         S.codex.lore[item.id] = true;
         UI.log(`${item.icon} <b>Descoberta:</b> ${item.kind} — <i>${item.title}</i> foi registrado no 📖 Códex.`);
@@ -834,8 +837,12 @@ Object.assign(Game, {
         UI.log(`🌀 O portal estelar drenou o chefe: <b>+1 ✦ Essência</b>!`);
         UI.toast('🌀 +1 ✦ Essência (eclipse)!', '#b06fd8', true);
       }
-      // Relíquias (#6): drop raro de chefe (chance pequena, só a partir de ondas altas)
-      if (S.combat.wave >= 40 && Math.random() < 0.08) this.grantRelic();
+      // Relíquias (#6): drop raro de chefe a partir de onda 40 (chance pequena). AUDIT D6: a 1ª
+      // relíquia agora é GARANTIDA no primeiro chefe da onda 20+ — antes dependia só da sorte a
+      // partir da onda 40, escondendo o sistema inteiro atrás de dezenas de horas; ensinar cedo
+      // (enquanto ainda é uma decisão de jogo, não otimização de fim de jogo) vale mais que a raridade.
+      if (S.combat.wave >= 20 && !this.ownedRelicIds().length) this.grantRelic();
+      else if (S.combat.wave >= 40 && Math.random() < 0.08) this.grantRelic();
     }
   },
 

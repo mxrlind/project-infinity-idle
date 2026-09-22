@@ -39,6 +39,7 @@ Object.assign(Game, {
   // sorteia DAILY_COUNT metas distintas entre as que o jogador tem como cumprir hoje
   rollDailyGoals(key) {
     const rng = this._seededRng(this._dailySeed(key));
+    // mesmo padrão de checkAchievements/checkLore: 1 meta com `req` quebrado vira "não elegível hoje", não uma trava
     const pool = DAILY_GOALS.filter(g => { try { return g.req(S); } catch (e) { return false; } });
     const escolhidas = [];
     const restantes = pool.slice();

@@ -10,13 +10,7 @@ Object.assign(UI, {
   worldTreeCostHtml() {
     const cost = Game.worldTreeCost();
     const names = { essence: '✦ essência', conhecimento: '📘 conhecimento', madeira: '🪵 madeira', cristal: '💠 cristal' };
-    const have = { essence: S.essence, conhecimento: S.res.conhecimento, madeira: S.res.madeira, cristal: S.res.cristal };
-    const parts = [];
-    for (const k in cost) {
-      const ok = have[k] >= cost[k];
-      parts.push(`<span class="${ok ? '' : 'cost-missing'}">${fmt(cost[k])} ${names[k]}</span>`);
-    }
-    return parts.join(' · ');
+    return this.costHtml(cost, k => k === 'essence' ? S.essence : S.res[k], names, new Set(Object.keys(cost)));
   },
 
   renderWorldTree(c) {
@@ -47,14 +41,10 @@ Object.assign(UI, {
     }
 
     if (!Game.worldTreeMaxed()) {
-      const bar = this.el('div', 'buy-bar wt-buy-bar');
-      bar.appendChild(this.el('span', 'buy-label', 'Crescer:'));
-      for (const amt of [1, 10, 'max']) {
-        const b = this.el('button', 'buy-amt' + (this.wtBuyAmount === amt ? ' active' : ''), amt === 'max' ? 'Máx' : '×' + amt);
-        b.onclick = () => { this.wtBuyAmount = amt; this.dirty.worldtree = true; this.renderActive(); };
-        bar.appendChild(b);
-      }
-      box.appendChild(bar);
+      // AUDIT O3: reusa UI.buyAmountBar — esta versão tinha perdido aria-pressed/aria-label
+      box.appendChild(this.buyAmountBar('Crescer:', 'wtBuyAmount', 'worldtree',
+        amt => amt === 'max' ? 'Crescer o máximo de níveis possível' : `Crescer ${amt} ${amt > 1 ? 'níveis' : 'nível'} por vez`,
+        'wt-buy-bar'));
 
       const btn = this.el('button', 'prestige-btn worldtree-btn');
       btn.classList.toggle('disabled', !Game.canGrowWorldTree());

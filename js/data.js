@@ -169,7 +169,6 @@ const DAMAGE_ENEMY_MAX_CHAIN = 200;
 
 const FIELD_SLOTS = 4;
 const SYNERGY_TARGET = { tank: 0.25, dps: 0.5, support: 0.25 };
-const SYNERGY_MAX_BONUS = 0.30; // (legado) compat com saves — a sinergia agora é um medidor 0–100%
 
 // ---- Especialização de classe (Arquétipo + Arma ideal) ----
 // Cada herói tem um ARQUÉTIPO com uma ARMA IDEAL. Ao equipar (no slot 'arma') um item cujo
@@ -297,22 +296,51 @@ const TEAM_SYNERGIES = [
 ];
 
 // ---- Salas da Base ----
+// AUDIT O4: cada sala com bônus numérico por nível guarda o número em `perLevel` — `desc` é um getter
+// que monta o texto A PARTIR desses valores, e game.js lê os mesmos valores (`ROOMS_BY_ID.<id>.perLevel`)
+// em vez de repetir o número hardcoded na fórmula. Antes, rebalancear uma sala exigia lembrar de trocar
+// o texto E a fórmula em dois arquivos — agora só existe um lugar.
 const ROOMS = [
-  { id: 'serraria',   name: 'Serraria',    icon: '🪵', desc: '+2 madeira/s por nível',                     baseCost: { gold: 50e3 },                          costMult: 1.7 },
-  { id: 'mina_r',     name: 'Mina Profunda', icon: '⛰️', desc: '+1,5 pedra/s e +0,5 ferro/s por nível — e +0,02 cristal/s a partir do nível 5', baseCost: { gold: 120e3, madeira: 50 }, costMult: 1.7 },
-  { id: 'gerador',    name: 'Gerador',     icon: '⚡', desc: '+1 energia/s e +8% produção das salas por nível', baseCost: { gold: 400e3, madeira: 120, pedra: 80 }, costMult: 1.8 },
-  { id: 'lab',        name: 'Laboratório', icon: '🧪', desc: '+0,2 conhecimento/s por nível (para Talentos)', baseCost: { gold: 1e6, pedra: 150, ferro: 40 },  costMult: 1.8 },
-  { id: 'quartel',    name: 'Quartel',     icon: '🏰', desc: '+10% de DPS dos heróis por nível',           baseCost: { gold: 800e3, madeira: 200, ferro: 60 }, costMult: 1.75 },
-  { id: 'biblioteca', name: 'Biblioteca',  icon: '📚', desc: '+15% de conhecimento por nível',             baseCost: { gold: 2.5e6, madeira: 300, pedra: 200 }, costMult: 1.8 },
-  { id: 'oficina',    name: 'Oficina',     icon: '🔧', desc: '+5% chance de drop e +10% poder de equipamentos por nível', baseCost: { gold: 5e6, ferro: 120 }, costMult: 1.8 },
-  { id: 'cofre',      name: 'Cofre-Forte', icon: '💰', desc: '+6% de produção de ouro por nível',          baseCost: { gold: 10e6, pedra: 400, ferro: 200 },  costMult: 1.85 },
+  { id: 'serraria',   name: 'Serraria',    icon: '🪵', perLevel: { madeira: 2 },
+    get desc() { return `+${this.perLevel.madeira} madeira/s por nível`; },
+    baseCost: { gold: 50e3 }, costMult: 1.7 },
+  { id: 'mina_r',     name: 'Mina Profunda', icon: '⛰️', perLevel: { pedra: 1.5, ferro: 0.5, cristal: 0.02 },
+    get desc() { return `+${this.perLevel.pedra} pedra/s e +${this.perLevel.ferro} ferro/s por nível — e +${this.perLevel.cristal} cristal/s a partir do nível ${CRYSTAL_MINE_LEVEL}`; },
+    baseCost: { gold: 120e3, madeira: 50 }, costMult: 1.7 },
+  { id: 'gerador',    name: 'Gerador',     icon: '⚡', perLevel: { energia: 1, prodPct: 0.08 },
+    get desc() { return `+${this.perLevel.energia} energia/s e +${Math.round(this.perLevel.prodPct * 100)}% produção das salas por nível`; },
+    baseCost: { gold: 400e3, madeira: 120, pedra: 80 }, costMult: 1.8 },
+  { id: 'lab',        name: 'Laboratório', icon: '🧪', perLevel: { conhecimento: 0.2 },
+    get desc() { return `+${this.perLevel.conhecimento} conhecimento/s por nível (para Talentos)`; },
+    baseCost: { gold: 1e6, pedra: 150, ferro: 40 }, costMult: 1.8 },
+  { id: 'quartel',    name: 'Quartel',     icon: '🏰', perLevel: { dpsPct: 0.10 },
+    get desc() { return `+${Math.round(this.perLevel.dpsPct * 100)}% de DPS dos heróis por nível`; },
+    baseCost: { gold: 800e3, madeira: 200, ferro: 60 }, costMult: 1.75 },
+  { id: 'biblioteca', name: 'Biblioteca',  icon: '📚', perLevel: { conhecimentoPct: 0.15 },
+    get desc() { return `+${Math.round(this.perLevel.conhecimentoPct * 100)}% de conhecimento por nível`; },
+    baseCost: { gold: 2.5e6, madeira: 300, pedra: 200 }, costMult: 1.8 },
+  { id: 'oficina',    name: 'Oficina',     icon: '🔧', perLevel: { dropPct: 0.05, gearPct: 0.10 },
+    get desc() { return `+${Math.round(this.perLevel.dropPct * 100)}% chance de drop e +${Math.round(this.perLevel.gearPct * 100)}% poder de equipamentos por nível`; },
+    baseCost: { gold: 5e6, ferro: 120 }, costMult: 1.8 },
+  { id: 'cofre',      name: 'Cofre-Forte', icon: '💰', perLevel: { goldPct: 0.06 },
+    get desc() { return `+${Math.round(this.perLevel.goldPct * 100)}% de produção de ouro por nível`; },
+    baseCost: { gold: 10e6, pedra: 400, ferro: 200 }, costMult: 1.85 },
   // ---- Edifícios avançados (Fase da Base viva) ----
   { id: 'mercado',    name: 'Mercado',     icon: '🏪', desc: 'Renda de ouro PASSIVA por nível (escala com sua maior onda)', baseCost: { gold: 6e6, madeira: 250 },       costMult: 1.8 },
-  { id: 'templo',     name: 'Templo',      icon: '⛩️', desc: '+4% de produção GLOBAL por nível (buff da Base)',  baseCost: { gold: 25e6, pedra: 600, cristal: 3 },  costMult: 1.9 },
-  { id: 'torre',      name: 'Torre Arcana', icon: '🗼', desc: '+8% de DPS mágico do time por nível',            baseCost: { gold: 40e6, ferro: 400, cristal: 5 },  costMult: 1.9 },
-  { id: 'arena',      name: 'Arena',       icon: '🏟️', desc: '+12% de ouro de chefes e +2s no tempo de chefe por nível', baseCost: { gold: 60e6, pedra: 800, ferro: 300 }, costMult: 1.9 },
-  { id: 'castelo',    name: 'Castelo',     icon: '🏯', desc: 'Multiplicador GERAL: +10% em todas as sinergias e edifícios da Base por nível', baseCost: { gold: 120e6, madeira: 500, pedra: 500, ferro: 500 }, costMult: 2.0 },
+  { id: 'templo',     name: 'Templo',      icon: '⛩️', perLevel: { globalPct: 0.04 },
+    get desc() { return `+${Math.round(this.perLevel.globalPct * 100)}% de produção GLOBAL por nível (buff da Base)`; },
+    baseCost: { gold: 25e6, pedra: 600, cristal: 3 }, costMult: 1.9 },
+  { id: 'torre',      name: 'Torre Arcana', icon: '🗼', perLevel: { magicDpsPct: 0.08 },
+    get desc() { return `+${Math.round(this.perLevel.magicDpsPct * 100)}% de DPS mágico do time por nível`; },
+    baseCost: { gold: 40e6, ferro: 400, cristal: 5 }, costMult: 1.9 },
+  { id: 'arena',      name: 'Arena',       icon: '🏟️', perLevel: { bossGoldPct: 0.12, bossTimeSec: 2 },
+    get desc() { return `+${Math.round(this.perLevel.bossGoldPct * 100)}% de ouro de chefes e +${this.perLevel.bossTimeSec}s no tempo de chefe por nível`; },
+    baseCost: { gold: 60e6, pedra: 800, ferro: 300 }, costMult: 1.9 },
+  { id: 'castelo',    name: 'Castelo',     icon: '🏯', perLevel: { allPct: 0.10 },
+    get desc() { return `Multiplicador GERAL: +${Math.round(this.perLevel.allPct * 100)}% em todas as sinergias e edifícios da Base por nível`; },
+    baseCost: { gold: 120e6, madeira: 500, pedra: 500, ferro: 500 }, costMult: 2.0 },
 ];
+const ROOMS_BY_ID = Object.fromEntries(ROOMS.map(r => [r.id, r]));
 
 // ---- Grade da Base ----
 // Topologia FIXA (mesma em todas as telas) — as sinergias dependem de quem é vizinho de quem,
@@ -866,6 +894,10 @@ const RESEARCH_QUEUE_MAX = 3;
 const RESEARCH_CANCEL_REFUND = 0.5;
 // Pesquisa 2.0 (#5): com ramos exclusivos, nunca dá pra concluir TODAS as pesquisas — cada par
 // `exclusiveWith` só permite uma das duas. Máximo completável = total − metade das que têm par.
+// AUDIT O5: consumido por ACHIEVEMENTS.rs3.check/progress (declarado ANTES, mais acima neste arquivo)
+// — só funciona porque o `check`/`progress` de rs3 são funções fechadas sobre esta const, chamadas
+// bem depois de todo o data.js já ter rodado. Mover essa referência pra fora de uma função (avaliação
+// direta no objeto) quebraria com ReferenceError por causa da ordem de declaração.
 const RESEARCH_MAX_COMPLETABLE = RESEARCH.length - RESEARCH.filter(r => r.exclusiveWith).length / 2;
 
 // ---- Economia Dinâmica (Mercado) ----

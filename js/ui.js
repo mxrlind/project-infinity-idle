@@ -26,6 +26,46 @@ const UI = {
     return e;
   },
 
+  // AUDIT O3: seletor ×1/×10/Máx estava implementado 3× (Produção, Heróis, Árvore do Mundo) — a
+  // versão da Árvore do Mundo tinha perdido `aria-pressed`/`aria-label` no meio do caminho (regressão
+  // silenciosa da a11y do item ✅13 da Parte 9), exatamente o tipo de deriva que motiva juntar as 3.
+  // `prop` é a propriedade de `this` que guarda a escolha atual (ex.: `buyAmount`); `dirtyKey` é a
+  // chave de `this.dirty` marcada ao trocar; `ariaLabel(amt)` gera o rótulo específico da tela.
+  buyAmountBar(label, prop, dirtyKey, ariaLabel, extraCls) {
+    const bar = this.el('div', 'buy-bar' + (extraCls ? ' ' + extraCls : ''));
+    bar.appendChild(this.el('span', 'buy-label', label));
+    for (const amt of [1, 10, 'max']) {
+      const b = this.el('button', 'buy-amt' + (this[prop] === amt ? ' active' : ''), amt === 'max' ? 'Máx' : '×' + amt);
+      b.setAttribute('aria-pressed', this[prop] === amt ? 'true' : 'false');
+      b.setAttribute('aria-label', ariaLabel(amt));
+      b.onclick = () => { this[prop] = amt; this.dirty[dirtyKey] = true; this.renderActive(); };
+      bar.appendChild(b);
+    }
+    return bar;
+  },
+
+  // AUDIT O3: o widget "HTML de custo multi-recurso" (span por recurso, cinza se faltando, unidos por
+  // " · ") tinha 4 implementações quase idênticas (Base, Forja, Pesquisa, Árvore do Mundo), cada uma
+  // com seu próprio dicionário de nomes de ícone. `cost` é {chave: quantidade}; `haveFn(chave)` lê o
+  // quanto o jogador já tem; `names` mapeia chave → rótulo exibido; `alwaysKeys` (opcional) força a
+  // exibição mesmo com quantidade 0 (ex.: conhecimento na Pesquisa, sempre relevante mostrar).
+  costHtml(cost, haveFn, names, alwaysKeys) {
+    const parts = [];
+    for (const k in cost) {
+      if (!cost[k] && !(alwaysKeys && alwaysKeys.has(k))) continue;
+      const ok = haveFn(k) >= cost[k];
+      parts.push(`<span class="${ok ? '' : 'cost-missing'}">${fmt(cost[k])} ${names[k] || k}</span>`);
+    }
+    return parts.join(' · ');
+  },
+
+  // AUDIT O3: padrão "botão com afford" (classe visual + disabled em função de poder pagar ou não)
+  // repetido ~12× de forma idêntica pelas abas.
+  setAfford(btn, ok) {
+    btn.classList.toggle('afford', ok);
+    btn.disabled = !ok;
+  },
+
   // escapa strings vindas do save (buffs) antes de injetar em innerHTML
   esc(s) {
     return String(s).replace(/[&<>"']/g, ch =>
@@ -203,25 +243,15 @@ const UI = {
 
   renderProd(c) {
     // seletor de quantidade
-    const bar = this.el('div', 'buy-bar');
-    bar.appendChild(this.el('span', 'buy-label', 'Comprar:'));
-    for (const amt of [1, 10, 'max']) {
-      const b = this.el('button', 'buy-amt' + (this.buyAmount === amt ? ' active' : ''), amt === 'max' ? 'Máx' : '×' + amt);
-      // "×1 / ×10 / Máx" é um grupo de escolha: sem aria-pressed o leitor não diz qual está ativa
-      b.setAttribute('aria-pressed', this.buyAmount === amt ? 'true' : 'false');
-      b.setAttribute('aria-label', amt === 'max' ? 'Comprar o máximo possível' : `Comprar ${amt} por vez`);
-      b.onclick = () => { this.buyAmount = amt; this.dirty.prod = true; this.renderActive(); };
-      bar.appendChild(b);
-    }
-    c.appendChild(bar);
+    c.appendChild(this.buyAmountBar('Comprar:', 'buyAmount', 'prod',
+      amt => amt === 'max' ? 'Comprar o máximo possível' : `Comprar ${amt} por vez`));
 
     // geradores
     const list = this.el('div', 'gen-list');
     this.R.gens = [];
     for (const g of GENERATORS) {
-      if (g.reqPrestige && S.prestiges < g.reqPrestige) continue;
+      if (!Game.genVisible(g)) continue;
       const owned = S.gens[g.id] || 0;
-      if (owned === 0 && S.earned < g.baseCost * 0.4) continue;
 
       const row = this.el('div', 'gen-row' + (this.isNewRow('gens', g.id) ? ' row-enter' : ''));
       row.title = g.flavor; // descrição vira tooltip (padrão Cookie Clicker) — linha a menos por gerador na lista
@@ -311,20 +341,12 @@ const UI = {
     this.R.combat = { waveEl, enemy, hpFill, hpText, bossTimer, dpsEl, bossMechEl, lastMech: undefined };
 
     // seletor de quantidade (vale para subir níveis nos mini-cards)
-    const bar = this.el('div', 'buy-bar');
-    bar.appendChild(this.el('span', 'buy-label', 'Níveis por compra:'));
-    for (const amt of [1, 10, 'max']) {
-      const b = this.el('button', 'buy-amt' + (this.buyAmount === amt ? ' active' : ''), amt === 'max' ? 'Máx' : '×' + amt);
-      b.setAttribute('aria-pressed', this.buyAmount === amt ? 'true' : 'false');
-      b.setAttribute('aria-label', amt === 'max' ? 'Subir o máximo de níveis possível' : `Subir ${amt} nível${amt > 1 ? 'is' : ''} por vez`);
-      b.onclick = () => { this.buyAmount = amt; this.dirty.heroes = true; this.renderActive(); };
-      bar.appendChild(b);
-    }
-    c.appendChild(bar);
+    c.appendChild(this.buyAmountBar('Níveis por compra:', 'buyAmount', 'heroes',
+      amt => amt === 'max' ? 'Subir o máximo de níveis possível' : `Subir ${amt} ${amt > 1 ? 'níveis' : 'nível'} por vez`));
 
     this.R.heroMinis = [];
     this.R.recruit = [];
-    this.R.heroesVisible = HEROES.filter(d => (!d.reqPrestige || S.prestiges >= d.reqPrestige) && (S.heroes[d.id] || S.earned >= d.baseCost * 0.3)).length;
+    this.R.heroesVisible = HEROES.filter(d => Game.heroVisible(d)).length;
 
     // ORDEM E DENSIDADE: primeiro o que o jogador FAZ (o campo de batalha, onde ele posiciona e sobe
     // heróis), depois tudo que é consulta, recolhido atrás de um cabeçalho com o número que importa.
@@ -510,9 +532,8 @@ const UI = {
     const list = this.el('div', 'hero-list');
     let any = false, affordable = 0, count = 0;
     for (const def of HEROES) {
-      if (def.reqPrestige && S.prestiges < def.reqPrestige) continue;
       if (S.heroes[def.id]) continue;
-      if (S.earned < def.baseCost * 0.3) continue;
+      if (!Game.heroVisible(def)) continue;
       any = true; count++;
       if (S.gold >= def.baseCost) affordable++;
       const row = this.el('div', 'hero-row hero-locked' + (this.isNewRow('recruit', def.id) ? ' row-enter' : ''));
@@ -560,7 +581,9 @@ const UI = {
     const upgrades = S.forge.inventory.filter(item =>
       fielders.some(heroId => Game.itemDeltaForHero(item.uid, heroId) > 0)
     ).length;
-    const best = n ? Math.max(...S.forge.inventory.map(i => i.rarity || 0)) : -1;
+    // AUDIT O6: sem o clamp, uma carta com `rarity` fora do intervalo (save importado corrompido)
+    // deixava `bestRar` undefined e quebrava o render inteiro da aba em `bestRar.color` mais abaixo.
+    const best = n ? Math.max(...S.forge.inventory.map(i => Math.min(RARITIES.length - 1, Math.max(0, i.rarity || 0)))) : -1;
     const bestRar = best >= 0 ? RARITIES[best] : null;
     const body = this.section(c, {
       id: 'heroes.bag',
@@ -981,30 +1004,21 @@ const UI = {
       const t = FORGE_TIERS.find(x => x.id === ref.id);
       if (!Game.forgeTierUnlocked(t)) { ref.btn.disabled = true; continue; }
       const cost = Game.forgeCost(ref.id);
-      const parts = [
-        this.forgeCostPart('ouro', S.gold, cost.gold),
-        this.forgeCostPart('⛓️', S.res.ferro, cost.ferro),
-      ];
-      if (cost.cristal > 0) parts.push(this.forgeCostPart('💠', S.res.cristal, cost.cristal));
       // P4: o custo de um tier só muda quando algum recurso cruza o limiar de "cost-missing" (classe
       // ok/faltando) ou os valores mudam — reescrever todo tick reparseia HTML por nada na maioria deles.
-      const costHtml = parts.filter(Boolean).join(' · ');
+      const costHtml = this.costHtml(
+        { gold: cost.gold, ferro: cost.ferro, cristal: cost.cristal },
+        k => k === 'gold' ? S.gold : S.res[k],
+        { gold: 'ouro', ferro: '⛓️', cristal: '💠' });
       if (costHtml !== ref._costHtml) { ref._costHtml = costHtml; ref.costEl.innerHTML = costHtml; }
       const ok = Game.canForge(ref.id);
-      ref.btn.classList.toggle('afford', ok);
-      ref.btn.disabled = !ok;
+      this.setAfford(ref.btn, ok);
       ref.btn.title = full ? 'Bolsa cheia — equipe ou desmanche cartas na aba Heróis' : '';
     }
     const statHtml = `<span>Forjados: <b>${S.forge.forged}</b></span>` +
       `<span>Bolsa: <b>${S.forge.inventory.length}/${FORGE_INVENTORY_CAP}</b></span>` +
       (full ? '<span class="forge-wait">⚠️ bolsa cheia — equipe ou desmanche na aba Heróis</span>' : '');
     if (statHtml !== this.R.forge._statHtml) { this.R.forge._statHtml = statHtml; this.R.forge.stat.innerHTML = statHtml; }
-  },
-
-  forgeCostPart(label, have, need) {
-    if (need <= 0) return '';
-    const ok = have >= need;
-    return `<span class="${ok ? '' : 'cost-missing'}">${fmt(need)} ${label}</span>`;
   },
 
   // ---------- Aba: Base ----------
@@ -1451,13 +1465,7 @@ const UI = {
   roomCostHtml(roomId) {
     const cost = Game.roomCost(roomId);
     const names = { gold: 'ouro', madeira: '🪵', pedra: '🪨', ferro: '⛓️' };
-    const parts = [];
-    for (const k in cost) {
-      const have = k === 'gold' ? S.gold : S.res[k];
-      const ok = have >= cost[k];
-      parts.push(`<span class="${ok ? '' : 'cost-missing'}">${fmt(cost[k])} ${names[k] || k}</span>`);
-    }
-    return parts.join(' · ');
+    return this.costHtml(cost, k => k === 'gold' ? S.gold : S.res[k], names, new Set(Object.keys(cost)));
   },
 
   // ---------- Aba: Talentos ----------
@@ -1734,6 +1742,16 @@ const UI = {
       </div>`;
   },
 
+  // AUDIT D8: badge de % no botão do Códex — lê o cache de `Game._codexPctCache` (2s, mesmo motivo
+  // de updateClosestAch: codexCompletion() varre NPCs + 9 categorias, caro demais pra rodar por tick).
+  _lastCodexPct: undefined,
+  updateCodexBadge() {
+    const pct = Math.round(Game._codexPctCache * 100);
+    if (pct === this._lastCodexPct) return;
+    this._lastCodexPct = pct;
+    this.dyn.codexPct.textContent = pct > 0 ? `${pct}%` : '';
+  },
+
   shakeEnemy() {
     const enemy = this.R.combat && this.R.combat.enemy;
     if (!enemy) return;
@@ -1845,6 +1863,7 @@ const UI = {
     this.updateBuffs();
     this.updateDaily();
     this.updateClosestAch();
+    this.updateCodexBadge();
     this.ensureModalSanity();
 
     // elementos dinâmicos do tab ativo
@@ -1862,21 +1881,19 @@ const UI = {
           ref._sig = sig;
           ref.btn.innerHTML = `Comprar ${this.buyAmount === 'max' ? (n > 0 ? '×' + n : '×0') : '×' + this.buyAmount}<br><span class="btn-cost">${fmt(cost)} ouro</span>`;
         }
-        ref.btn.classList.toggle('afford', afford);
-        ref.btn.disabled = !afford;
+        this.setAfford(ref.btn, afford);
         ref.ownedEl.textContent = '×' + (S.gens[ref.id] || 0);
         ref.prodEl.textContent = fmtRate(Game.genProd(ref.id) * Game.globalProdMult());
       }
       if (this.R.ups) for (const ref of this.R.ups) {
-        ref.btn.classList.toggle('afford', S.gold >= ref.cost);
-        ref.btn.disabled = S.gold < ref.cost;
+        this.setAfford(ref.btn, S.gold >= ref.cost);
       }
       // novos geradores/upgrades podem ter ficado visíveis
       if (this._lastProdCheck === undefined || Date.now() - this._lastProdCheck > 3000) {
         this._lastProdCheck = Date.now();
-        const visible = GENERATORS.filter(g => (!g.reqPrestige || S.prestiges >= g.reqPrestige) && ((S.gens[g.id] || 0) > 0 || S.earned >= g.baseCost * 0.4)).length;
-        // mesmo filtro do renderProd (linha ~238), senão a contagem nunca bateria e a aba
-        // re-renderizaria a cada 3s pra sempre
+        const visible = GENERATORS.filter(g => Game.genVisible(g)).length;
+        // mesmo filtro do renderProd, via Game.genVisible (AUDIT O2) — senão a contagem nunca bateria
+        // e a aba re-renderizaria a cada 3s pra sempre
         const upsVisible = UPGRADES.filter(u => !S.upgrades[u.id] && S.earned >= u.cost * 0.25
           && (!u.gen || (S.gens[u.gen] || 0) > 0 || S.earned >= u.cost)).sort((a, b) => a.cost - b.cost).slice(0, 9).length;
         if (visible !== this.R.gens.length || (this.R.ups && upsVisible !== this.R.ups.length)) {
@@ -1936,21 +1953,18 @@ const UI = {
         const cost = Game.heroLvlCost(ref.id, Math.max(1, n));
         ref.levelBtn.innerHTML = `Nv ×${n}<br><span class="btn-cost">${fmt(cost)}</span>`;
         const afford = n > 0 && S.gold >= cost;
-        ref.levelBtn.classList.toggle('afford', afford);
-        ref.levelBtn.disabled = !afford;
+        this.setAfford(ref.levelBtn, afford);
         ref.statsEl.innerHTML = `Nv <b>${h.lvl}</b> · DPS <b>${fmt(Game.heroDps(ref.id))}</b>`;
       }
       // botões de recrutar
       if (this.R.recruit) for (const ref of this.R.recruit) {
-        const afford = S.gold >= ref.cost;
-        ref.btn.classList.toggle('afford', afford);
-        ref.btn.disabled = !afford;
+        this.setAfford(ref.btn, S.gold >= ref.cost);
       }
 
       // novos heróis visíveis?
       if (this._lastHeroCheck === undefined || Date.now() - this._lastHeroCheck > 3000) {
         this._lastHeroCheck = Date.now();
-        const visible = HEROES.filter(d => (!d.reqPrestige || S.prestiges >= d.reqPrestige) && (S.heroes[d.id] || S.earned >= d.baseCost * 0.3)).length;
+        const visible = HEROES.filter(d => Game.heroVisible(d)).length;
         if (visible !== this.R.heroesVisible) { this.dirty.heroes = true; this.renderActive(); }
       }
     }
@@ -1969,9 +1983,7 @@ const UI = {
           ref._costHtml = costHtml;
           ref.btn.innerHTML = `Construir<br><span class="btn-cost">${costHtml}</span>`;
         }
-        const afford = Game.canAffordRoom(ref.id);
-        ref.btn.classList.toggle('afford', afford);
-        ref.btn.disabled = !afford;
+        this.setAfford(ref.btn, Game.canAffordRoom(ref.id));
         if (ref.lvlEl) ref.lvlEl.textContent = 'Nv ' + Game.roomLvl(ref.id);
       }
     }
@@ -1983,10 +1995,9 @@ const UI = {
         const maxed = lvl >= ref.max;
         const blocker = Game.talentExclusionBlocker(ref.id);
         const afford = !maxed && !blocker && S.res.conhecimento >= Game.talentCost(ref.id);
-        ref.btn.classList.toggle('afford', afford);
+        this.setAfford(ref.btn, afford);
         ref.btn.classList.toggle('maxed', maxed);
         ref.btn.classList.toggle('locked', !!blocker);
-        ref.btn.disabled = !afford;
         if (ref.lvlEl) ref.lvlEl.textContent = `${lvl}/${ref.max}`;
         if (ref.costEl) {
           if (blocker) ref.costEl.textContent = `🔒 Bloqueado — você escolheu ${TALENTS.find(x => x.id === blocker).name}`;
@@ -2360,6 +2371,7 @@ const UI = {
       closestAchBox: document.getElementById('closest-ach-box'),
       modalLayer: document.getElementById('modal-layer'),
       dailyBox: document.getElementById('daily-box'),
+      codexPct: document.getElementById('codex-pct'),
       worldBox: null,   // criado sob demanda (ui-ext.js) — cacheado sob demanda também, ver updateWorld()
     };
 
