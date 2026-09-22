@@ -18,7 +18,7 @@ foi implementado** (ver [CHANGELOG.md](CHANGELOG.md) → *Papéis de Combate*). 
 > - Motor da expansão via `Object.assign(Game, {...})` em `expansion.js`; UI via `Object.assign(UI, {...})` em `ui-ext.js`.
 > - Hooks já existentes no motor original: `extProdMult/extDpsMult/extKillGoldMult/extMaterialMult/extDropBonus/extCritBonus/extHeroCostMult`, `tickExt(dt)`, `onKillExt(boss)`, `onPrestigeExt()`, `offlineExt(sec)`. **Preferir estender esses hooks a editar o motor original.**
 > - Renderização por dirty-flags: `UI.dirty.{prod,heroes,base,...}`; caches invalidados por `_gearDirty`/`_fieldDirty`.
-> - Save versionado (`SAVE_VERSION`, hoje 2) com migração e merge profundo. Todo estado permanente novo tem que sobreviver ao prestígio e migrar de saves antigos.
+> - Save versionado (`SAVE_VERSION`, hoje 3) com migração e merge profundo. Todo estado permanente novo tem que sobreviver ao prestígio e migrar de saves antigos.
 > - Números grandes via `fmt()` (`js/format.js`); escalas sempre relativas à maior onda (`enemyGold(S.combat.maxWave)`) pra nunca ficarem obsoletas.
 
 ---
