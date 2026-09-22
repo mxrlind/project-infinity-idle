@@ -9,7 +9,10 @@ const PHASES = [
   { id: 5, name: 'Transcendência',    at: 500e6 },       // prestígio
   { id: 6, name: 'Convergência',      at: 5e9 },         // eventos mundiais
   { id: 7, name: '???',               at: 500e9 },       // teaser guildas
-  { id: 8, name: '???',               at: 100e12 },      // teaser megaprojetos
+  // AUDIT D3 (2026-09-21): removida a Fase 8 (100T, "teaser megaprojetos") — nunca teve notificação em
+  // updatePhases() nem qualquer conteúdo por trás, um beco sem saída pro jogador que chegasse lá. O
+  // endgame declarado do jogo é a Árvore do Mundo + Ascensão (Roadmap #12/#13), sistemas que já existem
+  // e não dependem de PHASES — desbloqueiam por prestígio/ascensão, não por ouro ganho na run.
 ];
 
 // ---- Geradores de ouro ----
@@ -1110,4 +1113,13 @@ const DAILY_GOALS = [
     label: (n) => `Concluir ${fmt(n)} pesquisa${n > 1 ? 's' : ''}`, req: (S) => S.unlocked.talents },
   { id: 'feed',     icon: '🐾', type: 'feed',     n: [2, 5],     reward: 35,
     label: (n) => `Alimentar o mascote ${fmt(n)} vezes`, req: (S) => Object.keys(S.pets.owned || {}).length > 0 },
+  // AUDIT D7: 3 metas novas a partir de estatísticas que o jogo já rastreava (S.market.stats.bought,
+  // S.npcs.requestsDone) ou de uma ação que ainda não tinha meta própria (subir nível de sala/Árvore
+  // do Mundo — 'build' cobre os dois, mesmo espírito de investimento de longo prazo).
+  { id: 'marketbuy', icon: '🛒', type: 'marketbuy', n: [150, 450], reward: 35,
+    label: (n) => `Comprar ${fmt(n)} unidades no Mercado`, req: (S) => !!(S.research.done && S.research.done.comercio) },
+  { id: 'request',  icon: '🗒️', type: 'request',  n: [1, 3],     reward: 40,
+    label: (n) => `Entregar ${fmt(n)} pedido${n > 1 ? 's' : ''} de NPC`, req: (S) => !!(S.research.done && S.research.done.cidade) },
+  { id: 'build',    icon: '🏗️', type: 'build',    n: [2, 5],     reward: 35,
+    label: (n) => `Subir ${fmt(n)} ${n > 1 ? 'níveis' : 'nível'} de sala ou Árvore do Mundo`, req: (S) => S.unlocked.base },
 ];

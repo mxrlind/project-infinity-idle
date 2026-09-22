@@ -871,4 +871,79 @@ test('onKillExt: não garante uma 2ª relíquia de graça (só a 1ª é garantid
   assertEqual(Game.ownedRelicIds().length, after1, 'onda 25 (< 40) sem chance de sorte não deveria conceder outra');
 });
 
+// ---------- Fase 8 removida (AUDIT D3) ----------
+
+test('PHASES: não existe mais Fase 8, e a Fase 7 é a última mesmo com `earned` gigantesco', () => {
+  S = defaultState();
+  assertTrue(!PHASES.some(p => p.id === 8), 'PHASES não deveria ter mais id 8');
+  S.earned = 1e30;
+  assertEqual(Game.earnedPhase().id, 7, 'nenhuma quantidade de ouro deveria destravar uma Fase 8 inexistente');
+  S.maxPhaseId = 7; // simula jogador que já alcançou permanentemente a Fase 7
+  assertEqual(Game.nextPhaseProgress(), null, 'sem Fase 8, não há "próxima fase" depois da 7');
+});
+
+// ---------- Aviso antecipado de mecânica de chefe (AUDIT D4) ----------
+
+test('spawnEnemy: pré-rola a mecânica do próximo chefe 1 inimigo antes, e o chefe reaproveita (não rerola)', () => {
+  S = defaultState();
+  S.combat.wave = 9;
+  S.combat.bossCooldown = 0;
+  Game.spawnEnemy(); // onda 9 (não-chefe) — a onda 10 já é previsível
+  const predicted = S.combat.upcomingBossMech;
+  assertTrue(predicted !== undefined, 'ao spawnar o inimigo da onda 9, a mecânica da onda 10 já deveria estar prevista');
+  S.combat.wave = 10;
+  Game.spawnEnemy(); // agora o chefe de verdade
+  assertEqual(S.combat.bossMech, predicted, 'o chefe real deve usar EXATAMENTE a mecânica prevista, nunca rerolar');
+  assertEqual(S.combat.upcomingBossMech, undefined, 'a previsão é consumida ao virar chefe de verdade');
+});
+
+test('spawnEnemy: onda que não antecede chefe não prevê nada', () => {
+  S = defaultState();
+  S.combat.wave = 5;
+  S.combat.bossCooldown = 0;
+  Game.spawnEnemy();
+  assertEqual(S.combat.upcomingBossMech, undefined, 'onda 5 não antecede chefe (onda 6 não é múltiplo de 10)');
+});
+
+test('spawnEnemy: retry de chefe (bossCooldown) também prevê no último inimigo antes de voltar', () => {
+  S = defaultState();
+  S.combat.wave = 10;
+  S.combat.bossCooldown = 1; // falta 1 abate pro chefe retornar
+  Game.spawnEnemy(); // spawna o último inimigo do cooldown, já decrementado internamente pra 0 na previsão
+  assertTrue(S.combat.upcomingBossMech !== undefined, 'faltando 1 abate pro cooldown zerar, a mecânica do retry já deveria estar prevista');
+});
+
+// ---------- Novas metas do dia: marketbuy/request/build (AUDIT D7) ----------
+
+test('marketBuy/claimRequest/buildRoom/growWorldTree disparam dailyEvent pros tipos novos', () => {
+  S = defaultState();
+  S.gold = 1e9;
+  S.unlocked.base = true;
+  S.daily.goals = [
+    { id: 'marketbuy', prog: 0, need: 10, claimed: false },
+    { id: 'request',   prog: 0, need: 1,  claimed: false },
+    { id: 'build',      prog: 0, need: 2,  claimed: false },
+  ];
+
+  Game.marketBuy('madeira', 20);
+  assertTrue(S.daily.goals[0].prog > 0, 'comprar no Mercado deveria progredir a meta marketbuy');
+
+  S.npcs.request.mercador = { res: 'madeira', need: 1, claimed: false };
+  S.res.madeira = 100;
+  Game.claimRequest('mercador');
+  assertTrue(S.daily.goals[1].prog > 0, 'entregar um pedido de NPC deveria progredir a meta request');
+
+  Game.buildRoom('serraria');
+  assertTrue(S.daily.goals[2].prog > 0, 'construir/subir uma sala deveria progredir a meta build');
+});
+
+test('growWorldTree também conta pra meta build (mesmo tipo que subir sala)', () => {
+  S = defaultState();
+  S.prestiges = 1;
+  S.essence = 999; S.res.conhecimento = 999; S.res.madeira = 999; S.res.cristal = 999;
+  S.daily.goals = [{ id: 'build', prog: 0, need: 2, claimed: false }];
+  Game.growWorldTree(1);
+  assertTrue(S.daily.goals[0].prog > 0, 'crescer a Árvore do Mundo deveria progredir a mesma meta build');
+});
+
 runTests();

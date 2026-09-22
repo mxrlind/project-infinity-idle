@@ -70,6 +70,7 @@ Object.assign(Game, {
       if (r) lastGift = r;
     }
     if (!grown) return false;
+    this.dailyEvent('build', grown);   // Metas do Dia (AUDIT D7) — mesmo tipo de subir nível de sala
     Sound.play('upgrade');
     UI.log(`🌳 <b>Árvore do Mundo</b> cresce ${grown > 1 ? grown + ' níveis' : '1 nível'}, agora nível <b>${S.worldTree.level}</b> (bônus ×${this.worldTreeMult().toFixed(2)}).`);
     if (lastGift) {

@@ -388,6 +388,7 @@ Object.assign(Game, {
     S.res[goodId] = (S.res[goodId] || 0) + n;
     S.market.stats.trades++;
     S.market.stats.bought += n;
+    this.dailyEvent('marketbuy', n);   // Metas do Dia (AUDIT D7)
     Sound.play('buy');
     UI.dirty.market = true;
     return true;
@@ -731,6 +732,7 @@ Object.assign(Game, {
     this.gainGold(reward);
     this.addRep(npcId, 10);
     S.npcs.requestsDone = (S.npcs.requestsDone || 0) + 1;
+    this.dailyEvent('request', 1);   // Metas do Dia (AUDIT D7)
     const def = NPCS.find(x => x.id === npcId);
     const g = MARKET_GOODS.find(x => x.id === req.res);
     UI.log(`${def.icon} <b>${def.name}</b> recebeu <b>${fmt(req.need)}</b> ${g ? g.name : req.res} e pagou <b>+${fmt(reward)}</b> ouro (+10 amizade)!`);

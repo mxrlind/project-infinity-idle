@@ -488,6 +488,19 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
 }
 .boss-mech.hidden { display: none; }
 
+/* AUDIT D4: aviso do próximo chefe (âmbar/aviso, distinto do vermelho de mecânica JÁ ativa acima) */
+.upcoming-boss-mech {
+  font-size: 13px;
+  color: var(--gold-hi);
+  border: 1px solid rgba(255, 215, 0, 0.35);
+  background: rgba(255, 215, 0, 0.08);
+  border-radius: 8px;
+  padding: 4px 10px;
+  margin-bottom: 6px;
+  display: inline-block;
+}
+.upcoming-boss-mech.hidden { display: none; }
+
 /* ===== Heróis ===== */
 .hero-list { display: flex; flex-direction: column; gap: 8px; }
 .hero-row {

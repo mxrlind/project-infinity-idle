@@ -503,7 +503,8 @@ const Game = {
 
   spawnEnemy() {
     const c = S.combat;
-    c.boss = c.wave % 10 === 0 && c.bossCooldown === 0;
+    const expectedBoss = c.wave % 10 === 0 && c.bossCooldown === 0;
+    c.boss = expectedBoss;
     // Mundo Vivo (#8): Eclipse pode surpreender com um chefe fora do múltiplo de 10
     c.secretBoss = false;
     if (!c.boss && c.bossCooldown === 0 && this.worldInfo && this.worldInfo().weather && this.worldInfo().weather.id === 'eclipse'
@@ -511,8 +512,24 @@ const Game = {
       c.boss = true;
       c.secretBoss = true;
     }
-    // Chefes Inteligentes (#7): sorteia (ou não) uma mecânica pra este chefe
-    c.bossMech = c.boss ? this.rollBossMechanic(c.wave) : null;
+    // Chefes Inteligentes (#7): sorteia (ou não) uma mecânica pra este chefe. Chefe ESPERADO (múltiplo
+    // de 10) reaproveita a mecânica já pré-rolada por AUDIT D4 abaixo, pra bater com o que foi
+    // avisado; chefe SECRETO (eclipse) sorteia na hora — é surpresa por natureza, nunca foi previsto.
+    c.bossMech = c.boss
+      ? (expectedBoss && S.combat.upcomingBossMech !== undefined ? S.combat.upcomingBossMech : this.rollBossMechanic(c.wave))
+      : null;
+    // AUDIT D4: pré-visualiza a mecânica do PRÓXIMO chefe PREVISÍVEL assim que ela fica determinável
+    // (o inimigo que está prestes a spawnar aqui é o último antes dele) — dá ao jogador o tempo de
+    // abater ESTE inimigo pra reagir (trocar um herói de papel certo pro campo) antes da mecânica
+    // valer, em vez de descobrir só depois que o chefe já apareceu (era exatamente essa a queixa:
+    // "o aviso de mecânica chega depois do spawn, tarde demais pra decidir").
+    if (c.boss) {
+      S.combat.upcomingBossMech = undefined; // consumido; só reaparece quando um spawn não-chefe recalcular abaixo
+    } else {
+      const nextCooldown = c.bossCooldown > 0 ? c.bossCooldown - 1 : 0;
+      const nextWave = c.bossCooldown > 0 ? c.wave : c.wave + 1;
+      S.combat.upcomingBossMech = (nextCooldown === 0 && nextWave % 10 === 0) ? this.rollBossMechanic(nextWave) : undefined;
+    }
     c.bossShiftPhys = false;
     const mech = this.bossMechDef();
     c.bossShiftT = (mech && mech.shifting) ? mech.shiftEvery : 0;
@@ -1025,6 +1042,7 @@ const Game = {
     Sound.play('build');
     UI.dirty.base = true;
     this._baseDirty = true;
+    this.dailyEvent('build', 1);   // Metas do Dia (AUDIT D7)
     return true;
   },
 

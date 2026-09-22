@@ -326,6 +326,10 @@ const UI = {
 
     const bossMechEl = this.el('div', 'boss-mech hidden', '');   // Chefes Inteligentes (#7)
     combat.appendChild(bossMechEl);
+    // AUDIT D4: aviso do PRÓXIMO chefe (previsível, múltiplo de 10) já durante o inimigo anterior —
+    // dá tempo real de reagir (trocar herói de papel certo em campo) antes da mecânica valer.
+    const upcomingMechEl = this.el('div', 'upcoming-boss-mech hidden', '');
+    combat.appendChild(upcomingMechEl);
 
     const hpBar = this.el('div', 'hp-bar');
     const hpFill = this.el('div', 'hp-fill');
@@ -338,7 +342,7 @@ const UI = {
     const dpsEl = this.el('div', 'team-dps', '');
     combat.appendChild(dpsEl);
     c.appendChild(combat);
-    this.R.combat = { waveEl, enemy, hpFill, hpText, bossTimer, dpsEl, bossMechEl, lastMech: undefined };
+    this.R.combat = { waveEl, enemy, hpFill, hpText, bossTimer, dpsEl, bossMechEl, upcomingMechEl, lastMech: undefined, lastUpcoming: undefined };
 
     // seletor de quantidade (vale para subir níveis nos mini-cards)
     c.appendChild(this.buyAmountBar('Níveis por compra:', 'buyAmount', 'heroes',
@@ -1940,6 +1944,23 @@ const UI = {
           rc.bossMechEl.classList.remove('hidden');
         } else {
           rc.bossMechEl.classList.add('hidden');
+        }
+      }
+
+      // AUDIT D4: aviso do próximo chefe previsível (Game.spawnEnemy pré-rola a mecânica 1 inimigo
+      // antes) — só aparece enquanto o combate atual NÃO é contra um chefe (rc.bossMechEl já cobre
+      // esse caso), e some sozinho quando o chefe efetivamente spawna (upcomingBossMech vira undefined).
+      const upcoming = S.combat.upcomingBossMech;
+      if (rc.lastUpcoming !== upcoming) {
+        rc.lastUpcoming = upcoming;
+        const mech = upcoming ? BOSS_MECHANICS.find(m => m.id === upcoming) : null;
+        if (mech && !cb.boss) {
+          const roleName = mech.req && mech.req.role ? (HERO_ROLES[mech.req.role] && HERO_ROLES[mech.req.role].name) : null;
+          rc.upcomingMechEl.innerHTML = `⚠️ Próximo chefe: ${mech.icon} <b>${mech.name}</b>${roleName ? ` — precisa de <b>${roleName}</b> em campo` : ''}`;
+          rc.upcomingMechEl.title = mech.desc;
+          rc.upcomingMechEl.classList.remove('hidden');
+        } else {
+          rc.upcomingMechEl.classList.add('hidden');
         }
       }
 

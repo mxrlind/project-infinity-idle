@@ -2,6 +2,38 @@
 
 ## Não lançado
 
+### D3/D4/D7 — as 3 decisões de produto pendentes do AUDIT, resolvidas com o dono do jogo
+
+**D3 (remover Fase 8)**: `PHASES` (`data.js`) perde o id 8 ("???", 100T, "teaser megaprojetos") — nunca
+teve notificação em `updatePhases()` nem qualquer conteúdo por trás, um beco sem saída pra quem
+chegasse lá. O endgame declarado passa a ser a Árvore do Mundo + Ascensão (já existem, desbloqueiam
+por prestígio/ascensão, não por ouro ganho na run). A Fase 7 (teaser de Guildas) não foi tocada — é uma
+decisão separada, não coberta por esta. Sem migração de save necessária: `currentPhase()`/
+`nextPhaseProgress()` já tinham fallback gracioso pra fase inexistente.
+
+**D4 (rotação tática)**: `Game.spawnEnemy()` agora pré-rola a mecânica do PRÓXIMO chefe previsível
+(múltiplo de 10, incluindo retorno de `bossCooldown`) assim que ela fica determinável — o inimigo
+comum que está prestes a spawnar é sempre o ÚLTIMO antes do chefe. Isso dá ao jogador o tempo de
+abater esse inimigo pra reagir (trocar um herói do papel certo pro campo) antes da mecânica valer, em
+vez de descobrir só depois que o chefe já apareceu — era exatamente essa a queixa original. Novo
+banner `.upcoming-boss-mech` no painel de combate ("⚠️ Próximo chefe: Dragão Alado — precisa de
+Duelista em campo"), distinto visualmente do banner de mecânica JÁ ativa. Chefes SECRETOS (eclipse)
+continuam surpresa pura, nunca previstos — são fora do múltiplo de 10 por natureza. O chefe real
+sempre reaproveita a mecânica pré-rolada (nunca rerola), garantindo que o aviso bata com o que
+acontece.
+
+**D7 (novas metas do dia)**: 3 tipos novos em `DAILY_GOALS` a partir de dados que o jogo já rastreava
+mas nunca viravam meta — `marketbuy` (`S.market.stats.bought`, hook em `marketBuy()`), `request`
+(`S.npcs.requestsDone`, hook em `claimRequest()`), `build` (subir nível de sala OU da Árvore do Mundo,
+hooks em `buildRoom()`/`growWorldTree()` — os dois contam pro mesmo tipo, mesmo espírito de
+investimento de longo prazo). O que premiar além do streak máximo de 10 dias ficou de fora desta
+rodada — não foi pedido, e mudar a curva de recompensa é uma decisão de balanceamento à parte.
+
+Testes 72→**78** (2 de D3 — Fase 8 não existe mais, nunca destrava —, 3 de D4 — pré-rolagem prevê e o
+chefe real reaproveita, onda que não antecede chefe não prevê nada, retry de bossCooldown também
+prevê —, 2 de D7 — os 3 hooks progridem as metas certas, growWorldTree conta pro mesmo tipo que
+subir sala).
+
 ### Fecha o AUDIT: O2-O7 (organização) + D2/D5/D6/D8 (design) — restam só D3/D4/D7 (decisões de produto)
 
 **O2** — `Game.equipRelicFirstFree()` novo, mesmo padrão de `firstFreeFieldSlot()`; `Game.genVisible()`/

@@ -233,10 +233,10 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 
 *Revisão focada em performance, bugs e organização, cobrindo o que foi escrito depois da Parte 0–11 (a base cresceu 2,6× — 3.166 → ~8.300 linhas). `node tests/run.js` = 59/59 passando no momento desta auditoria.*
 
-> **Status de execução (2026-09-21):** Partes 12.1 (desempenho), 12.2 (bugs) e 12.3 (organização)
-> estão **100% fechadas**. Da 12.4 (design), D1/D2/D5/D6/D8 estão fechados — só restam **D3, D4, D7**,
-> e os três são decisões de produto/conteúdo (não bugs), aguardando direção antes de virar código.
-> Ver [CHANGELOG.md](CHANGELOG.md) para o detalhe de cada item.
+> **Status de execução (2026-09-21):** Auditoria da Parte 12 **encerrada**. Partes 12.1 (desempenho),
+> 12.2 (bugs), 12.3 (organização) e 12.4 (design) — todos os itens corrigidos ou decididos com o dono
+> do jogo (D3/D4/D7, as únicas decisões de produto/conteúdo, resolvidas nesta sessão). Nada 🔴 em
+> aberto. Ver [CHANGELOG.md](CHANGELOG.md) para o detalhe de cada item.
 
 ### 12.1 — Gargalos de desempenho
 
@@ -316,20 +316,22 @@ Cada `ROOMS` com bônus numérico ganhou `perLevel` (`data.js`) + `desc` como ge
 
 🟠 **D2 — o teto de 10 abates/s (ligado ao B7) satura o valor de investir em DPS no late-game.** *(resolvido de fato pelo fix de B7 em 2026-09-21 — `damageEnemy` agora encadeia overkill em múltiplos abates por chamada, exatamente a mecânica sugerida aqui; nenhuma UI de "multi-abate" foi adicionada além disso, não pareceu necessária além do log existente)*
 
-🟠 **D3 — Fases 7 e 8 continuam teasers vazios**; a Fase 8 (100T) nem tem notificação em `updatePhases`. **Decisão de produto pendente, não implementada nesta rodada** — dar conteúdo real à aba "???"/guildas é uma feature grande (não um bugfix), e remover a Fase 8 é uma decisão irreversível de escopo declarado; nenhuma das duas foi tomada unilateralmente.
+🟠 **D3 — Fases 7 e 8 continuam teasers vazios.** *(decidido e corrigido em 2026-09-21, ver CHANGELOG — Fase 8 removida, Árvore do Mundo/Ascensão declarados o endgame; Fase 7 (Guildas) não foi tocada, decisão separada)*
 
-🟠 **D4 — a reserva de heróis não tem função própria** (6 dos 10 heróis só custam, parados). **Decisão de produto pendente, não implementada** — três abordagens concorrentes (expedições/treinamento/rotação tática), cada uma um sistema novo de porte real; pede escolha do dono do jogo antes de qualquer código.
+🟠 **D4 — a reserva de heróis não tem função própria.** *(decidido e corrigido em 2026-09-21, ver CHANGELOG — rotação tática: `Game.spawnEnemy()` pré-rola a mecânica do próximo chefe previsível e avisa 1 inimigo antes, dando tempo real de trocar um herói do papel certo pro campo)*
 
 🟡 **D5 — a renda passiva do Mercado ficava fora de `globalProdMult()`.** *(corrigido em 2026-09-21, ver CHANGELOG — confirmado não intencional)*
 
 🟡 **D6 — as melhores decisões do jogo (Relíquias) estavam escondidas atrás de dezenas de horas/dias.** *(corrigido em 2026-09-21, ver CHANGELOG — 1ª relíquia agora garantida na onda 20)* Observação sobre pesquisa exclusiva (1 dia real) mantida como nota, não implementada — mudar o tempo de pesquisa é decisão de balanceamento maior que uma garantia pontual.
 
-🟡 **D7 — Metas do Dia sem marco de sequência acima de `DAILY_STREAK_MAX = 10`, e eventos registrados em `S` fora do pool** (`market.stats.bought`, `npcs.requestsDone`, níveis de sala/Árvore do Mundo). **Não implementado nesta rodada** — decisão de conteúdo/balanceamento (o que premiar após o streak máximo, quais eventos novos valem virar meta) que pede direção do dono do jogo, não só código.
+🟡 **D7 — Metas do Dia sem marco de sequência acima de `DAILY_STREAK_MAX = 10`, e eventos registrados em `S` fora do pool.** *(decidido e corrigido em 2026-09-21, ver CHANGELOG — 3 metas novas: `marketbuy`/`request`/`build`, a partir de estatísticas já rastreadas)* Recompensa além do streak máximo de 10 dias ficou de fora — não foi pedida, é decisão de balanceamento à parte.
 
 🟢 **D8 — o Códex não tinha indicador visível fora do modal.** *(corrigido em 2026-09-21, ver CHANGELOG — badge de % no botão do topbar, cacheado no mesmo cadenciamento de 2s de `checkAchievements`)*
 
 ### 12.5 — Ordem de execução sugerida
 
-B1 → B2 → B3 → P1–P10 → B5 + B6 → O1 → D1 → B4 + B7–B13 → O2 → O3 → O4 → O5 (documentado, não corrigível sem bundler) → O6 → O7 → D2 (resolvido de graça pelo B7) → D5 → D6 → D8 *(toda a Parte 12.1, 12.2, 12.3 fechadas; 12.4 com D1/D2/D5/D6/D8 fechados)*. **Restam D3, D4, D7 — decisões de produto/conteúdo, não bugs, aguardando direção do dono do jogo antes de qualquer implementação.**
+B1 → B2 → B3 → P1–P10 → B5 + B6 → O1 → D1 → B4 + B7–B13 → O2 → O3 → O4 → O5 (documentado, não corrigível sem bundler) → O6 → O7 → D2 (resolvido de graça pelo B7) → D5 → D6 → D8 → D3 → D4 → D7 *(as 3 últimas decididas com o dono do jogo em 2026-09-21)*.
+
+**A auditoria da Parte 12 está encerrada**: Partes 12.1 (desempenho), 12.2 (bugs) e 12.3 (organização) 100% fechadas; 12.4 (design) com todos os 8 itens corrigidos ou decididos. Nada crítico (🔴) em aberto.
 
 **Resumo em uma frase:** o motor cresceu 2,6× desde julho mantendo a separação de responsabilidades honesta, mas cresceu sem cache — `synergyBonuses()` sozinho queima ~400k operações/s recalculando algo que só muda quando o jogador move uma sala — e os bugs de maior impacto (import de save inerte, meta impossível, Bolsa que nunca detecta melhoria) são todos código que *parece* funcionar e nunca executa o caminho que importa.

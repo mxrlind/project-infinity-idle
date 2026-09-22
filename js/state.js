@@ -56,6 +56,10 @@ function defaultState() {
       fightT: 0,         // segundos que o inimigo atual está vivo (fúria do Berserker)
       kills: 0, bossKills: 0,
       bossMech: null,    // id de BOSS_MECHANICS ativa neste chefe (null se não for chefe ou sem mecânica sorteada)
+      // AUDIT D4: mecânica pré-rolada do PRÓXIMO chefe previsível (múltiplo de 10), calculada 1
+      // inimigo antes dele existir de verdade — undefined = nada previsto ainda, null = previsto SEM
+      // mecânica (chefe "comum"), string = id de BOSS_MECHANICS. Ver Game.spawnEnemy().
+      upcomingBossMech: undefined,
       bossShiftPhys: false, // Rei Demônio: true = fase de resistência física ativa agora
       bossShiftT: 0,     // segundos até a próxima troca de resistência (Rei Demônio)
     },
