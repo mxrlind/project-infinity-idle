@@ -580,7 +580,7 @@ const UI = {
 
   // mini-card de herói (campo ou reserva): arrastável, selecionável, com nível e gear
   heroMini(heroId) {
-    const def = HEROES.find(x => x.id === heroId);
+    const def = HEROES_BY_ID[heroId];
     const cd = HERO_CLASSES[def.class];
     const arch = Game.heroArchetype(heroId);
     const wt = arch ? WEAPON_TYPES.find(w => w.id === arch.weapon) : null;
@@ -976,16 +976,19 @@ const UI = {
         this.forgeCostPart('⛓️', S.res.ferro, cost.ferro),
       ];
       if (cost.cristal > 0) parts.push(this.forgeCostPart('💠', S.res.cristal, cost.cristal));
-      ref.costEl.innerHTML = parts.filter(Boolean).join(' · ');
+      // P4: o custo de um tier só muda quando algum recurso cruza o limiar de "cost-missing" (classe
+      // ok/faltando) ou os valores mudam — reescrever todo tick reparseia HTML por nada na maioria deles.
+      const costHtml = parts.filter(Boolean).join(' · ');
+      if (costHtml !== ref._costHtml) { ref._costHtml = costHtml; ref.costEl.innerHTML = costHtml; }
       const ok = Game.canForge(ref.id);
       ref.btn.classList.toggle('afford', ok);
       ref.btn.disabled = !ok;
       ref.btn.title = full ? 'Bolsa cheia — equipe ou desmanche cartas na aba Heróis' : '';
     }
-    this.R.forge.stat.innerHTML =
-      `<span>Forjados: <b>${S.forge.forged}</b></span>` +
+    const statHtml = `<span>Forjados: <b>${S.forge.forged}</b></span>` +
       `<span>Bolsa: <b>${S.forge.inventory.length}/${FORGE_INVENTORY_CAP}</b></span>` +
       (full ? '<span class="forge-wait">⚠️ bolsa cheia — equipe ou desmanche na aba Heróis</span>' : '');
+    if (statHtml !== this.R.forge._statHtml) { this.R.forge._statHtml = statHtml; this.R.forge.stat.innerHTML = statHtml; }
   },
 
   forgeCostPart(label, have, need) {
@@ -1295,11 +1298,19 @@ const UI = {
     const wr = wrap.getBoundingClientRect();
     if (!wr.width) return;
     svg.setAttribute('viewBox', `0 0 ${wr.width} ${wr.height}`);
+    // P10 (AUDIT.md PARTE 12): a mesma célula (em especial a selecionada) aparece em vários segmentos
+    // — sem memo, cada aparição refazia `getBoundingClientRect()` (layout thrashing). Um Map local por
+    // desenho basta, já que a grade não muda de layout no meio de uma única chamada.
+    const centerCache = new Map();
     const center = (idx) => {
+      if (centerCache.has(idx)) return centerCache.get(idx);
       const el = wrap.querySelector(`.base-cell[data-index="${idx}"]`);
-      if (!el) return null;
-      const r = el.getBoundingClientRect();
-      return { x: r.left - wr.left + r.width / 2, y: r.top - wr.top + r.height / 2 };
+      const c = el ? (() => {
+        const r = el.getBoundingClientRect();
+        return { x: r.left - wr.left + r.width / 2, y: r.top - wr.top + r.height / 2 };
+      })() : null;
+      centerCache.set(idx, c);
+      return c;
     };
 
     const conn = Game.roomConnections(this.baseSel);
@@ -1666,19 +1677,27 @@ const UI = {
   },
 
   updateBuffs() {
-    const bb = document.getElementById('buffs-box');
     const now = Date.now();
     const active = S.buffs.filter(b => b.until > now);
+    // P4 (AUDIT.md PARTE 12): reescrevia innerHTML todo tick mesmo com ZERO buffs. Sem nada ativo,
+    // o conteúdo é sempre '' — só limpa (e só uma vez) quando sai do estado "com buffs" pro vazio.
+    if (!active.length && S.invasion <= 0) {
+      if (this._buffsWereEmpty) return;
+      this._buffsWereEmpty = true;
+      this.dyn.buffsBox.innerHTML = '';
+      return;
+    }
+    this._buffsWereEmpty = false;
     let html = active.map(b => `<div class="buff-chip">${this.esc(b.icon)} ${this.esc(b.name)} <span class="buff-t">${fmtTime((b.until - now) / 1000)}</span></div>`).join('');
     if (S.invasion > 0) html += `<div class="buff-chip">👹 Invasão <span class="buff-t">${S.invasion} restantes</span></div>`;
-    bb.innerHTML = html;
+    this.dyn.buffsBox.innerHTML = html;
   },
 
   // lê o cache de `Game._closestAchCache` (P2 — recalculado a cada 2s, não a cada tick) e só toca o
   // DOM quando a conquista OU a porcentagem (arredondada) mudam de verdade.
   _lastClosestSig: undefined,
   updateClosestAch() {
-    const box = document.getElementById('closest-ach-box');
+    const box = this.dyn.closestAchBox;
     const res = Game._closestAchCache;
     if (!res) { if (this._lastClosestSig !== null) { box.innerHTML = ''; this._lastClosestSig = null; } return; }
     const { ach, pct } = res;
@@ -1764,21 +1783,24 @@ const UI = {
   // ---------- Atualização dinâmica (todo tick) ----------
 
   updateDynamic() {
-    document.getElementById('gold-amount').textContent = fmt(S.gold);
-    document.getElementById('gold-rate').textContent = fmtRate(Game.goldPerSec());
-    document.getElementById('click-power-label').textContent = '+' + fmt(Game.clickPower()) + ' por clique';
+    // P9 (AUDIT.md PARTE 12): os elementos abaixo são fixos (nunca recriados) — lidos de `this.dyn`,
+    // cacheado uma vez em `init()`, em vez de ~16 `getElementById` repetidos por tick.
+    const dyn = this.dyn;
+    dyn.goldAmount.textContent = fmt(S.gold);
+    dyn.goldRate.textContent = fmtRate(Game.goldPerSec());
+    dyn.clickPowerLabel.textContent = '+' + fmt(Game.clickPower()) + ' por clique';
 
     // O ouro não pode ser uma região viva (mudaria 10×/s e afogaria o leitor de tela), então o valor
     // atual vive no rótulo da moeda — que é onde o jogador cego tem o foco. Trocar aria-label não
     // dispara anúncio: só é lido quando ele consulta, que é exatamente o comportamento desejado.
-    const coin = document.getElementById('click-coin');
+    const coin = dyn.coin;
     if (coin) coin.setAttribute('aria-label', `Minerar ouro. Você tem ${fmt(S.gold)} de ouro, ganhando ${fmtRate(Game.goldPerSec())}. Cada clique rende ${fmt(Game.clickPower())}.`);
 
     const phase = Game.currentPhase();
     const roman = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][phase.id] || phase.id;
-    document.getElementById('phase-badge').textContent = `Fase ${roman} — ${phase.name}`;
+    dyn.phaseBadge.textContent = `Fase ${roman} — ${phase.name}`;
 
-    const progFill = document.getElementById('phase-progress-fill');
+    const progFill = dyn.phaseProgressFill;
     const np = Game.nextPhaseProgress();
     if (np) {
       progFill.style.width = (np.pct * 100) + '%';
@@ -1799,10 +1821,9 @@ const UI = {
     const glow = Math.min(0.4, 0.08 + 0.015 * S.prestiges + 0.02 * Math.log2(1 + S.essence)).toFixed(3);
     if (glow !== this._lastGlow) { this._lastGlow = glow; document.documentElement.style.setProperty('--arcane-glow', glow); }
 
-    const essBadge = document.getElementById('essence-badge');
     if (S.essence > 0 || S.unlocked.prestige) {
-      essBadge.classList.remove('hidden');
-      document.getElementById('essence-count').textContent = fmt(S.essence);
+      dyn.essBadge.classList.remove('hidden');
+      dyn.essCount.textContent = fmt(S.essence);
     }
 
     if (this.dirty.left) this.renderLeft();
@@ -1815,10 +1836,18 @@ const UI = {
     // elementos dinâmicos do tab ativo
     if (this.activeTab === 'prod' && this.R.gens) {
       for (const ref of this.R.gens) {
-        const cost = Game.genCost(ref.id, this.buyAmount === 'max' ? Math.max(1, Game.genMaxBuy(ref.id)) : this.buyAmount);
+        // P5: genMaxBuy() era chamado 2× por linha por tick com "Máx" selecionado — calcula `n` uma
+        // vez e deriva o custo dele.
         const n = this.buyAmount === 'max' ? Game.genMaxBuy(ref.id) : this.buyAmount;
+        const cost = Game.genCost(ref.id, Math.max(1, n));
         const afford = this.buyAmount === 'max' ? n > 0 : S.gold >= cost;
-        ref.btn.innerHTML = `Comprar ${this.buyAmount === 'max' ? (n > 0 ? '×' + n : '×0') : '×' + this.buyAmount}<br><span class="btn-cost">${fmt(cost)} ouro</span>`;
+        // P4: só reescreve o innerHTML do botão quando o rótulo realmente muda (evita reparsing por
+        // tick num valor que só varia quando o ouro cruza um limiar de compra ou o modo ×1/×10/Máx muda).
+        const sig = this.buyAmount + ':' + n + ':' + cost;
+        if (sig !== ref._sig) {
+          ref._sig = sig;
+          ref.btn.innerHTML = `Comprar ${this.buyAmount === 'max' ? (n > 0 ? '×' + n : '×0') : '×' + this.buyAmount}<br><span class="btn-cost">${fmt(cost)} ouro</span>`;
+        }
         ref.btn.classList.toggle('afford', afford);
         ref.btn.disabled = !afford;
         ref.ownedEl.textContent = '×' + (S.gens[ref.id] || 0);
@@ -1865,7 +1894,7 @@ const UI = {
       rc.hpFill.style.width = (pct * 100) + '%';
       rc.hpText.textContent = fmt(Math.max(0, cb.hp)) + ' / ' + fmt(cb.maxHp);
       rc.bossTimer.textContent = cb.boss ? '⏳ ' + fmtTime(cb.bossT) : '';
-      rc.dpsEl.innerHTML = `DPS do time: <b>${fmt(Game.teamDps())}</b> · recompensa: <b>${fmt(Game.enemyGold(cb.wave, cb.boss))}</b> ouro`;
+      rc.dpsEl.innerHTML = `DPS do time: <b>${fmt(Game._teamDpsCache)}</b> · recompensa: <b>${fmt(Game.enemyGold(cb.wave, cb.boss))}</b> ouro`;
 
       // Chefes Inteligentes (#7): badge com a mecânica ativa + resistência atual (Rei Demônio)
       if (rc.lastMech !== cb.bossMech || (cb.bossMech === 'rei_demonio' && rc._lastShift !== cb.bossShiftPhys)) {
@@ -1918,7 +1947,14 @@ const UI = {
 
     if (this.activeTab === 'base' && this.R.rooms) {
       for (const ref of this.R.rooms) {
-        ref.btn.innerHTML = `Construir<br><span class="btn-cost">${this.roomCostHtml(ref.id)}</span>`;
+        // P4: o custo de uma sala só muda quando ela sobe de nível (full re-render já cobre isso) ou
+        // quando extRoomCostMult() muda (pesquisa rara) — reescrever o innerHTML todo tick era puro
+        // desperdício de reparsing.
+        const costHtml = this.roomCostHtml(ref.id);
+        if (costHtml !== ref._costHtml) {
+          ref._costHtml = costHtml;
+          ref.btn.innerHTML = `Construir<br><span class="btn-cost">${costHtml}</span>`;
+        }
         const afford = Game.canAffordRoom(ref.id);
         ref.btn.classList.toggle('afford', afford);
         ref.btn.disabled = !afford;
@@ -2142,7 +2178,7 @@ const UI = {
   // Em vez de caçar cada caminho possível, a camada se conserta sozinha: sem caixa de modal dentro,
   // ela não tem motivo para estar visível.
   ensureModalSanity() {
-    const layer = document.getElementById('modal-layer');
+    const layer = this.dyn.modalLayer;
     if (layer.classList.contains('hidden')) return;
     if (!layer.querySelector('.modal-box')) {
       layer.classList.add('hidden');
@@ -2281,8 +2317,28 @@ const UI = {
   // ---------- Inicialização ----------
 
   init() {
+    // Cache dos elementos fixos lidos em TODO tick (P9, AUDIT.md PARTE 12) — nunca são recriados
+    // (ao contrário das listas de geradores/salas/heróis, que renderActive() reconstrói do zero),
+    // então um único getElementById aqui substitui ~16 buscas repetidas por tick espalhadas por
+    // updateDynamic/updateBuffs/updateClosestAch/ensureModalSanity/updateWorld.
+    this.dyn = {
+      goldAmount: document.getElementById('gold-amount'),
+      goldRate: document.getElementById('gold-rate'),
+      clickPowerLabel: document.getElementById('click-power-label'),
+      coin: document.getElementById('click-coin'),
+      phaseBadge: document.getElementById('phase-badge'),
+      phaseProgressFill: document.getElementById('phase-progress-fill'),
+      essBadge: document.getElementById('essence-badge'),
+      essCount: document.getElementById('essence-count'),
+      buffsBox: document.getElementById('buffs-box'),
+      closestAchBox: document.getElementById('closest-ach-box'),
+      modalLayer: document.getElementById('modal-layer'),
+      dailyBox: document.getElementById('daily-box'),
+      worldBox: null,   // criado sob demanda (ui-ext.js) — cacheado sob demanda também, ver updateWorld()
+    };
+
     // clique principal
-    const coin = document.getElementById('click-coin');
+    const coin = this.dyn.coin;
     coin.onclick = (ev) => {
       Sound.ensure();
       const gain = Game.clickPower();

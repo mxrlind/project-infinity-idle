@@ -2,6 +2,50 @@
 
 ## Não lançado
 
+### Performance: resto da Parte 12.1 — DOM, índices por id e menos trabalho por clique (AUDIT PARTE 12, P4-P10)
+
+Continuação do passe de performance (depois de P1/P2/P3): fecha a lista inteira de gargalos medidos.
+
+**P4** — geradores, salas, forja e buffs reescreviam `innerHTML` todo tick mesmo quando nada mudava
+(buffs reescrevia até com ZERO buffs ativos). Cada um ganhou uma assinatura (`ref._sig`/`ref._costHtml`)
+comparada antes de tocar o DOM, no mesmo padrão que `_dailySig`/`compSig` já usavam em outro lugar do
+projeto.
+
+**P5** — a linha de gerador chamava `Game.genMaxBuy()` duas vezes por tick quando "Máx" está
+selecionado (uma pro custo, outra pro rótulo). Agora calcula uma vez e deriva o custo dela.
+
+**P6** — `HEROES.find(x => x.id === id)` / `GENERATORS.find(...)` / `UPGRADES.find(...)` rodavam uma
+busca linear a cada chamada, repetidas dezenas de vezes por tick (uma por herói/gerador em cada
+cálculo de DPS/produção). `HEROES_BY_ID`/`GENERATORS_BY_ID`/`UPGRADES_BY_ID` (mapas id→def, `data.js`)
+substituem os `.find()` nos pontos quentes. `globalProdMult`/`genMult`/`clickPower` também filtravam os
+31 `UPGRADES` inteiros por `type` toda chamada — `UPGRADES_BY_TYPE`/`UPGRADES_BY_GEN` (buckets
+pré-agrupados no load) fazem cada uma iterar só o seu próprio grupo.
+
+**P7** — `Game.fieldHeroes()` refazia `Object.keys+filter+sort` a cada chamada (5-8×/tick). Agora é
+cacheada dentro do mesmo ciclo de `_fieldDirty` que já existia para `recomputeSynergy()` — vira leitura
+O(1) do cache na maioria das chamadas. (`worldInfo()`/`matPerSec()`, os outros dois itens do P7 original,
+ficaram de fora desta rodada — o ganho é menor e exigiria mais mudança em `expansion.js`.)
+
+**P8** — `Game.clickAttack()` refazia a soma de DPS do time inteiro a cada clique, além do já feito
+1×/tick em `Game.tick()`. Um jogador clicando 10×/s dobrava o custo de CPU do jogo. Agora reaproveita
+`Game._teamDpsCache`, atualizado 1×/tick.
+
+**P9** — ~16 `getElementById` por tick, espalhados por `updateDynamic`/`updateBuffs`/`updateClosestAch`/
+`updateDaily`/`ensureModalSanity`/`updateWorld`, buscando elementos que nunca são recriados. Cacheados
+uma vez em `UI.dyn` (montado em `UI.init()` — precisou ficar FORA de `UI.R`, que `renderActive()` zera
+a cada troca de aba). `world-box` (criado sob demanda) é cacheado na primeira vez que aparece.
+
+**P10** — `drawBaseLinks()` chamava `getBoundingClientRect()` sem memoizar, e a célula selecionada
+aparecia em vários segmentos (layout thrashing). Um `Map` local por desenho evita repetir a mesma
+leitura de layout.
+
+Suíte de testes 62 (sem novos casos motor — P4/P5/P9/P10 são só DOM, cobertos por verificação manual
+no preview; P6/P7/P8 são refatoração pura sobre fórmulas já cobertas pelos 62 testes existentes).
+**Achado ao verificar no preview**: o `http-server` deste projeto (`.claude/launch.json` da pasta pai)
+cacheava os `.js` por 1h por padrão (`Cache-Control: max-age=3600`) sem bypass de `location.reload()`
+simples — um teste no preview rodou código stale por várias tentativas até isso ser percebido.
+`launch.json` ganhou `-c-1` (desativa cache do servidor) para essa entrada.
+
 ### Performance: cache da grade da Base + achievement mais próximo + CSS por tick (AUDIT PARTE 12, P1/P2/P3)
 
 Três dos pontos mais quentes do tick, por ordem de impacto:

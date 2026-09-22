@@ -365,7 +365,10 @@ Object.assign(UI, {
   _worldKey: '',
 
   updateWorld() {
-    const box = document.getElementById('world-box');
+    // world-box é criado sob demanda em initExt() — cacheado (P9) só depois de existir, ao contrário
+    // dos outros elementos fixos já presentes no index.html desde o boot.
+    if (!this.dyn.worldBox) this.dyn.worldBox = document.getElementById('world-box');
+    const box = this.dyn.worldBox;
     if (!box) return;
     const w = Game.worldInfo();
     const weatherKey = w.weather ? w.weather.id : '-';

@@ -35,6 +35,10 @@ const GENERATORS = [
 ];
 const GEN_COST_MULT = 1.15;
 const GEN_MILESTONE = 25; // a cada 25 unidades, produção ×2
+// Índice id→def (AUDIT.md PARTE 12, P6): GENERATORS.find() rodava por unidade só pra achar a def do
+// gerador, repetido em vários pontos do motor por tick. 11 itens é pouco, mas some com UPGRADES (31)
+// e HEROES (10, chamado por herói/cálculo de DPS), a soma some — mapa construído uma vez no load.
+const GENERATORS_BY_ID = Object.fromEntries(GENERATORS.map(g => [g.id, g]));
 
 // ---- Upgrades ----
 // type: 'click' (mult clique) | 'gen' (mult gerador) | 'global' (mult produção) | 'clickProd' (% da produção/s por clique)
@@ -73,6 +77,17 @@ const UPGRADES = [
   { id: 'glob4',   name: 'Ordem Dourada',        icon: '🏵️', cost: 80e9,   type: 'global', mult: 1.25, desc: 'Toda produção +25%' },
   { id: 'glob5',   name: 'Lei da Abundância',    icon: '♾️', cost: 10e12,  type: 'global', mult: 1.3,  desc: 'Toda produção +30%' },
 ];
+const UPGRADES_BY_ID = Object.fromEntries(UPGRADES.map(u => [u.id, u]));
+// Baldes por tipo/gerador (AUDIT.md PARTE 12, P6): globalProdMult/genMult/clickPower filtravam os 31
+// UPGRADES inteiros por `type` (e, no caso de gen, também por `gen`) TODA chamada — e essas funções
+// são chamadas dezenas de vezes por tick (uma vez por gerador em goldPerSec/UI, clickPower a cada
+// clique). Agrupar uma vez no load faz cada chamada iterar só os poucos itens do seu próprio grupo.
+const UPGRADES_BY_TYPE = { global: [], click: [], clickProd: [] };
+const UPGRADES_BY_GEN = {};
+for (const u of UPGRADES) {
+  if (u.type === 'gen') (UPGRADES_BY_GEN[u.gen] || (UPGRADES_BY_GEN[u.gen] = [])).push(u);
+  else if (UPGRADES_BY_TYPE[u.type]) UPGRADES_BY_TYPE[u.type].push(u);
+}
 
 // ---- Heróis (NPCs com personalidade) ----
 // Escada de contratação: cada herói custa ~20–30× o anterior. Os seis últimos foram barateados —
@@ -115,6 +130,7 @@ const HEROES = [
     story: 'Canta a mesma canção desde antes do primeiro prestígio. Ainda não chegou ao refrão.',
     lines: ['Essa música ainda não acabou. Nem vai.', 'Toda batalha precisa de trilha sonora.', 'Já vi isso terminar. E recomeçar.'] },
 ];
+const HEROES_BY_ID = Object.fromEntries(HEROES.map(h => [h.id, h]));
 const KINGDOMS = {
   solar:    { name: 'Reino Solar',    icon: '☀️', color: '#e8a33d' },
   selvagem: { name: 'Reino Selvagem', icon: '🐺', color: '#7ec98a' },

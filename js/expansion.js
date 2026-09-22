@@ -611,7 +611,7 @@ Object.assign(Game, {
         const item = S.heroes[t.hid].gear[t.slot];
         item.mult *= 1.10;
         this._gearDirty = true;
-        const hdef = HEROES.find(x => x.id === t.hid);
+        const hdef = HEROES_BY_ID[t.hid];
         UI.log(`${def.icon} ${def.name} temperou ${item.icon} de <b>${hdef.name}</b>: agora +${Math.round(item.mult * 100)}% DPS!`);
         UI.dirty.heroes = true;
         break;

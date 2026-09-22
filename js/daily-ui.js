@@ -15,7 +15,7 @@ Object.assign(UI, {
   },
 
   updateDaily() {
-    const box = document.getElementById('daily-box');
+    const box = this.dyn.dailyBox;
     if (!box) return;
     const sig = this._dailySig();
     if (sig === this._dailySigCache) return;

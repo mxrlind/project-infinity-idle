@@ -233,8 +233,8 @@ Onde perde: profundidade de decisão estratégica, polimento visual (ainda é ma
 
 *Revisão focada em performance, bugs e organização, cobrindo o que foi escrito depois da Parte 0–11 (a base cresceu 2,6× — 3.166 → ~8.300 linhas). `node tests/run.js` = 59/59 passando no momento desta auditoria.*
 
-> **Status de execução:** 🔴 B1, 🔴 B2, 🔴 B3, 🔴 P1, 🔴 P2 e 🟠 P3 corrigidos em 2026-09-21 (ver
-> [CHANGELOG.md](CHANGELOG.md)). Todo o resto (P4–P10, B4–B13, O1–O7, D1–D8) é backlog.
+> **Status de execução:** 🔴 B1, 🔴 B2, 🔴 B3 e **P1–P10 inteiros** corrigidos em 2026-09-21 (ver
+> [CHANGELOG.md](CHANGELOG.md)) — a Parte 12.1 (desempenho) está 100% fechada. Resta B4–B13, O1–O7, D1–D8.
 
 ### 12.1 — Gargalos de desempenho
 
@@ -247,20 +247,20 @@ O ponto mais quente do jogo. `synergyBonuses()` (`game.js:1158`) roda três varr
 🟠 **P3 — CSS custom property escrita no `documentElement` todo tick.** *(corrigido em 2026-09-21, ver CHANGELOG)*
 `ui.js:1788-1789` escreve `--arcane-glow` a cada tick, alimentando um `radial-gradient` de tela cheia (`style.css:28`) — força repintura 10×/s por um valor que só muda em prestígio/essência. Guardar o último valor e só escrever na mudança.
 
-🟠 **P4 — `innerHTML` reconstruído por linha, por tick (~130 reparsings/s).**
+🟠 **P4 — `innerHTML` reconstruído por linha, por tick (~130 reparsings/s).** *(corrigido em 2026-09-21, ver CHANGELOG)*
 Geradores (`ui.js:1810`, até 11), salas (`ui.js:1910`, 13 — cada uma chamando `roomCostHtml` → `extRoomCostMult` → loop de 25 pesquisas), forja (`ui.js:983`), buffs (`ui.js:1672`, mesmo com zero buffs). O projeto já resolve isso em outro lugar com assinatura/comparação (`_dailySig` em `daily-ui.js:11`, `compSig` em `ui.js:445`) — falta aplicar o mesmo padrão aqui.
 
-🟠 **P5 — `Game.genMaxBuy()` chamado duas vezes por linha por tick** (`ui.js:1807-1808`) quando "Máx" está selecionado — calcular `n` uma vez e derivar `cost` dele.
+🟠 **P5 — `Game.genMaxBuy()` chamado duas vezes por linha por tick** (`ui.js:1807-1808`) quando "Máx" está selecionado — calcular `n` uma vez e derivar `cost` dele. *(corrigido em 2026-09-21, ver CHANGELOG)*
 
-🟡 **P6 — `.find()` linear sem índice por id**, repetido em `heroDps`/`roleDpsMult`/`heroArchetype`/`heroRole`/`summonDps` (`HEROES.find`), `genCost`/`genMult` (`GENERATORS.find`), `relics.js`/`bosses`/`weapon types`. `genMult()`/`globalProdMult()` também percorrem os 31 `UPGRADES` a cada chamada (~700 iterações/tick só nisso). Correção: mapas `id → def` construídos uma vez no load.
+🟡 **P6 — `.find()` linear sem índice por id**, repetido em `heroDps`/`roleDpsMult`/`heroArchetype`/`heroRole`/`summonDps` (`HEROES.find`), `genCost`/`genMult` (`GENERATORS.find`), `relics.js`/`bosses`/`weapon types`. `genMult()`/`globalProdMult()` também percorrem os 31 `UPGRADES` a cada chamada (~700 iterações/tick só nisso). Correção: mapas `id → def` construídos uma vez no load. *(corrigido em 2026-09-21, ver CHANGELOG)*
 
-🟡 **P7 — alocações descartáveis por tick**: `fieldHeroes()` (`game.js:347`, Object.keys+filter+sort, chamado 5–8×/tick — já existe `_fieldDirty`, falta cachear a lista junto), `worldInfo()` (`expansion.js:10`, ~15–20 objetos novos/tick via `extGoldMult`/`extDpsMult`/etc.), `matPerSec()`.
+🟡 **P7 — alocações descartáveis por tick**: `fieldHeroes()` (`game.js:347`, Object.keys+filter+sort, chamado 5–8×/tick — já existe `_fieldDirty`, falta cachear a lista junto), `worldInfo()` (`expansion.js:10`, ~15–20 objetos novos/tick via `extGoldMult`/`extDpsMult`/etc.), `matPerSec()`. *(`fieldHeroes()` corrigido em 2026-09-21, ver CHANGELOG; `worldInfo()`/`matPerSec()` não foram tocados — ficam de fora por ora, o ganho é menor e exigiria tocar `expansion.js` mais a fundo)*
 
-🟡 **P8 — `Game.clickAttack()` roda a cadeia de DPS inteira por clique** (`game.js:817`) — jogador clicando 10×/s dobra o custo total de CPU do jogo. Reaproveitar o `teamDps` já calculado no tick.
+🟡 **P8 — `Game.clickAttack()` roda a cadeia de DPS inteira por clique** (`game.js:817`) — jogador clicando 10×/s dobra o custo total de CPU do jogo. Reaproveitar o `teamDps` já calculado no tick. *(corrigido em 2026-09-21, ver CHANGELOG)*
 
-🟢 **P9 — `getElementById` sem cache no tick** (item 🟢 já citado na Parte 1/item 12 da lista priorizada — ainda não feito: `ui.js:1759-1794` + `updateBuffs`/`updateClosestAch`/`updateDaily`/`ensureModalSanity`/`updateWorld` somam ~16 buscas por tick).
+🟢 **P9 — `getElementById` sem cache no tick** (item 🟢 já citado na Parte 1/item 12 da lista priorizada — ainda não feito: `ui.js:1759-1794` + `updateBuffs`/`updateClosestAch`/`updateDaily`/`ensureModalSanity`/`updateWorld` somam ~16 buscas por tick). *(corrigido em 2026-09-21, ver CHANGELOG)*
 
-🟢 **P10 — `drawBaseLinks` faz layout thrashing** (`ui.js:1296-1301`): `center(idx)` chama `getBoundingClientRect()` sem memoizar, 2× por segmento. Só roda no render da Base (não no tick), mas cachear os centros antes do laço de desenho é trivial.
+🟢 **P10 — `drawBaseLinks` faz layout thrashing** (`ui.js:1296-1301`): `center(idx)` chama `getBoundingClientRect()` sem memoizar, 2× por segmento. Só roda no render da Base (não no tick), mas cachear os centros antes do laço de desenho é trivial. *(corrigido em 2026-09-21, ver CHANGELOG)*
 
 ### 12.2 — Bugs
 
@@ -319,6 +319,6 @@ Geradores (`ui.js:1810`, até 11), salas (`ui.js:1910`, 13 — cada uma chamando
 
 ### 12.5 — Ordem de execução sugerida
 
-B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — todos os três já corrigidos)* → P1 → P2 → P3 *(performance, ~80% do ganho — os três já corrigidos)* → B5 + B6 *(consistência de regra campo vs. banco)* → O1 *(decidir destino de `monetization.js`)* → D1 *(rebalancear a Árvore do Mundo)* → resto.
+B1 → B2 → B3 *(bugs silenciosos, poucas linhas cada — todos os três já corrigidos)* → P1 → P2 → P3 → P4 → P5 → P6 → P7 → P8 → P9 → P10 *(performance — toda a Parte 12.1 já corrigida, exceto o rabo pequeno de P7 em `worldInfo()`/`matPerSec()`)* → B5 + B6 *(consistência de regra campo vs. banco)* → O1 *(decidir destino de `monetization.js`)* → D1 *(rebalancear a Árvore do Mundo)* → resto.
 
 **Resumo em uma frase:** o motor cresceu 2,6× desde julho mantendo a separação de responsabilidades honesta, mas cresceu sem cache — `synergyBonuses()` sozinho queima ~400k operações/s recalculando algo que só muda quando o jogador move uma sala — e os bugs de maior impacto (import de save inerte, meta impossível, Bolsa que nunca detecta melhoria) são todos código que *parece* funcionar e nunca executa o caminho que importa.

@@ -35,7 +35,7 @@ const Game = {
     m *= 1 + 0.04 * this.roomLvl('templo') * this.baseMult(); // Templo: buff de produção global (×Castelo)
     m *= 1 + this.synergyBonuses().gold;                   // sinergia de vizinhança na Base
     m *= 1 + this.teamSynergy().prod;                      // sinergia de time (faixa 60%)
-    for (const u of UPGRADES) if (u.type === 'global' && S.upgrades[u.id]) m *= u.mult;
+    for (const u of UPGRADES_BY_TYPE.global) if (S.upgrades[u.id]) m *= u.mult;
     m *= this.extGoldMult();                               // expansão: mundo + mascotes + pesquisa
     m *= this.buffMult('prod');
     return m;
@@ -43,14 +43,14 @@ const Game = {
 
   genMult(genId) {
     let m = 1;
-    for (const u of UPGRADES) if (u.type === 'gen' && u.gen === genId && S.upgrades[u.id]) m *= u.mult;
+    for (const u of (UPGRADES_BY_GEN[genId] || [])) if (S.upgrades[u.id]) m *= u.mult;
     const owned = S.gens[genId] || 0;
     m *= Math.pow(2, Math.floor(owned / GEN_MILESTONE));   // marcos de quantidade
     return m;
   },
 
   genProd(genId) {
-    const g = GENERATORS.find(x => x.id === genId);
+    const g = GENERATORS_BY_ID[genId];
     const owned = S.gens[genId] || 0;
     return g.prod * owned * this.genMult(genId);
   },
@@ -62,7 +62,7 @@ const Game = {
   },
 
   genCost(genId, count = 1) {
-    const g = GENERATORS.find(x => x.id === genId);
+    const g = GENERATORS_BY_ID[genId];
     const owned = S.gens[genId] || 0;
     const disc = Math.max(0.5, 1 - 0.015 * this.talentLvl('barganha'));
     // trade-off de talento (AUDIT item 8): Expansão Agressiva barateia geradores, Tesouro Conservador encarece
@@ -85,11 +85,11 @@ const Game = {
 
   clickPower() {
     let base = 1;
-    for (const u of UPGRADES) if (u.type === 'click' && S.upgrades[u.id]) base *= u.mult;
+    for (const u of UPGRADES_BY_TYPE.click) if (S.upgrades[u.id]) base *= u.mult;
     base *= 1 + 0.25 * this.talentLvl('maos');
     base *= 1 + 0.02 * S.essence;
     let pct = 0;
-    for (const u of UPGRADES) if (u.type === 'clickProd' && S.upgrades[u.id]) pct += u.pct;
+    for (const u of UPGRADES_BY_TYPE.clickProd) if (S.upgrades[u.id]) pct += u.pct;
     base += this.goldPerSec() * pct;
     return base * this.buffMult('click');
   },
@@ -108,19 +108,19 @@ const Game = {
 
   // ----- Especialização de classe (Arquétipo + Arma ideal) -----
   heroArchetype(heroId) {
-    const def = HEROES.find(x => x.id === heroId);
+    const def = HEROES_BY_ID[heroId];
     return def && def.archetype ? ARCHETYPES[def.archetype] : null;
   },
 
   // ----- Papel de combate (ROLE) -----
   heroRole(heroId) {
-    const def = HEROES.find(x => x.id === heroId);
+    const def = HEROES_BY_ID[heroId];
     return def && def.role ? HERO_ROLES[def.role] : null;
   },
   // modificador do DPS PRÓPRIO do herói pelo seu papel (self-dps, fúria do berserker, área do mago).
   // Depende do estado do combate (fightT / chefe), então NÃO é cacheável — mas é O(1).
   roleDpsMult(heroId) {
-    const def = HEROES.find(x => x.id === heroId);
+    const def = HEROES_BY_ID[heroId];
     const role = def && def.role ? HERO_ROLES[def.role] : null;
     if (!role) return 1;
     const p = role.combat || {};
@@ -214,12 +214,15 @@ const Game = {
 
   recomputeSynergy() {
     const counts = { tank: 0, dps: 0, support: 0 };
-    const field = this.fieldHeroes();
+    // P7 (AUDIT.md PARTE 12): fieldHeroes() faz Object.keys+filter+sort a cada chamada, e é chamado
+    // 5-8×/tick (teamDps, summonDps, fieldSpecial, heroMini...). Calculado aqui uma vez por ciclo de
+    // _fieldDirty e cacheado em `_fieldList` — fieldHeroes() vira leitura O(1) do cache.
+    const field = this._fieldList = this._computeFieldHeroes();
     const re = { teamDps: 0, crit: 0, gold: 0, research: 0, bossTime: 0, execute: 0, summon: false, counts: {} };
     const compCounts = { kingdom: {}, element: {}, weapon: {} };
     let n = 0, matched = 0;
     for (const id of field) {
-      const def = HEROES.find(x => x.id === id);
+      const def = HEROES_BY_ID[id];
       counts[def.class]++;
       n++;
       if (this.heroMatched(id)) matched++;
@@ -323,7 +326,7 @@ const Game = {
   },
 
   heroDps(heroId) {
-    const def = HEROES.find(x => x.id === heroId);
+    const def = HEROES_BY_ID[heroId];
     const h = S.heroes[heroId];
     if (!h || h.lvl <= 0) return 0;
     return def.baseDps * h.lvl * Math.pow(2, Math.floor(h.lvl / HERO_MILESTONE)) * this.heroGearMult(heroId) * this.roleDpsMult(heroId);
@@ -335,7 +338,7 @@ const Game = {
     const army = 1 + Math.min(1.5, S.combat.kills / 1000);   // exército cresce até +150%
     let s = 0;
     for (const id of this.fieldHeroes()) {
-      const def = HEROES.find(x => x.id === id);
+      const def = HEROES_BY_ID[id];
       const role = def.role ? HERO_ROLES[def.role] : null;
       if (role && role.combat && role.combat.summon) s += this.heroDps(id) * role.combat.summon * army;
     }
@@ -344,7 +347,10 @@ const Game = {
 
   // ----- Campo de batalha / reserva -----
   // Só heróis com fieldSlot definido (0..FIELD_SLOTS-1) lutam; o resto fica na reserva.
-  fieldHeroes() {
+  // Cache em `_fieldList` (P7) — a lista só é recalculada de verdade dentro de recomputeSynergy().
+  _fieldList: [],
+  fieldHeroes() { this.ensureSynergy(); return this._fieldList; },
+  _computeFieldHeroes() {
     return Object.keys(S.heroes)
       .filter(id => S.heroes[id].fieldSlot !== null && S.heroes[id].fieldSlot !== undefined)
       .sort((a, b) => S.heroes[a].fieldSlot - S.heroes[b].fieldSlot);
@@ -423,11 +429,11 @@ const Game = {
   },
 
   heroHireCost(heroId) {
-    return HEROES.find(x => x.id === heroId).baseCost;
+    return HEROES_BY_ID[heroId].baseCost;
   },
 
   heroLvlCost(heroId, count = 1) {
-    const def = HEROES.find(x => x.id === heroId);
+    const def = HEROES_BY_ID[heroId];
     const h = S.heroes[heroId];
     const lvl = h ? h.lvl : 0;
     // trade-off de talento (AUDIT item 8): Expansão Agressiva encarece heróis, Tesouro Conservador barateia
@@ -623,7 +629,7 @@ const Game = {
     if (!item) return;
     item.affixes = [];                       // drops não têm afixos (uniformiza a forma do item)
     const h = S.heroes[item.heroId];
-    const def = HEROES.find(x => x.id === item.heroId);
+    const def = HEROES_BY_ID[item.heroId];
     const rar = RARITIES[item.rarity];
     const current = h.gear[item.slot];
     if (!current || this.itemScore(item) > this.itemScore(current)) {  // compara por "força", não só mult
@@ -768,7 +774,7 @@ const Game = {
     const h = S.heroes[heroId];
     if (!h) return false;
     const item = S.forge.inventory[idx];
-    const def = HEROES.find(x => x.id === heroId);
+    const def = HEROES_BY_ID[heroId];
     const rar = RARITIES[item.rarity];
     const old = h.gear[item.slot];
     h.gear[item.slot] = item;
@@ -811,10 +817,15 @@ const Game = {
     return true;
   },
 
+  // P8 (AUDIT.md PARTE 12): teamDps() já roda 1×/tick dentro de tick() — clicar reaproveita esse
+  // valor (até 100ms "velho") em vez de refazer a soma de DPS de todo o time por clique. Um jogador
+  // clicando 10×/s dobrava o custo total de CPU do jogo sem isso.
+  _teamDpsCache: 0,
+
   clickAttack() {
     // clicar no monstro causa dano; afixo "Letal" dá chance de crítico ×FORGE_CRIT_MULT
     this.ensureGearBonus();
-    let dmg = Math.max(1, this.teamDps() * 0.05 + this.clickPower() * 0.5);
+    let dmg = Math.max(1, this._teamDpsCache * 0.05 + this.clickPower() * 0.5);
     const critCh = Math.min(FORGE_CRIT_CAP, this.gearBonus.crit + this.extCritBonus() + this.teamRoleEffects().crit);  // afixo "Letal" + Lobo + Duelista/Assassino
     const crit = critCh > 0 && Math.random() < critCh;
     if (crit) dmg *= FORGE_CRIT_MULT;
@@ -839,7 +850,7 @@ const Game = {
     const owned = Object.keys(S.heroes);
     if (!owned.length) return;
     const id = owned[Math.floor(Math.random() * owned.length)];
-    const def = HEROES.find(x => x.id === id);
+    const def = HEROES_BY_ID[id];
     const line = def.lines[Math.floor(Math.random() * def.lines.length)];
     UI.log(`${def.icon} <b>${def.name}:</b> <i>"${line}"</i>`);
   },
@@ -863,7 +874,7 @@ const Game = {
   },
 
   buyGen(genId, count) {
-    const g = GENERATORS.find(x => x.id === genId);
+    const g = GENERATORS_BY_ID[genId];
     if (!g) return false;
     // regra de desbloqueio vive no motor, não só na UI
     if (g.reqPrestige && S.prestiges < g.reqPrestige) return false;
@@ -897,7 +908,7 @@ const Game = {
   },
 
   buyUpgrade(upId) {
-    const u = UPGRADES.find(x => x.id === upId);
+    const u = UPGRADES_BY_ID[upId];
     if (!u || S.upgrades[upId] || S.gold < u.cost) return false;
     S.gold -= u.cost;
     S.upgrades[upId] = true;
@@ -908,7 +919,7 @@ const Game = {
   },
 
   hireHero(heroId) {
-    const def = HEROES.find(x => x.id === heroId);
+    const def = HEROES_BY_ID[heroId];
     if (!def) return false;
     // regra de desbloqueio vive no motor, não só na UI
     if (def.reqPrestige && S.prestiges < def.reqPrestige) return false;
@@ -935,7 +946,7 @@ const Game = {
     const before = h.lvl;
     h.lvl += count;
     if (Math.floor(h.lvl / HERO_MILESTONE) > Math.floor(before / HERO_MILESTONE)) {
-      const def = HEROES.find(x => x.id === heroId);
+      const def = HEROES_BY_ID[heroId];
       UI.log(`${def.icon} <b>${def.name}</b> nível ${h.lvl} — DPS <b>×2</b>!`);
       const line = def.lines[Math.floor(Math.random() * def.lines.length)];
       UI.log(`${def.icon} <b>${def.name}:</b> <i>"${line}"</i>`);
@@ -1552,7 +1563,7 @@ const Game = {
     if (S.unlocked.heroes) {
       if (S.combat.hp <= 0 && S.combat.maxHp === 0) this.spawnEnemy();
       if (S.combat.hp > 0 && S.combat.maxHp > 0) S.combat.fightT = (S.combat.fightT || 0) + dt;  // fúria do Berserker
-      const dps = this.teamDps();
+      const dps = this._teamDpsCache = this.teamDps();
       if (dps > 0) this.damageEnemy(dps * dt);
       // Execução de inimigos comuns com pouca vida: papel Assassino em campo, ou Adaga ideal (arquétipo)
       const execT = this.teamRoleEffects().execute;

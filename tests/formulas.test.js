@@ -422,6 +422,7 @@ test('Bolsa: carta forjada (sem heroId) é detectada como melhoria via fieldHero
   S = defaultState();
   const heroId = HEROES[0].id;
   S.heroes[heroId] = { lvl: 10, gear: { arma: null, amuleto: null }, fieldSlot: 0 };
+  Game._fieldDirty = true;   // mutação direta de S.heroes bypassa setFieldSlot (cache P7)
   const fielders = Game.fieldHeroes();
   assertTrue(fielders.length > 0, 'herói de teste está em campo');
   const item = { uid: 999, slot: 'arma', rarity: 0, mult: 0.2, affixes: [] };  // sem heroId de propósito
