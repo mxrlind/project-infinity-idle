@@ -2,6 +2,13 @@
 
 ## Não lançado
 
+### Versionamento de cache (`?v=N`) nos scripts e no CSS
+
+O GitHub Pages serve com `max-age=600`; sem versão na URL, logo após um deploy o navegador podia
+misturar arquivos novos e antigos (ex.: `expansion.js` novo chamando `refundGold()` de um `game.js`
+antigo → TypeError). Todo `<script src>` local e o `style.css` do `index.html` agora levam `?v=N`.
+**Antes de publicar mudança em JS/CSS: `node tools/bump-version.js`** (incrementa todos de uma vez).
+
 ### D3/D4/D7 — as 3 decisões de produto pendentes do AUDIT, resolvidas com o dono do jogo
 
 **D3 (remover Fase 8)**: `PHASES` (`data.js`) perde o id 8 ("???", 100T, "teaser megaprojetos") — nunca
