@@ -60,9 +60,11 @@ const UI = {
 
   // ícone de um item de gear: arma equipada com tipo (wtype) usa a arte de img/weapons/{wtype}.jpg,
   // com fallback pro emoji da arma; amuletos (sem wtype) e tipos sem arte continuam no emoji.
+  // AUDIT B4: item.icon normalmente vem de dados confiáveis gerados em jogo, mas cartas na Forja
+  // sobrevivem a export/import — um save importado pode trazer um `icon` malicioso direto pro innerHTML.
   gearIconHtml(item) {
     if (item && item.wtype) return this.iconImgHtml(`img/weapons/${item.wtype}.jpg`, item.icon, 'gear-art');
-    return item ? item.icon : '';
+    return item ? this.esc(item.icon) : '';
   },
 
   // ---------- Tabs ----------
@@ -572,6 +574,14 @@ const UI = {
     if (!n) {
       body.appendChild(this.el('div', 'empty-hint', `${ADVISOR.icon} <b>${ADVISOR.name}:</b> <i>"Forje cartas na aba Forja — elas se acumulam aqui para você equipar quando quiser."</i>`));
       return;
+    }
+    // AUDIT B8: ao contrário dos outros listKeys de isNewRow (ids de conteúdo fixo, finito), o uid da
+    // Bolsa cresce sem limite pela sessão inteira — sem podar, o Set guardava todo item que já passou
+    // pela bolsa, mesmo vendido/equipado/desmanchado há muito tempo. A bolsa em si é sempre pequena
+    // (FORGE_INVENTORY_CAP), então basta manter só os uids ainda presentes.
+    if (this._seenIds.bag) {
+      const present = new Set(S.forge.inventory.map(i => i.uid));
+      for (const uid of this._seenIds.bag) if (!present.has(uid)) this._seenIds.bag.delete(uid);
     }
     const grid = this.el('div', 'bag-grid');
     for (const item of S.forge.inventory) grid.appendChild(this.bagCard(item));
@@ -1667,7 +1677,11 @@ const UI = {
     rb.innerHTML = '';
     this.R.resEls = {};
     for (const d of defs) {
-      if (S.res[d.k] < 1 && !(d.k !== 'cristal' && S.unlocked.base)) continue;
+      // AUDIT B12: mesma regra de antes (mostra se já tem ≥1, ou se a Base já foi desbloqueada e não
+      // é cristal — cristal só aparece quando o jogador já tem algum, é raro/late-game demais pra
+      // exibir zerado desde o início), só que sem a dupla negação `!(A && B)` que dificultava a leitura.
+      const visible = S.res[d.k] >= 1 || (d.k !== 'cristal' && S.unlocked.base);
+      if (!visible) continue;
       const row = this.el('div', 'res-row');
       row.innerHTML = `${this.iconImgHtml(`img/materials/${d.k}.jpg`, d.icon, 'res-icon')}<span class="res-name">${d.name}</span><span class="res-val">${fmt(S.res[d.k])}</span>`;
       rb.appendChild(row);
@@ -2082,8 +2096,15 @@ const UI = {
     const coin = this.el('button', 'golden-coin', '🌟');
     coin.title = 'Uma moeda dourada! Rápido!';
     const main = document.getElementById('main-panel').getBoundingClientRect();
-    coin.style.left = (main.left + 40 + Math.random() * Math.max(50, main.width - 120)) + 'px';
-    coin.style.top = (main.top + 60 + Math.random() * Math.max(50, main.height - 160)) + 'px';
+    let left = main.left + 40 + Math.random() * Math.max(50, main.width - 120);
+    let top = main.top + 60 + Math.random() * Math.max(50, main.height - 160);
+    // AUDIT B13: no mobile, o painel esquerdo aberto (☰ Recursos) pode espremer #main-panel — o cálculo
+    // acima usava o retângulo dele sem checar o resultado contra o viewport de verdade, então a moeda
+    // podia nascer colada na borda inferior ou fora da área visível. Clampa contra a janela real.
+    left = Math.min(left, window.innerWidth - 70);
+    top = Math.min(top, window.innerHeight - 70);
+    coin.style.left = left + 'px';
+    coin.style.top = top + 'px';
     coin.onclick = (ev) => {
       const res = Game.clickGolden();
       const o = this.floatOrigin(ev, coin);
@@ -2166,6 +2187,7 @@ const UI = {
     layer.classList.add('hidden');
     layer.dataset.loreOpen = '';
     layer.innerHTML = '';
+    clearInterval(this._typewriteT); // AUDIT B10: fechar no meio da digitação não parava o setInterval
   },
 
   // REDE DE SEGURANÇA (chamada a cada tick por updateDynamic).
@@ -2245,13 +2267,17 @@ const UI = {
 
   // revela o texto aos poucos (efeito de máquina de escrever); pula direto se o usuário preferir menos movimento
   typewrite(el, text) {
+    // AUDIT B10: sem parar um efeito anterior, abrir lore em sequência (várias fases de uma vez após
+    // tempo offline) acumulava um setInterval por modal — cada um continuava escrevendo (até 10s) por
+    // cima de elementos que já nem existem mais no DOM.
+    clearInterval(this._typewriteT);
     const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduced) { el.textContent = text; return; }
     let i = 0;
-    const id = setInterval(() => {
+    this._typewriteT = setInterval(() => {
       i++;
       el.textContent = text.slice(0, i);
-      if (i >= text.length) clearInterval(id);
+      if (i >= text.length) clearInterval(this._typewriteT);
     }, 18);
   },
 

@@ -164,13 +164,18 @@ function loadGame() {
   if (!raw) return null;
   try {
     const data = JSON.parse(raw);
+    // AUDIT B11: `data.v` nunca era de fato lido — SAVE_VERSION existia só como comentário, e sem
+    // reescrever `S.v` depois do merge, o save ficava congelado pra sempre na versão em que foi
+    // ESCRITO pela primeira vez, mesmo já tendo sido normalizado pro schema atual a cada load.
+    const fromVersion = data.v || 0;
     // deepMerge genérico sobre um defaultState() fresco: cobre res/combat/unlocked/world/pets/
     // research/market/npcs/codex/secrets/audio/relics/layers/worldTree recursivamente, sem precisar
     // de uma linha por campo (e sem o bug de self-merge que essas linhas tinham antes — ver
-    // deepMerge acima). SAVE_VERSION fica como o ponto de entrada pra uma futura migração que
+    // deepMerge acima). `fromVersion` fica como o ponto de entrada pra uma futura migração que
     // deepMerge não resolva sozinho (renomear/remodelar um campo em vez de só adicionar um novo):
-    // `if ((data.v || 0) < N) { /* transformação pontual daquela versão */ }` antes do deepMerge.
+    // `if (fromVersion < N) { /* transformação pontual daquela versão */ }` antes do deepMerge.
     S = deepMerge(defaultState(), data);
+    S.v = SAVE_VERSION; // o save agora reflete o schema atual (pós-merge), não a versão em que foi escrito
 
     // normalizações que não são merge simples (tipo errado, array de tamanho fixo, id inválido)
     if (!Array.isArray(S.pets.active)) S.pets.active = [];

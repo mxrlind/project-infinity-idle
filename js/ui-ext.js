@@ -275,7 +275,7 @@ Object.assign(UI, {
       const lvl = Game.npcLevel(def.id);
       const xp = S.npcs.rep[def.id] || 0;
       const nextXp = NPC_FRIEND_XP[lvl + 1];
-      const rng = Game._seededRng(w.day * 31 + def.id.charCodeAt(1));
+      const rng = Game._seededRng(w.day * 31 + Game._idSeed(def.id));
       const line = def.lines[Math.floor(rng() * def.lines.length)];
 
       const card = this.el('div', 'npc-card' + (this.isNewRow('npc', def.id) ? ' row-enter' : ''));

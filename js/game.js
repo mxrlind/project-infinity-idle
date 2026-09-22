@@ -844,11 +844,22 @@ const Game = {
     return { dmg, crit, dbl };
   },
 
+  // AUDIT B7: dano excedente (overkill) antes só matava 1 inimigo por chamada e descartava o resto —
+  // com dt capado em 2s (main.js) e o navegador estrangulando setInterval em aba de fundo pra ~1×/s,
+  // um DPS alto ficava com um teto duro de ~1 abate/tick em vez de avançar pelo tempo real decorrido.
+  // O excedente agora encadeia pro próximo inimigo (limitado por segurança, não deve ser alcançado
+  // na prática — protege contra um HP de onda absurdamente baixo virar um laço longo).
   damageEnemy(dmg) {
     const c = S.combat;
     if (c.hp <= 0) return;
     c.hp -= dmg;
-    if (c.hp <= 0) this.onEnemyKilled();
+    let chain = 0;
+    while (c.hp <= 0 && chain < DAMAGE_ENEMY_MAX_CHAIN) {
+      const overkill = -c.hp;
+      this.onEnemyKilled();
+      chain++;
+      c.hp -= overkill;
+    }
   },
 
   heroChatter() {

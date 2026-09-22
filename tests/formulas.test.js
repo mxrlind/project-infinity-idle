@@ -795,4 +795,46 @@ test('slot5 (B6): concluir a pesquisa invalida o cache de sinergia na hora, sem 
   assertEqual(Game._lastSynergy.slots, FIELD_SLOTS + 1, 'e o medidor já reflete o 5º slot sem precisar mover herói nenhum');
 });
 
+// ---------- damageEnemy overkill (AUDIT B7) ----------
+
+test('damageEnemy: dano em excesso encadeia pro próximo inimigo em vez de descartar', () => {
+  S = defaultState();
+  Game.spawnEnemy();
+  const startWave = S.combat.wave;
+  const startKills = S.combat.kills;
+  // dano gigante: precisa matar bem mais de 1 inimigo num só golpe (dt grande após aba em 2º plano)
+  Game.damageEnemy(1e15);
+  assertTrue(S.combat.kills - startKills > 1, `esperava mais de 1 abate num só golpe, teve ${S.combat.kills - startKills}`);
+  assertTrue(S.combat.wave > startWave, 'a onda avança junto com os abates em cadeia');
+  assertTrue(S.combat.hp > 0 && S.combat.hp <= S.combat.maxHp, 'termina com um inimigo válido vivo, não em HP negativo');
+});
+
+test('damageEnemy: dano exato mata só 1 inimigo (sem overkill, sem encadear à toa)', () => {
+  S = defaultState();
+  Game.spawnEnemy();
+  const startKills = S.combat.kills;
+  Game.damageEnemy(S.combat.hp);
+  assertEqual(S.combat.kills, startKills + 1, 'exatamente 1 abate quando o dano bate certinho no HP restante');
+});
+
+// ---------- _idSeed (AUDIT B9) ----------
+
+test('_idSeed: não colide entre os ids de NPC (charCodeAt(0)/(1) colidiam antes)', () => {
+  const ids = NPCS.map(n => n.id);
+  const seeds = ids.map(id => Game._idSeed(id));
+  const unique = new Set(seeds);
+  assertEqual(unique.size, ids.length, 'cada NPC precisa de um seed distinto dos outros');
+});
+
+// ---------- loadGame: versão do save (AUDIT B11) ----------
+
+test('loadGame: S.v reflete SAVE_VERSION atual após o load, não a versão em que o save foi escrito', () => {
+  S = defaultState();
+  const raw = JSON.stringify(Object.assign({}, S, { v: 1, gold: 500 }));
+  localStorage.setItem(SAVE_KEY, raw);
+  S = loadGame();
+  assertEqual(S.v, SAVE_VERSION, 'o save recarregado deve ficar marcado com a versão atual do schema');
+  assertEqual(S.gold, 500, 'e o resto do save continua carregando normalmente');
+});
+
 runTests();

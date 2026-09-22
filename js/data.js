@@ -163,6 +163,10 @@ const HERO_CLASSES = {
 const BOSS_STUDY_PER_TRY = 0.15;
 const BOSS_STUDY_MAX = 3;
 
+// AUDIT B7: teto de segurança pra Game.damageEnemy() encadear abates de overkill num só tick (dt
+// grande após aba em segundo plano, ou DPS muito acima do HP da onda) sem risco de laço longo.
+const DAMAGE_ENEMY_MAX_CHAIN = 200;
+
 const FIELD_SLOTS = 4;
 const SYNERGY_TARGET = { tank: 0.25, dps: 0.5, support: 0.25 };
 const SYNERGY_MAX_BONUS = 0.30; // (legado) compat com saves — a sinergia agora é um medidor 0–100%

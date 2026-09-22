@@ -435,6 +435,15 @@ Object.assign(Game, {
     UI.dirty.city = true;
   },
 
+  // AUDIT B9: hash de string curto (não só o 1º/2º caractere, que colide fácil — 'mercador' e 'mago'
+  // começam com 'm', 'mercador' e 'ferreiro' têm o mesmo 2º caractere 'e') usado pra semear RNG
+  // determinística por id, sem depender de multiplicadores mágicos por chamada.
+  _idSeed(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0;
+    return h;
+  },
+
   // RNG determinístico por dia (estoque igual até o dia virar, mesmo com F5)
   _seededRng(seed) {
     let a = seed >>> 0;
@@ -518,13 +527,13 @@ Object.assign(Game, {
     for (const npc of NPCS) {
       S.npcs.offers[npc.id] = this.npcDailyOffers(npc.id, day);
       const m = NPC_MISSIONS[npc.id];
-      const rng = this._seededRng(day * 104729 + npc.id.charCodeAt(0));
+      const rng = this._seededRng(day * 104729 + this._idSeed(npc.id));
       const need = Math.ceil(m.n[0] + rng() * (m.n[1] - m.n[0]));
       S.npcs.mission[npc.id] = { type: m.type, need, prog: 0, done: false, claimed: false };
       // Roadmap #10: pedido de recurso do dia (entrega manual, recompensa maior que a missão)
       const r = NPC_REQUESTS[npc.id];
       if (r) {
-        const rrng = this._seededRng(day * 613 + npc.id.charCodeAt(0) * 7 + 3);
+        const rrng = this._seededRng(day * 613 + this._idSeed(npc.id) * 7 + 3);
         const rneed = Math.ceil(r.n[0] + rrng() * (r.n[1] - r.n[0]));
         S.npcs.request[npc.id] = { res: r.res, need: rneed, claimed: false };
       }
@@ -552,8 +561,10 @@ Object.assign(Game, {
         return { o, label: `🎲 <b>Reforjar</b>: re-rola os afixos de uma carta aleatória da Bolsa`, cost: { gold: Math.ceil(eg * 15), cristal: 1 } };
       case 'enchant':
         return { o, label: `🪄 <b>Encantamento Arcano</b>: reforja os afixos do item mais raro da Bolsa com rolagem <b>perfeita</b> (sempre no topo do intervalo)`, cost: { gold: Math.ceil(eg * 40), cristal: 3, conhecimento: 40 } };
+      // AUDIT B4: o.icon/o.name normalmente vêm de NPC_MISSIONS/potions hardcoded, mas S.npcs.offers
+      // sobrevive a export/import — um save importado pode trazer uma oferta com HTML malicioso.
       case 'buff':
-        return { o, label: `${o.icon} <b>${o.name}</b>: ${o.buff === 'prod' ? 'produção' : o.buff === 'dps' ? 'DPS' : 'clique'} ×${o.mult} por ${fmtTime(o.dur)}`, cost: { gold: Math.ceil(eg * 30 * magoDisc) } };
+        return { o, label: `${UI.esc(o.icon)} <b>${UI.esc(o.name)}</b>: ${o.buff === 'prod' ? 'produção' : o.buff === 'dps' ? 'DPS' : 'clique'} ×${o.mult} por ${fmtTime(o.dur)}`, cost: { gold: Math.ceil(eg * 30 * magoDisc) } };
       case 'potion': {
         const dur = o.dur * this.researchFactor('potion');
         const power = 1 + 0.05 * this.npcLevel('alquimista');
@@ -562,7 +573,7 @@ Object.assign(Game, {
         if (o.buff) effs.push(`${buffNames[o.buff] || o.buff} ×${(o.mult * power).toFixed(1)}`);
         if (o.drop) effs.push(`drop +${Math.round(o.drop * power * 100)}%`);
         if (o.petxp) effs.push(`XP de mascote ×${(o.petxp * power).toFixed(1)}`);
-        return { o, label: `${o.icon} <b>${o.name}</b>: ${effs.join(' · ')} por ${fmtTime(dur)}`, cost: Object.assign({}, o.mats) };
+        return { o, label: `${UI.esc(o.icon)} <b>${UI.esc(o.name)}</b>: ${effs.join(' · ')} por ${fmtTime(dur)}`, cost: Object.assign({}, o.mats) };
       }
       case 'relic': {
         const cost = 3 + S.npcs.relics * 2;

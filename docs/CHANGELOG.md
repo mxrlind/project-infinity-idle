@@ -2,6 +2,50 @@
 
 ## Não lançado
 
+### Restante da Parte 12: B4, B7-B13 (bugs menores e limpeza)
+
+**B4** — dois vetores de XSS via save importado que sobreviveram ao fechamento parcial de julho:
+`gearIconHtml()` injetava `item.icon` cru no `innerHTML` (cartas na Bolsa sobrevivem a export/import),
+e a label de oferta de NPC (`buff`/`potion`) injetava `o.icon`/`o.name` sem escapar (`S.npcs.offers`
+também sobrevive a import). Ambos passam por `UI.esc()` agora. Só afeta quem importa o próprio save
+editado — self-XSS, mas é execução de código, categoria diferente de "editei meu ouro no console"
+(ver `ARCHITECTURE.md`).
+
+**B7** — `Game.damageEnemy()` só matava 1 inimigo por chamada e descartava o excedente. Com `dt`
+capado em 2s (aba em 2º plano) e o navegador estrangulando `setInterval` pra ~1×/s nesse estado, DPS
+alto ficava com um teto duro de ~1 abate por tick real, em vez de acompanhar o tempo decorrido. Agora
+o dano excedente encadeia pro próximo inimigo (limite de segurança `DAMAGE_ENEMY_MAX_CHAIN=200`).
+
+**B8** — `UI._seenIds.bag` usa `item.uid` (monotonicamente crescente) como chave e nunca encolhia —
+único listKey de `isNewRow` com esse formato; os outros usam id de conteúdo fixo e finito. `renderBag`
+agora poda os uids que não estão mais na Bolsa antes de cada render.
+
+**B9** — seed de diálogo de NPC (`ui-ext.js`) usava `def.id.charCodeAt(1)`, e 'mercador'/'ferreiro'
+têm o mesmo 2º caractere ('e') — colidiam todo dia. `Game._idSeed()` novo (hash de string simples,
+não 1-2 caracteres) substitui esse ponto e os outros dois com o mesmo risco (`ensureNpcDay`, que já
+colidia 'mercador'/'mago' no 1º caractere).
+
+**B10** — `typewrite()` não guardava o `setInterval` do efeito de máquina de escrever: fechar o modal
+no meio da digitação deixava escrevendo (até 10s) sobre um elemento já removido, e abrir lore em
+sequência acumulava um interval por modal. Guardado em `this._typewriteT`, limpo em `closeModal()` e
+no início de cada `typewrite()` novo.
+
+**B11** — `SAVE_VERSION` nunca era realmente lido em `loadGame()` (só documentado em comentário), e
+`S.v` ficava congelado na versão em que o save foi escrito pela primeira vez, mesmo já normalizado
+pro schema atual a cada load via `deepMerge`. Agora `S.v = SAVE_VERSION` depois do merge, e
+`fromVersion` (capturado antes) é o ponto de entrada real pra uma futura migração não-aditiva.
+
+**B12** — dupla negação (`!(A && B)`) na regra de visibilidade de recursos (`renderLeft`) reescrita
+como uma condição positiva equivalente, sem mudar o comportamento.
+
+**B13** — `spawnGoldenCoin()` calculava a posição só a partir do retângulo de `#main-panel`; no
+mobile, com o painel de Recursos aberto (`#left-panel.open`), `#main-panel` podia ser espremido a
+altura zero (`min-height:30vh` novo no CSS evita isso) e a moeda podia nascer fora da área visível —
+agora a posição também é clampada contra o viewport real.
+
+Testes 65 → **69** (2 de B7 — overkill encadeia / dano exato mata só 1 —, 1 de B9 — sem colisão de
+seed entre NPCs —, 1 de B11 — `S.v` reflete a versão atual pós-load).
+
 ### Árvore do Mundo: 2/3 do conteúdo estava matematicamente inalcançável (AUDIT PARTE 12, D1)
 
 `WORLD_TREE.costAt()` usava bases 1.15/1.20/1.28/1.32 (essência/conhecimento/madeira/cristal) com

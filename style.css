@@ -1365,7 +1365,10 @@ img.rc-icon   { width: 44px; height: 44px; object-fit: cover; border-radius: 8px
   }
   #left-panel.open #left-extra { display: block; }
 
-  #main-panel { flex: 1 1 auto; min-height: 0; }
+  /* AUDIT B13: com #left-panel.open (Recursos) mostrando #left-extra por inteiro, o conteúdo do
+     painel esquerdo podia superar a altura disponível e espremer #main-panel a 0 — nada do jogo
+     (incluindo a moeda dourada) ficava visível/clicável enquanto o painel estivesse aberto. */
+  #main-panel { flex: 1 1 auto; min-height: 30vh; }
 
   /* Alvos de toque confortáveis no celular (~44px, recomendação de acessibilidade) — só afeta o mobile */
   .buy-btn { min-height: 44px; }
